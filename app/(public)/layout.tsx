@@ -1,5 +1,6 @@
 import { PublicHeader } from '@/components/layout/public-header';
 import { PublicFooter } from '@/components/layout/public-footer';
+import { AIWrapper } from '@/components/ai/ai-wrapper';
 
 export default function PublicLayout({
   children,
@@ -13,6 +14,7 @@ export default function PublicLayout({
         {children}
       </main>
       <PublicFooter />
+      <AIWrapper />
     </div>
   );
 }

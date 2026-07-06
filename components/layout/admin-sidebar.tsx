@@ -26,6 +26,7 @@ import {
   Clock,
   Mail,
   Image,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/providers';
@@ -99,6 +100,7 @@ const adminNav = [
     items: [
       { name: 'Pracownicy', href: '/admin/pracownicy', icon: Users },
       { name: 'Ustawienia', href: '/admin/ustawienia', icon: Settings },
+      { name: 'AI Asystent', href: '/admin/ai', icon: Bot },
       { name: 'Powiadomienia', href: '/admin/powiadomienia', icon: Bell },
     ],
   },

@@ -833,6 +833,183 @@ export interface Database {
           created_at?: string;
         };
       };
+      ai_conversations: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          session_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          session_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          session_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      ai_messages: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          role: 'user' | 'assistant' | 'system';
+          content: string;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          role: 'user' | 'assistant' | 'system';
+          content: string;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          role?: 'user' | 'assistant' | 'system';
+          content?: string;
+          metadata?: Json;
+          created_at?: string;
+        };
+      };
+      ai_feedback: {
+        Row: {
+          id: string;
+          message_id: string;
+          user_id: string | null;
+          rating: number | null;
+          comment: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          message_id: string;
+          user_id?: string | null;
+          rating?: number | null;
+          comment?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          message_id?: string;
+          user_id?: string | null;
+          rating?: number | null;
+          comment?: string | null;
+          created_at?: string;
+        };
+      };
+      ai_logs: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          conversation_id: string | null;
+          question_type: string | null;
+          query: string;
+          response_time_ms: number | null;
+          tokens_used: number | null;
+          model: string | null;
+          success: boolean | null;
+          error_message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          conversation_id?: string | null;
+          question_type?: string | null;
+          query: string;
+          response_time_ms?: number | null;
+          tokens_used?: number | null;
+          model?: string | null;
+          success?: boolean | null;
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          conversation_id?: string | null;
+          question_type?: string | null;
+          query?: string;
+          response_time_ms?: number | null;
+          tokens_used?: number | null;
+          model?: string | null;
+          success?: boolean | null;
+          error_message?: string | null;
+          created_at?: string;
+        };
+      };
+      ai_settings: {
+        Row: {
+          id: string;
+          setting_key: string;
+          setting_value: string;
+          description: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          setting_key: string;
+          setting_value: string;
+          description?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          setting_key?: string;
+          setting_value?: string;
+          description?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+      };
+      ai_file_uploads: {
+        Row: {
+          id: string;
+          conversation_id: string;
+          user_id: string | null;
+          file_name: string;
+          file_type: string;
+          file_size: number | null;
+          file_url: string | null;
+          analysis_result: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          user_id?: string | null;
+          file_name: string;
+          file_type: string;
+          file_size?: number | null;
+          file_url?: string | null;
+          analysis_result?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          user_id?: string | null;
+          file_name?: string;
+          file_type?: string;
+          file_size?: number | null;
+          file_url?: string | null;
+          analysis_result?: Json;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -865,3 +1042,9 @@ export type Settings = Database['public']['Tables']['settings']['Row'];
 export type DiscountCode = Database['public']['Tables']['discount_codes']['Row'];
 export type PortfolioItem = Database['public']['Tables']['portfolio_items']['Row'];
 export type ContactSubmission = Database['public']['Tables']['contact_submissions']['Row'];
+export type AIConversation = Database['public']['Tables']['ai_conversations']['Row'];
+export type AIMessage = Database['public']['Tables']['ai_messages']['Row'];
+export type AIFeedback = Database['public']['Tables']['ai_feedback']['Row'];
+export type AILog = Database['public']['Tables']['ai_logs']['Row'];
+export type AISettings = Database['public']['Tables']['ai_settings']['Row'];
+export type AIFileUpload = Database['public']['Tables']['ai_file_uploads']['Row'];

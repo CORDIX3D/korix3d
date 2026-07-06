@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PublicHeader } from '@/components/layout/public-header';
 import { CustomerSidebar } from '@/components/layout/customer-sidebar';
 import { useAuth } from '@/lib/providers';
+import { AIWrapper } from '@/components/ai/ai-wrapper';
 
 export default function CustomerLayout({
   children,
@@ -41,6 +42,7 @@ export default function CustomerLayout({
           {children}
         </main>
       </div>
+      <AIWrapper />
     </div>
   );
 }

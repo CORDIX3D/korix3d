@@ -1,13 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/lib/providers';
-
-const inter = Inter({
-  subsets: ['latin', 'latin-ext'],
-  variable: '--font-inter',
-});
 
 export const metadata: Metadata = {
   title: 'KORIX3D - Profesjonalny Druk 3D | Od pomysłu do rzeczywistości',
@@ -73,7 +67,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pl" className="dark">
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <AuthProvider>
           {children}
           <Toaster position="top-right" richColors closeButton />

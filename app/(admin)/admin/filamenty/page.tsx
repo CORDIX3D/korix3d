@@ -303,7 +303,7 @@ export default function AdminFilamentsPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="form-label">Cena zakupu (zł)</label>
+                    <label className="form-label">Cena zakupu szpulki (zł)</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -510,6 +510,16 @@ export default function AdminFilamentsPage() {
                       <span className="text-muted-foreground">{percentage.toFixed(0)}%</span>
                     </div>
                   </div>
+
+
+                  {filament.price_paid && filament.original_weight_grams && (
+                    <div className="flex items-center justify-between text-sm mb-4">
+                      <span className="text-muted-foreground">Cena z kilograma</span>
+                      <span className="font-semibold text-foreground">
+                        {((filament.price_paid / filament.original_weight_grams) * 1000).toFixed(2)} zł/kg
+                      </span>
+                    </div>
+                  )}
 
                   {/* Location */}
                   {filament.location && (

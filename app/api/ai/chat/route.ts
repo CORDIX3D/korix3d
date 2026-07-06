@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';

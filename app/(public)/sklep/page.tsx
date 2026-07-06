@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,7 +42,7 @@ const sortOptions = [
   { value: 'popular', label: 'Najpopularniejsze' },
 ];
 
-export default function ShopPage() {
+function ShopPageContent() {
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get('k');
 
@@ -352,6 +352,14 @@ export default function ShopPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <ShopPageContent />
+    </Suspense>
   );
 }
 

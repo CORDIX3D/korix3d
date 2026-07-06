@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import {
   ShoppingBag,
   DollarSign,
@@ -15,6 +16,9 @@ import {
   Clock,
   CheckCircle2,
   ArrowUpRight,
+  Brain,
+  Target,
+  AlertCircle,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -62,6 +66,18 @@ interface DashboardStats {
   lowFilamentSpools: number;
 }
 
+interface ExecutiveReportWidget {
+  id: string;
+  report_month: string;
+  scores: {
+    overallScore: number;
+    financialHealth: number;
+    productionEfficiency: number;
+    businessGrowth: number;
+  } | null;
+  notifications: Array<{ type: string; title: string; message: string }> | null;
+}
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     totalRevenue: 0,
@@ -77,6 +93,7 @@ export default function AdminDashboardPage() {
     lowFilamentSpools: 0,
   });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [latestReport, setLatestReport] = useState<ExecutiveReportWidget | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -143,6 +160,17 @@ export default function AdminDashboardPage() {
       });
 
       setRecentOrders(orders || []);
+
+      // Fetch latest executive report
+      const { data: executiveReports } = await supabase
+        .from('executive_reports')
+        .select('id, report_month, scores, notifications')
+        .order('report_month', { ascending: false })
+        .limit(1);
+
+      if (executiveReports && executiveReports.length > 0) {
+        setLatestReport(executiveReports[0] as ExecutiveReportWidget);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -360,6 +388,81 @@ export default function AdminDashboardPage() {
             </Card>
           )}
         </div>
+      )}
+
+      {/* AI Executive Report Widget */}
+      {latestReport && (
+        <Card className="bg-gradient-to-r from-primary/10 to-orange-600/10 border-primary/20">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-orange-600 flex items-center justify-center">
+                  <Brain className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">AI Executive Report</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Najnowsza analiza AI - {new Date(latestReport.report_month).toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+              <Link href="/admin/raporty-executive">
+                <Button variant="outline" size="sm">
+                  Zobacz raport
+                  <ArrowUpRight className="w-4 h-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-4 gap-4 mb-4">
+              <div className="text-center">
+                <div className={`text-3xl font-bold ${latestReport.scores?.overallScore && latestReport.scores.overallScore >= 70 ? 'text-green-400' : latestReport.scores?.overallScore && latestReport.scores.overallScore >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {latestReport.scores?.overallScore || 0}
+                </div>
+                <div className="text-xs text-muted-foreground">Ocena ogólna</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${latestReport.scores?.financialHealth && latestReport.scores.financialHealth >= 70 ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {latestReport.scores?.financialHealth || 0}
+                </div>
+                <div className="text-xs text-muted-foreground">Finanse</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${latestReport.scores?.productionEfficiency && latestReport.scores.productionEfficiency >= 70 ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {latestReport.scores?.productionEfficiency || 0}
+                </div>
+                <div className="text-xs text-muted-foreground">Produkcja</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${latestReport.scores?.businessGrowth && latestReport.scores.businessGrowth >= 70 ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {latestReport.scores?.businessGrowth || 0}
+                </div>
+                <div className="text-xs text-muted-foreground">Wzrost</div>
+              </div>
+            </div>
+
+            {latestReport.notifications && latestReport.notifications.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Alerty AI</p>
+                <div className="flex flex-wrap gap-2">
+                  {latestReport.notifications.slice(0, 3).map((n, i) => (
+                    <div key={i} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs ${
+                      n.type === 'critical' ? 'bg-red-500/20 text-red-400' :
+                      n.type === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
+                      n.type === 'success' ? 'bg-green-500/20 text-green-400' :
+                      'bg-blue-500/20 text-blue-400'
+                    }`}>
+                      {n.type === 'critical' && <AlertCircle className="w-3 h-3" />}
+                      {n.type === 'warning' && <AlertTriangle className="w-3 h-3" />}
+                      {n.type === 'success' && <CheckCircle2 className="w-3 h-3" />}
+                      {n.title}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Charts Row */}

@@ -1010,6 +1010,310 @@ export interface Database {
           created_at?: string;
         };
       };
+      accounting_reports: {
+        Row: {
+          id: string;
+          report_month: string;
+          report_year: number;
+          report_type: string;
+          file_name: string;
+          file_path: string;
+          file_size: number | null;
+          status: string;
+          generated_at: string;
+          generated_by: string | null;
+          sent_to: string[] | null;
+          sent_at: string | null;
+          metadata: Json;
+          summary: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          report_month: string;
+          report_year: number;
+          report_type?: string;
+          file_name: string;
+          file_path: string;
+          file_size?: number | null;
+          status?: string;
+          generated_at?: string;
+          generated_by?: string | null;
+          sent_to?: string[] | null;
+          sent_at?: string | null;
+          metadata?: Json;
+          summary?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          report_month?: string;
+          report_year?: number;
+          report_type?: string;
+          file_name?: string;
+          file_path?: string;
+          file_size?: number | null;
+          status?: string;
+          generated_at?: string;
+          generated_by?: string | null;
+          sent_to?: string[] | null;
+          sent_at?: string | null;
+          metadata?: Json;
+          summary?: Json;
+          created_at?: string;
+        };
+      };
+      report_schedules: {
+        Row: {
+          id: string;
+          schedule_type: string;
+          active: boolean | null;
+          last_run: string | null;
+          next_run: string | null;
+          config: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          schedule_type: string;
+          active?: boolean | null;
+          last_run?: string | null;
+          next_run?: string | null;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          schedule_type?: string;
+          active?: boolean | null;
+          last_run?: string | null;
+          next_run?: string | null;
+          config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      report_recipients: {
+        Row: {
+          id: string;
+          email: string;
+          name: string | null;
+          active: boolean | null;
+          reports: string[] | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          name?: string | null;
+          active?: boolean | null;
+          reports?: string[] | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          name?: string | null;
+          active?: boolean | null;
+          reports?: string[] | null;
+          created_at?: string;
+        };
+      };
+      financial_cache: {
+        Row: {
+          id: string;
+          cache_key: string;
+          cache_data: Json;
+          period_start: string;
+          period_end: string;
+          created_at: string;
+          expires_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          cache_key: string;
+          cache_data: Json;
+          period_start: string;
+          period_end: string;
+          created_at?: string;
+          expires_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          cache_key?: string;
+          cache_data?: Json;
+          period_start?: string;
+          period_end?: string;
+          created_at?: string;
+          expires_at?: string | null;
+        };
+      };
+      executive_reports: {
+        Row: {
+          id: string;
+          report_month: string;
+          report_year: number;
+          title: string;
+          summary: string;
+          full_report: Json;
+          scores: Json;
+          recommendations: Json;
+          risks: Json;
+          forecast: Json;
+          insights: Json;
+          notifications: Json;
+          status: string;
+          generated_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          report_month: string;
+          report_year: number;
+          title: string;
+          summary: string;
+          full_report?: Json;
+          scores?: Json;
+          recommendations?: Json;
+          risks?: Json;
+          forecast?: Json;
+          insights?: Json;
+          notifications?: Json;
+          status?: string;
+          generated_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          report_month?: string;
+          report_year?: number;
+          title?: string;
+          summary?: string;
+          full_report?: Json;
+          scores?: Json;
+          recommendations?: Json;
+          risks?: Json;
+          forecast?: Json;
+          insights?: Json;
+          notifications?: Json;
+          status?: string;
+          generated_at?: string;
+          created_at?: string;
+        };
+      };
+      ai_scores_history: {
+        Row: {
+          id: string;
+          report_id: string | null;
+          report_month: string;
+          financial_health: number;
+          production_efficiency: number;
+          warehouse_management: number;
+          customer_satisfaction: number;
+          business_growth: number;
+          overall_score: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          report_id?: string | null;
+          report_month: string;
+          financial_health?: number;
+          production_efficiency?: number;
+          warehouse_management?: number;
+          customer_satisfaction?: number;
+          business_growth?: number;
+          overall_score?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          report_id?: string | null;
+          report_month?: string;
+          financial_health?: number;
+          production_efficiency?: number;
+          warehouse_management?: number;
+          customer_satisfaction?: number;
+          business_growth?: number;
+          overall_score?: number;
+          created_at?: string;
+        };
+      };
+      ai_notifications: {
+        Row: {
+          id: string;
+          report_id: string | null;
+          type: string;
+          title: string;
+          message: string;
+          priority: string;
+          read: boolean | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          report_id?: string | null;
+          type: string;
+          title: string;
+          message: string;
+          priority?: string;
+          read?: boolean | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          report_id?: string | null;
+          type?: string;
+          title?: string;
+          message?: string;
+          priority?: string;
+          read?: boolean | null;
+          created_at?: string;
+        };
+      };
+      monthly_trends: {
+        Row: {
+          id: string;
+          report_month: string;
+          revenue: number;
+          expenses: number;
+          profit: number;
+          orders: number;
+          customers_new: number;
+          production_hours: number;
+          utilization: number;
+          margin: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          report_month: string;
+          revenue?: number;
+          expenses?: number;
+          profit?: number;
+          orders?: number;
+          customers_new?: number;
+          production_hours?: number;
+          utilization?: number;
+          margin?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          report_month?: string;
+          revenue?: number;
+          expenses?: number;
+          profit?: number;
+          orders?: number;
+          customers_new?: number;
+          production_hours?: number;
+          utilization?: number;
+          margin?: number;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -1048,3 +1352,11 @@ export type AIFeedback = Database['public']['Tables']['ai_feedback']['Row'];
 export type AILog = Database['public']['Tables']['ai_logs']['Row'];
 export type AISettings = Database['public']['Tables']['ai_settings']['Row'];
 export type AIFileUpload = Database['public']['Tables']['ai_file_uploads']['Row'];
+export type AccountingReport = Database['public']['Tables']['accounting_reports']['Row'];
+export type ReportSchedule = Database['public']['Tables']['report_schedules']['Row'];
+export type ReportRecipient = Database['public']['Tables']['report_recipients']['Row'];
+export type FinancialCache = Database['public']['Tables']['financial_cache']['Row'];
+export type ExecutiveReport = Database['public']['Tables']['executive_reports']['Row'];
+export type AIScoresHistory = Database['public']['Tables']['ai_scores_history']['Row'];
+export type AINotification = Database['public']['Tables']['ai_notifications']['Row'];
+export type MonthlyTrend = Database['public']['Tables']['monthly_trends']['Row'];

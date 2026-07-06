@@ -27,6 +27,8 @@ import {
   Mail,
   Image,
   Bot,
+  FileSpreadsheet,
+  Brain,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/providers';
@@ -101,6 +103,8 @@ const adminNav = [
       { name: 'Pracownicy', href: '/admin/pracownicy', icon: Users },
       { name: 'Ustawienia', href: '/admin/ustawienia', icon: Settings },
       { name: 'AI Asystent', href: '/admin/ai', icon: Bot },
+      { name: 'Księgowość', href: '/admin/ksiegowosc', icon: FileSpreadsheet },
+      { name: 'AI Raporty', href: '/admin/raporty-executive', icon: Brain },
       { name: 'Powiadomienia', href: '/admin/powiadomienia', icon: Bell },
     ],
   },

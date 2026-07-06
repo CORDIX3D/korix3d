@@ -8,7 +8,7 @@ import {
   Users,
   Package,
   FileText,
- Layers,
+  Layers,
   Box,
   Settings,
   ChevronLeft,
@@ -23,6 +23,9 @@ import {
   BarChart3,
   Building2,
   Palette,
+  Clock,
+  Mail,
+  Image,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/providers';
@@ -100,10 +103,6 @@ const adminNav = [
     ],
   },
 ];
-
-import { Clock } from 'lucide-react';
-import { Mail } from 'lucide-react';
-import { Image } from 'lucide-react';
 
 export function AdminSidebar() {
   const pathname = usePathname();

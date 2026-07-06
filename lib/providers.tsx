@@ -1,8 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import { Profile } from '@/lib/types/database';
 
 interface AuthContextType {
@@ -28,7 +28,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const supabase = createClient();
+
+  const fetchProfile = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -45,31 +47,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Error:', err);
       return null;
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const profileData = await fetchProfile(session.user.id);
-        setProfile(profileData);
-      }
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+    // Get initial session and set up auth listener
+    const getInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user ?? null);
+
         if (session?.user) {
           const profileData = await fetchProfile(session.user.id);
           setProfile(profileData);
+        }
+      } catch (error) {
+        console.error('Error getting session:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getInitialSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          // Use async IIFE to avoid deadlock
+          (async () => {
+            const profileData = await fetchProfile(session.user.id);
+            setProfile(profileData);
+          })();
         } else {
           setProfile(null);
         }
+
         setLoading(false);
       }
     );
@@ -77,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile, supabase.auth]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -85,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
       });
-      return { error };
+      return { error: error as Error | null };
     } catch (err) {
       return { error: err as Error };
     }
@@ -102,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         },
       });
-      return { error };
+      return { error: error as Error | null };
     } catch (err) {
       return { error: err as Error };
     }
@@ -118,9 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
       });
-      return { error };
+      return { error: error as Error | null };
     } catch (err) {
       return { error: err as Error };
     }

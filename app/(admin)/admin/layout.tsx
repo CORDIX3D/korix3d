@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminSidebar } from '@/components/layout/admin-sidebar';
+import { AdminQuickNav } from '@/components/layout/admin-quick-nav';
 import { useAuth } from '@/lib/providers';
 import { Toaster } from '@/components/ui/sonner';
 import { AIWrapper } from '@/components/ai/ai-wrapper';
@@ -43,6 +44,7 @@ export default function AdminLayout({
       <AdminSidebar />
       <main className="lg:ml-72 min-h-screen transition-all">
         <div className="p-4 sm:p-6 lg:p-8">
+          <AdminQuickNav />
           {children}
         </div>
       </main>

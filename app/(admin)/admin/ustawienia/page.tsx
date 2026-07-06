@@ -37,6 +37,27 @@ interface SettingItem {
   category: string;
 }
 
+const SETTING_DEFINITIONS = [
+  { key: 'company_name', label: 'Nazwa firmy', category: 'general', defaultValue: 'KORIX3D' },
+  { key: 'company_slogan', label: 'Slogan', category: 'general', defaultValue: '' },
+  { key: 'company_email', label: 'Email kontaktowy', category: 'general', defaultValue: '' },
+  { key: 'company_phone', label: 'Telefon', category: 'general', defaultValue: '' },
+  { key: 'company_address', label: 'Adres', category: 'general', defaultValue: '' },
+  { key: 'printing_hour_cost', label: 'Koszt godziny druku', category: 'pricing', defaultValue: '50' },
+  { key: 'electricity_hour_cost', label: 'Koszt energii na godzinę', category: 'pricing', defaultValue: '2' },
+  { key: 'maintenance_hour_cost', label: 'Koszt utrzymania maszyny', category: 'pricing', defaultValue: '5' },
+  { key: 'packaging_cost', label: 'Koszt opakowania', category: 'pricing', defaultValue: '5' },
+  { key: 'default_margin', label: 'Domyślna marża', category: 'pricing', defaultValue: '30' },
+  { key: 'vat_rate', label: 'Stawka VAT', category: 'pricing', defaultValue: '23' },
+  { key: 'minimum_order_value', label: 'Minimalna wartość zamówienia', category: 'pricing', defaultValue: '0' },
+  { key: 'free_shipping_threshold', label: 'Próg darmowej wysyłki', category: 'shipping', defaultValue: '200' },
+  { key: 'social_facebook', label: 'Facebook', category: 'social', defaultValue: '' },
+  { key: 'social_instagram', label: 'Instagram', category: 'social', defaultValue: '' },
+  { key: 'social_linkedin', label: 'LinkedIn', category: 'social', defaultValue: '' },
+  { key: 'seo_title', label: 'Tytuł strony', category: 'seo', defaultValue: 'KORIX3D' },
+  { key: 'seo_description', label: 'Opis strony', category: 'seo', defaultValue: '' },
+] as const;
+
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<SettingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,20 +71,27 @@ export default function AdminSettingsPage() {
 
   const fetchSettings = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('settings')
       .select('*')
       .order('category')
       .order('key');
 
-    if (data) {
-      setSettings(data as SettingItem[]);
-      const formValues: Record<string, string> = {};
-      data.forEach((s) => {
-        formValues[s.key] = s.value || '';
-      });
-      setFormData(formValues);
+    if (error) {
+      toast.error('Nie udało się pobrać ustawień', { description: error.message });
+      setLoading(false);
+      return;
     }
+
+    const storedSettings = (data || []) as SettingItem[];
+    setSettings(storedSettings);
+    const formValues = Object.fromEntries(
+      SETTING_DEFINITIONS.map((definition) => [
+        definition.key,
+        storedSettings.find((setting) => setting.key === definition.key)?.value ?? definition.defaultValue,
+      ])
+    );
+    setFormData(formValues);
     setLoading(false);
   };
 
@@ -71,14 +99,22 @@ export default function AdminSettingsPage() {
     setSaving(true);
     let hasError = false;
 
-    for (const [key, value] of Object.entries(formData)) {
-      const { error } = await supabase
-        .from('settings')
-        .update({ value })
-        .eq('key', key);
+    for (const definition of SETTING_DEFINITIONS) {
+      const value = formData[definition.key] ?? definition.defaultValue;
+      const existingSetting = settings.find((setting) => setting.key === definition.key);
+      const query = existingSetting
+        ? supabase.from('settings').update({ value }).eq('id', existingSetting.id)
+        : supabase.from('settings').insert({
+            key: definition.key,
+            value,
+            label: definition.label,
+            category: definition.category,
+          });
+      const { error } = await query;
 
       if (error) {
-        console.error(`Error updating ${key}:`, error);
+        console.error(`Error updating ${definition.key}:`, error);
+        toast.error(`Nie zapisano: ${definition.label}`, { description: error.message });
         hasError = true;
       }
     }
@@ -87,12 +123,9 @@ export default function AdminSettingsPage() {
       toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
     } else {
       toast.success('Ustawienia zapisane');
+      await fetchSettings();
     }
     setSaving(false);
-  };
-
-  const getSetting = (key: string): SettingItem | undefined => {
-    return settings.find((s) => s.key === key);
   };
 
   const getValue = (key: string): string => {
@@ -102,12 +135,6 @@ export default function AdminSettingsPage() {
   const setValue = (key: string, value: string) => {
     setFormData({ ...formData, [key]: value });
   };
-
-  const pricingSettings = settings.filter((s) => s.category === 'pricing');
-  const generalSettings = settings.filter((s) => s.category === 'general');
-  const shippingSettings = settings.filter((s) => s.category === 'shipping');
-  const socialSettings = settings.filter((s) => s.category === 'social');
-  const seoSettings = settings.filter((s) => s.category === 'seo');
 
   return (
     <div className="space-y-6">

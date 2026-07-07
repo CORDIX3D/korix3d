@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,10 +12,11 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Box, Edit, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Box, Edit, ImagePlus, Loader2, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { Material } from '@/lib/types/database';
 import { toast } from 'sonner';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 
 const slugify = (value: string) =>
   value
@@ -32,6 +33,9 @@ export default function AdminMaterialsPage() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -64,7 +68,10 @@ export default function AdminMaterialsPage() {
   };
 
   const resetForm = () => {
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setEditingMaterial(null);
+    setImageFile(null);
+    setImagePreview('');
     setFormData({
       name: '',
       description: '',
@@ -79,6 +86,8 @@ export default function AdminMaterialsPage() {
 
   const openEditDialog = (material: Material) => {
     setEditingMaterial(material);
+    setImageFile(null);
+    setImagePreview(material.image_url || '');
     setFormData({
       name: material.name,
       description: material.description || '',
@@ -90,6 +99,36 @@ export default function AdminMaterialsPage() {
       bed_temp_max: material.bed_temp_max?.toString() || '',
     });
     setDialogOpen(true);
+  };
+
+  useEffect(() => () => {
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return void toast.error('Wybierz plik graficzny');
+    if (file.size > 5 * 1024 * 1024) return void toast.error('Zdjęcie może mieć maksymalnie 5 MB');
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview('');
+    setFormData((current) => ({ ...current, image_url: '' }));
+  };
+
+  const uploadImage = async (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `materials/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from('product-images').upload(path, file, { cacheControl: '3600', contentType: file.type, upsert: false });
+    if (error) throw error;
+    return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
   };
 
   const optionalNumber = (value: string) => {
@@ -106,32 +145,35 @@ export default function AdminMaterialsPage() {
       return;
     }
 
-    const data = {
-      name,
-      slug: editingMaterial?.slug || slugify(name),
-      description: formData.description.trim() || null,
-      price_per_kg: pricePerKg,
-      image_url: formData.image_url.trim() || null,
-      print_temp_min: optionalNumber(formData.print_temp_min),
-      print_temp_max: optionalNumber(formData.print_temp_max),
-      bed_temp_min: optionalNumber(formData.bed_temp_min),
-      bed_temp_max: optionalNumber(formData.bed_temp_max),
-      available: true,
-      updated_at: new Date().toISOString(),
-    };
-
-    const result = editingMaterial
-      ? await supabase.from('materials').update(data).eq('id', editingMaterial.id)
-      : await supabase.from('materials').insert([data]);
-
-    if (result.error) {
-      toast.error('Błąd zapisu', { description: result.error.message });
-      return;
+    setSaving(true);
+    try {
+      const imageUrl = imageFile ? await uploadImage(imageFile) : formData.image_url.trim() || null;
+      const data = {
+        name,
+        slug: editingMaterial?.slug || slugify(name),
+        description: formData.description.trim() || null,
+        price_per_kg: pricePerKg,
+        image_url: imageUrl,
+        print_temp_min: optionalNumber(formData.print_temp_min),
+        print_temp_max: optionalNumber(formData.print_temp_max),
+        bed_temp_min: optionalNumber(formData.bed_temp_min),
+        bed_temp_max: optionalNumber(formData.bed_temp_max),
+        available: true,
+        updated_at: new Date().toISOString(),
+      };
+      const result = editingMaterial
+        ? await supabase.from('materials').update(data).eq('id', editingMaterial.id)
+        : await supabase.from('materials').insert([data]);
+      if (result.error) throw result.error;
+      toast.success(editingMaterial ? 'Materiał zaktualizowany' : 'Materiał dodany do wyceny');
+      setDialogOpen(false);
+      resetForm();
+      fetchMaterials();
+    } catch (error) {
+      toast.error('Błąd zapisu', { description: error instanceof Error ? error.message : 'Nie udało się zapisać materiału' });
+    } finally {
+      setSaving(false);
     }
-    toast.success(editingMaterial ? 'Materiał zaktualizowany' : 'Materiał dodany do wyceny');
-    setDialogOpen(false);
-    resetForm();
-    fetchMaterials();
   };
 
   const toggleAvailable = async (material: Material) => {
@@ -174,14 +216,28 @@ export default function AdminMaterialsPage() {
                   <div className="space-y-2"><label className="form-label">Cena z kilograma (zł/kg) *</label><Input type="number" step="0.01" min="0" value={formData.price_per_kg} onChange={(e) => setFormData({ ...formData, price_per_kg: e.target.value })} className="h-11 bg-secondary border-border" /></div>
                 </div>
                 <div className="space-y-2"><label className="form-label">Opis</label><textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full h-24 bg-secondary border border-border rounded-lg p-3 text-foreground" /></div>
-                <div className="space-y-2"><label className="form-label">Zdjęcie materiału - URL</label><Input value={formData.image_url} onChange={(e) => setFormData({ ...formData, image_url: e.target.value })} placeholder="https://..." className="h-11 bg-secondary border-border" /></div>
+                <div className="space-y-2">
+                  <label className="form-label">Zdjęcie materiału</label>
+                  {imagePreview ? <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
+                    <OptimizedImage src={imagePreview} alt="Podgląd zdjęcia materiału" className="h-28 w-28 rounded-md border object-cover" sizes="112px" />
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" asChild><label className="cursor-pointer"><ImagePlus className="mr-2 h-4 w-4" />Zmień zdjęcie<input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} /></label></Button>
+                      <Button type="button" variant="outline" onClick={removeImage}><Trash2 className="mr-2 h-4 w-4" />Usuń</Button>
+                    </div>
+                  </div> : <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center transition-colors hover:bg-muted/50">
+                    <ImagePlus className="h-8 w-8 text-muted-foreground" />
+                    <span className="font-medium">Wybierz zdjęcie z urządzenia</span>
+                    <span className="text-xs text-muted-foreground">JPG, PNG lub WebP do 5 MB</span>
+                    <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                  </label>}
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="space-y-2"><label className="form-label">Dysza min °C</label><Input type="number" value={formData.print_temp_min} onChange={(e) => setFormData({ ...formData, print_temp_min: e.target.value })} className="h-11 bg-secondary border-border" /></div>
                   <div className="space-y-2"><label className="form-label">Dysza max °C</label><Input type="number" value={formData.print_temp_max} onChange={(e) => setFormData({ ...formData, print_temp_max: e.target.value })} className="h-11 bg-secondary border-border" /></div>
                   <div className="space-y-2"><label className="form-label">Stół min °C</label><Input type="number" value={formData.bed_temp_min} onChange={(e) => setFormData({ ...formData, bed_temp_min: e.target.value })} className="h-11 bg-secondary border-border" /></div>
                   <div className="space-y-2"><label className="form-label">Stół max °C</label><Input type="number" value={formData.bed_temp_max} onChange={(e) => setFormData({ ...formData, bed_temp_max: e.target.value })} className="h-11 bg-secondary border-border" /></div>
                 </div>
-                <div className="flex gap-3"><Button onClick={handleSubmit} className="flex-1 bg-gradient-primary hover:shadow-glow">{editingMaterial ? 'Zapisz zmiany' : 'Dodaj materiał'}</Button><Button variant="outline" onClick={() => setDialogOpen(false)}>Anuluj</Button></div>
+                <div className="flex gap-3"><Button onClick={handleSubmit} disabled={saving} className="flex-1 bg-gradient-primary hover:shadow-glow">{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{saving ? 'Zapisywanie...' : editingMaterial ? 'Zapisz zmiany' : 'Dodaj materiał'}</Button><Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>Anuluj</Button></div>
               </div>
             </DialogContent>
           </Dialog>

@@ -133,12 +133,29 @@ function createLocalFallback() {
   const table = (name: string) => {
     return {
       select: (cols?: string) => createQuery(name, read(name)).select(cols),
-      insert: async (items: any[]) => {
-        const current = read(name);
-        // assign simple incremental id if not present
-        const next = items.map((it) => ({ ...it, id: String(Date.now()) }));
-        const merged = [...next, ...current];
-        return write(name, merged);
+      insert: (items: any[]) => {
+        const operation = async () => {
+          const current = read(name);
+          const next = items.map((item, index) => ({
+            ...item,
+            id: item.id || `${Date.now()}-${index}`,
+            ...(name === 'orders_3d' && !item.order_number
+              ? { order_number: `DEV-${Date.now().toString().slice(-8)}` }
+              : {}),
+          }));
+          const result = write(name, [...next, ...current]);
+          return { data: result.error ? null : next, error: result.error };
+        };
+        const chain = {
+          select: () => ({
+            single: async () => {
+              const result = await operation();
+              return { data: result.data?.[0] || null, error: result.error };
+            },
+          }),
+          then: (resolve: (value: any) => void, reject: (reason: any) => void) => operation().then(resolve, reject),
+        };
+        return chain;
       },
       update: async (payload: any) => {
         const current = read(name);
@@ -163,6 +180,13 @@ function createLocalFallback() {
 
   return {
     from: (name: string) => table(name),
+    storage: {
+      from: (_bucket: string) => ({
+        upload: async (path: string, file: File) => ({ data: { path, size: file.size }, error: null }),
+        remove: async (_paths: string[]) => ({ data: [], error: null }),
+        createSignedUrl: async (_path: string) => ({ data: null, error: new Error('Podgląd pliku wymaga połączenia z Supabase Storage.') }),
+      }),
+    },
     rpc: async (name: string, args: Record<string, any>) => {
       if (name !== 'accept_order_quote') return { data: null, error: new Error(`Unknown local RPC: ${name}`) };
       const orders = read('orders_3d');
@@ -253,6 +277,13 @@ export function createClient() {
       }),
       auth: { getUser: async () => ({ data: { user: null }, error: null }) },
       rpc: async () => ({ data: null, error: new Error('RPC is unavailable on the server fallback') }),
+      storage: {
+        from: () => ({
+          upload: async () => ({ data: null, error: new Error('Storage is unavailable on the server fallback') }),
+          remove: async () => ({ data: null, error: null }),
+          createSignedUrl: async () => ({ data: null, error: new Error('Storage is unavailable on the server fallback') }),
+        }),
+      },
     } as any;
   }
   // We're in the browser. If env vars are provided, use the real Supabase client;

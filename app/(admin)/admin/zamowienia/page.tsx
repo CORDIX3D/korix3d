@@ -38,6 +38,7 @@ import { supabase } from '@/lib/supabase/client';
 import { Order3D } from '@/lib/types/database';
 import { toast } from 'sonner';
 import { PanelError } from '@/components/customer/panel-state';
+import { OrderFileDownload, StoredOrderFile } from '@/components/customer/order-file-download';
 
 const statusOptions = [
   { value: 'all', label: 'Wszystkie statusy' },
@@ -342,13 +343,16 @@ export default function AdminOrdersPage() {
                 <div>
                   <p className="text-sm font-medium text-foreground mb-2">Pliki</p>
                   <div className="space-y-2">
-                    {(selectedOrder.files as any[]).map((file, idx) => (
+                    {(selectedOrder.files as StoredOrderFile[]).map((file, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center gap-2 p-2 bg-secondary rounded-lg"
+                        className="flex items-center justify-between gap-2 p-2 bg-secondary rounded-lg"
                       >
-                        <FileText className="w-4 h-4 text-primary" />
-                        <span className="text-sm text-foreground">{file.name}</span>
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-primary" />
+                          <span className="text-sm text-foreground">{file.name}</span>
+                        </div>
+                        <OrderFileDownload file={file} />
                       </div>
                     ))}
                   </div>

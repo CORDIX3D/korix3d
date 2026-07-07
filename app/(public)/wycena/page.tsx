@@ -80,7 +80,9 @@ export default function QuotePage() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 });
   const [submitted, setSubmitted] = useState(false);
+  const [submittedOrderNumber, setSubmittedOrderNumber] = useState('');
 
   const {
     register,
@@ -143,6 +145,7 @@ export default function QuotePage() {
 
     const validExtensions = ['.stl', '.step', '.stp', '.obj', '.3mf'];
     const maxSize = 50 * 1024 * 1024; // 50MB
+    const maxTotalSize = 200 * 1024 * 1024; // 200MB
 
     const validFiles: File[] = [];
     const existingFiles = new Set(uploadedFiles.map((file) => `${file.name}:${file.size}`));
@@ -166,6 +169,11 @@ export default function QuotePage() {
       }
       if (uploadedFiles.length + validFiles.length >= 10) {
         toast.error('Osiągnięto limit plików', { description: 'Do jednej wyceny możesz dodać maksymalnie 10 plików.' });
+        break;
+      }
+      const totalSize = [...uploadedFiles, ...validFiles].reduce((sum, item) => sum + item.size, 0);
+      if (totalSize + file.size > maxTotalSize) {
+        toast.error('Przekroczono łączny limit', { description: 'Wszystkie pliki jednej wyceny mogą zajmować maksymalnie 200 MB.' });
         break;
       }
       validFiles.push(file);
@@ -193,6 +201,9 @@ export default function QuotePage() {
     }
 
     setSubmitting(true);
+    setUploadProgress({ completed: 0, total: uploadedFiles.length });
+    const orderId = crypto.randomUUID();
+    const uploadedPaths: string[] = [];
 
     try {
       const deliveryLabel = deliveryOptions.find((option) => option.value === data.delivery_type)?.label;
@@ -203,8 +214,41 @@ export default function QuotePage() {
         data.notes,
       ].filter(Boolean).join('\n');
 
+      const storedFiles = [];
+      for (let index = 0; index < uploadedFiles.length; index += 1) {
+        const file = uploadedFiles[index];
+        const extension = file.name.split('.').pop()?.toLowerCase() || 'bin';
+        const baseName = file.name
+          .replace(/\.[^.]+$/, '')
+          .normalize('NFKD')
+          .replace(/[^a-zA-Z0-9_-]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 80) || 'model';
+        const storagePath = `${user.id}/${orderId}/${index + 1}-${baseName}-${crypto.randomUUID()}.${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('quote-files')
+          .upload(storagePath, file, {
+            cacheControl: '3600',
+            contentType: 'application/octet-stream',
+            upsert: false,
+          });
+
+        if (uploadError) throw new Error(`Nie udało się przesłać pliku ${file.name}: ${uploadError.message}`);
+        uploadedPaths.push(storagePath);
+        storedFiles.push({
+          name: file.name,
+          size: file.size,
+          type: extension,
+          bucket: 'quote-files',
+          storage_path: storagePath,
+        });
+        setUploadProgress({ completed: index + 1, total: uploadedFiles.length });
+      }
+
       // Parametry bez osobnych kolumn zachowujemy w notatce do zamówienia.
       const orderData = {
+        id: orderId,
         user_id: user.id,
         material_id: data.material_id,
         material_name: selectedMaterial?.name,
@@ -215,14 +259,14 @@ export default function QuotePage() {
         priority: data.priority,
         notes: configurationNotes,
         status: 'new',
-        files: uploadedFiles.map((f) => ({
-          name: f.name,
-          size: f.size,
-          type: f.name.split('.').pop()?.toLowerCase(),
-        })),
+        files: storedFiles,
       };
 
-      const { error } = await supabase.from('orders_3d').insert([orderData]);
+      const { data: createdOrder, error } = await supabase
+        .from('orders_3d')
+        .insert([orderData])
+        .select('order_number')
+        .single();
 
       if (error) throw error;
 
@@ -230,14 +274,20 @@ export default function QuotePage() {
         description: 'Przeanalizujemy Twój projekt i wyślemy wycenę',
       });
 
+      setSubmittedOrderNumber(createdOrder?.order_number || orderId.slice(0, 8).toUpperCase());
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting quote:', error);
+      if (uploadedPaths.length > 0) {
+        const { error: cleanupError } = await supabase.storage.from('quote-files').remove(uploadedPaths);
+        if (cleanupError) console.error('Error cleaning up quote files:', cleanupError);
+      }
       toast.error('Błąd', {
-        description: 'Wystąpił błąd podczas wysyłania zlecenia',
+        description: error instanceof Error ? error.message : 'Wystąpił błąd podczas wysyłania zlecenia',
       });
     } finally {
       setSubmitting(false);
+      setUploadProgress({ completed: 0, total: 0 });
     }
   };
 
@@ -256,7 +306,7 @@ export default function QuotePage() {
               Przeanalizujemy przesłane pliki i wyślemy wycenę na Twój email w ciągu 24h.
             </p>
             <p className="text-sm text-muted-foreground mb-6">
-              Numer zlecenia: <strong className="text-foreground">ZOSTANIE WYŚLANY NA E-MAIL</strong>
+              Numer zlecenia: <strong className="text-foreground">{submittedOrderNumber}</strong>
             </p>
             <Button
               onClick={() => (window.location.href = '/panel')}
@@ -783,6 +833,22 @@ export default function QuotePage() {
                         </p>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {submitting && uploadProgress.total > 0 && (
+                  <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-foreground">Przesyłanie modeli do bezpiecznego magazynu</span>
+                      <span className="font-medium text-primary">{uploadProgress.completed}/{uploadProgress.total}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{ width: `${Math.round((uploadProgress.completed / uploadProgress.total) * 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Nie zamykaj strony do zakończenia wysyłania.</p>
                   </div>
                 )}
 

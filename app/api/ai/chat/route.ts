@@ -36,6 +36,19 @@ interface DatabaseContext {
   settings: Record<string, string>;
 }
 
+function createEmptyDatabaseContext(): DatabaseContext {
+  return {
+    materials: [],
+    filaments: [],
+    warehouse: [],
+    products: [],
+    orders3D: [],
+    recentOrders: [],
+    productionQueue: 0,
+    settings: {},
+  };
+}
+
 async function getDatabaseContext(userId: string | null, userRole: string | null): Promise<DatabaseContext> {
   const supabaseAdmin = getSupabaseAdmin();
 
@@ -167,10 +180,6 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const supabaseAdmin = getSupabaseAdmin();
-
     const body = await request.json();
     const { messages, conversationId, sessionId } = body;
 
@@ -181,26 +190,40 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Get user profile
-    let profile = null;
-    if (user) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('role, full_name')
-        .eq('id', user.id)
-        .single();
-      profile = data;
-    }
+    let user: { id: string } | null = null;
+    let profile: { role: string | null; full_name: string | null } | null = null;
+    let supabaseAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
+    let dbContext = createEmptyDatabaseContext();
 
-    // Get database context
-    const dbContext = await getDatabaseContext(user?.id || null, profile?.role || null);
+    // Supabase enriches answers with business data and stores history, but it
+    // must never prevent the assistant from answering when runtime env vars
+    // are temporarily unavailable (for example in a Netlify function).
+    try {
+      const supabase = await createClient();
+      const authResult = await supabase.auth.getUser();
+      user = authResult.data.user ? { id: authResult.data.user.id } : null;
+      supabaseAdmin = getSupabaseAdmin();
+
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('role, full_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        profile = data;
+      }
+
+      dbContext = await getDatabaseContext(user?.id || null, profile?.role || null);
+    } catch (supabaseError) {
+      console.warn('AI context unavailable; continuing without Supabase:', supabaseError);
+    }
 
     // Build system prompt with context
     const systemPrompt = buildSystemPrompt(dbContext, profile?.role || null, profile?.full_name || null);
 
     // Get or create conversation
     let convId = conversationId;
-    if (!convId && sessionId) {
+    if (supabaseAdmin && !convId && sessionId) {
       const { data: existingConv } = await supabaseAdmin
         .from('ai_conversations')
         .select('id')
@@ -224,7 +247,7 @@ export async function POST(request: NextRequest) {
 
     // Get conversation history for context
     let conversationHistory: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
-    if (convId) {
+    if (supabaseAdmin && convId) {
       const { data: history } = await supabaseAdmin
         .from('ai_messages')
         .select('role, content')
@@ -250,7 +273,7 @@ export async function POST(request: NextRequest) {
 
     // Store user message
     const userMessage = messages[messages.length - 1];
-    if (convId && userMessage?.role === 'user') {
+    if (supabaseAdmin && convId && userMessage?.role === 'user') {
       await supabaseAdmin
         .from('ai_messages')
         .insert({
@@ -310,7 +333,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Store assistant message
-          if (convId && fullResponse) {
+          if (supabaseAdmin && convId && fullResponse) {
             await supabaseAdmin
               .from('ai_messages')
               .insert({
@@ -327,17 +350,19 @@ export async function POST(request: NextRequest) {
           }
 
           // Log analytics
-          await supabaseAdmin
-            .from('ai_logs')
-            .insert({
-              user_id: user?.id || null,
-              conversation_id: convId,
-              query: userMessage?.content || '',
-              response_time_ms: Date.now() - startTime,
-              tokens_used: tokensUsed,
-              model,
-              success: true
-            });
+          if (supabaseAdmin) {
+            await supabaseAdmin
+              .from('ai_logs')
+              .insert({
+                user_id: user?.id || null,
+                conversation_id: convId,
+                query: userMessage?.content || '',
+                response_time_ms: Date.now() - startTime,
+                tokens_used: tokensUsed,
+                model,
+                success: true
+              });
+          }
 
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`));
           controller.close();
@@ -345,17 +370,19 @@ export async function POST(request: NextRequest) {
           console.error('Streaming error:', error);
 
           // Log error
-          await supabaseAdmin
-            .from('ai_logs')
-            .insert({
-              user_id: user?.id || null,
-              conversation_id: convId,
-              query: userMessage?.content || '',
-              response_time_ms: Date.now() - startTime,
-              model,
-              success: false,
-              error_message: String(error)
-            });
+          if (supabaseAdmin) {
+            await supabaseAdmin
+              .from('ai_logs')
+              .insert({
+                user_id: user?.id || null,
+                conversation_id: convId,
+                query: userMessage?.content || '',
+                response_time_ms: Date.now() - startTime,
+                model,
+                success: false,
+                error_message: String(error)
+              });
+          }
 
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Wystąpił błąd podczas generowania odpowiedzi' })}\n\n`));
           controller.close();

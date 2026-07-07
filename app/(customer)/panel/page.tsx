@@ -134,17 +134,48 @@ export default function CustomerDashboardPage() {
   if (loading) return <PanelLoading label="Przygotowywanie panelu..." />;
   if (error) return <PanelError message={error} onRetry={fetchDashboardData} />;
 
+  const displayName = profile?.full_name?.trim() || user?.email?.split('@')[0] || 'Kliencie';
+  const isNewCustomer = recentOrders.length === 0;
+
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-          Witaj, {profile?.full_name || 'Kliencie'}!
+          Witaj, {displayName}!
         </h1>
         <p className="text-muted-foreground mt-1">
           Oto podsumowanie Twojego konta
         </p>
       </div>
+
+      {isNewCustomer && (
+        <Card className="border-primary/30 bg-gradient-to-r from-primary/10 to-orange-600/5">
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Zacznij pierwsze zlecenie</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Prześlij model, wybierz parametry i poczekaj na indywidualną wycenę.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                  {['1. Prześlij plik 3D', '2. Uzupełnij parametry', '3. Odbierz wycenę'].map((step) => (
+                    <span key={step} className="flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />{step}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {!profile?.full_name && (
+                  <Button asChild variant="outline"><Link href="/panel/ustawienia">Uzupełnij profil</Link></Button>
+                )}
+                <Button asChild><Link href="/wycena">Rozpocznij wycenę</Link></Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -251,6 +282,9 @@ export default function CustomerDashboardPage() {
                       <p className="font-medium text-foreground">{order.order_number}</p>
                       <p className="text-sm text-muted-foreground">
                         {order.material_name} • {order.quantity} szt.
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Złożono {new Date(order.created_at).toLocaleDateString('pl-PL')}
                       </p>
                     </div>
                     {getStatusBadge(order.status)}

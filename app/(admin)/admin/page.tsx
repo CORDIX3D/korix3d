@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -36,6 +36,39 @@ import { supabase } from '@/lib/supabase/client';
 
 const chartColors = ['#FF6A00', '#3b82f6', '#22c55e', '#a855f7', '#ef4444', '#6b7280'];
 
+type DashboardPeriod = 'today' | 'week' | 'month' | 'year';
+
+function getPeriodRange(period: DashboardPeriod, now = new Date()) {
+  const currentStart = new Date(now);
+
+  if (period === 'today') currentStart.setHours(0, 0, 0, 0);
+  if (period === 'week') {
+    currentStart.setHours(0, 0, 0, 0);
+    currentStart.setDate(currentStart.getDate() - ((currentStart.getDay() + 6) % 7));
+  }
+  if (period === 'month') {
+    currentStart.setFullYear(now.getFullYear(), now.getMonth(), 1);
+    currentStart.setHours(0, 0, 0, 0);
+  }
+  if (period === 'year') {
+    currentStart.setFullYear(now.getFullYear(), 0, 1);
+    currentStart.setHours(0, 0, 0, 0);
+  }
+
+  const previousStart = new Date(currentStart);
+  if (period === 'today') previousStart.setDate(previousStart.getDate() - 1);
+  if (period === 'week') previousStart.setDate(previousStart.getDate() - 7);
+  if (period === 'month') previousStart.setMonth(previousStart.getMonth() - 1);
+  if (period === 'year') previousStart.setFullYear(previousStart.getFullYear() - 1);
+
+  return { currentStart, previousStart };
+}
+
+function percentageChange(current: number, previous: number) {
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
 interface DashboardStats {
   totalRevenue: number;
   revenueChange: number;
@@ -63,6 +96,7 @@ interface ExecutiveReportWidget {
 }
 
 export default function AdminDashboardPage() {
+  const [period, setPeriod] = useState<DashboardPeriod>('month');
   const [stats, setStats] = useState<DashboardStats>({
     totalRevenue: 0,
     revenueChange: 0,
@@ -83,11 +117,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -107,7 +137,7 @@ export default function AdminDashboardPage() {
       // Fetch profiles count
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id');
+        .select('id, created_at');
 
       // Fetch filament spools with low weight
       const { data: filaments, error: filamentsError } = await supabase
@@ -127,31 +157,37 @@ export default function AdminDashboardPage() {
         (f) => (f.remaining_weight_grams ?? 0) <= (f.min_weight_grams ?? 100)
       ).length || 0;
 
-      // Calculate stats
+      // Calculate stats for the selected period and its directly preceding period.
       const ordersData = orders as Array<{ final_price?: string | number; status?: string; printing_time_hours?: string | number; created_at?: string }> | undefined;
-      const totalRevenue = ordersData?.reduce(
+      const { currentStart, previousStart } = getPeriodRange(period);
+      const inRange = <T extends { created_at?: string }>(items: T[], from: Date, to?: Date) => items.filter((item) => {
+        if (!item.created_at) return false;
+        const createdAt = new Date(item.created_at);
+        return createdAt >= from && (!to || createdAt < to);
+      });
+      const currentOrders = inRange(ordersData || [], currentStart);
+      const previousOrders = inRange(ordersData || [], previousStart, currentStart);
+      const currentProfiles = inRange((profiles || []) as Array<{ created_at?: string }>, currentStart);
+      const previousProfiles = inRange((profiles || []) as Array<{ created_at?: string }>, previousStart, currentStart);
+
+      const totalRevenue = currentOrders.reduce(
         (sum, o) => sum + (Number(o.final_price) || 0),
-        0
-      ) || 0;
-
-      const pendingOrders = ordersData?.filter(
-        (o) => !['completed', 'cancelled'].includes(o.status || '')
-      ).length || 0;
-
-      const printingHours = ordersData?.reduce(
+        0);
+      const previousRevenue = previousOrders.reduce((sum, o) => sum + (Number(o.final_price) || 0), 0);
+      const printingHours = currentOrders.reduce(
         (sum, o) => sum + (Number(o.printing_time_hours) || 0),
-        0
-      ) || 0;
+        0);
+      const previousPrintingHours = previousOrders.reduce((sum, o) => sum + (Number(o.printing_time_hours) || 0), 0);
 
       setStats({
         totalRevenue,
-        revenueChange: 0,
-        pendingOrders,
-        ordersChange: 0,
-        newCustomers: profiles?.length || 0,
-        customersChange: 0,
+        revenueChange: percentageChange(totalRevenue, previousRevenue),
+        pendingOrders: currentOrders.length,
+        ordersChange: percentageChange(currentOrders.length, previousOrders.length),
+        newCustomers: currentProfiles.length,
+        customersChange: percentageChange(currentProfiles.length, previousProfiles.length),
         printingHours,
-        printingChange: 0,
+        printingChange: percentageChange(printingHours, previousPrintingHours),
         pendingQuotes: quotes?.length || 0,
         lowStockItems: (warehouseItems || []).filter((item: any) => Number(item.quantity) <= Number(item.min_quantity || 0)).length,
         lowFilamentSpools: lowFilaments,
@@ -202,7 +238,11 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    void fetchDashboardData();
+  }, [fetchDashboardData]);
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; className: string }> = {
@@ -247,7 +287,12 @@ export default function AdminDashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+          <select
+            value={period}
+            onChange={(event) => setPeriod(event.target.value as DashboardPeriod)}
+            aria-label="Zakres danych dashboardu"
+            className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          >
             <option value="today">Dzisiaj</option>
             <option value="week">Ten tydzień</option>
             <option value="month">Ten miesiąc</option>
@@ -280,7 +325,7 @@ export default function AdminDashboardPage() {
                   >
                     {stats.revenueChange}%
                   </span>
-                  <span className="text-sm text-muted-foreground">vs poprzedni miesiąc</span>
+                  <span className="text-sm text-muted-foreground">vs poprzedni okres</span>
                 </div>
               </div>
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -295,7 +340,7 @@ export default function AdminDashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Oczekujące zamówienia</p>
+                <p className="text-sm text-muted-foreground mb-1">Zamówienia w okresie</p>
                 <p className="text-2xl font-bold text-foreground">{stats.pendingOrders}</p>
                 <div className="flex items-center gap-1 mt-2">
                   {stats.ordersChange >= 0 ? (
@@ -310,7 +355,7 @@ export default function AdminDashboardPage() {
                   >
                     {Math.abs(stats.ordersChange)}%
                   </span>
-                  <span className="text-sm text-muted-foreground">vs poprzedni tydzień</span>
+                  <span className="text-sm text-muted-foreground">vs poprzedni okres</span>
                 </div>
               </div>
               <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
@@ -325,7 +370,7 @@ export default function AdminDashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Klienci</p>
+                <p className="text-sm text-muted-foreground mb-1">Nowi klienci</p>
                 <p className="text-2xl font-bold text-foreground">{stats.newCustomers}</p>
                 <div className="flex items-center gap-1 mt-2">
                   {stats.customersChange >= 0 ? (
@@ -340,7 +385,7 @@ export default function AdminDashboardPage() {
                   >
                     {stats.customersChange}%
                   </span>
-                  <span className="text-sm text-muted-foreground">w tym miesiącu</span>
+                  <span className="text-sm text-muted-foreground">vs poprzedni okres</span>
                 </div>
               </div>
               <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
@@ -370,7 +415,7 @@ export default function AdminDashboardPage() {
                   >
                     {stats.printingChange}%
                   </span>
-                  <span className="text-sm text-muted-foreground">vs poprzedni miesiąc</span>
+                  <span className="text-sm text-muted-foreground">vs poprzedni okres</span>
                 </div>
               </div>
               <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
@@ -381,9 +426,21 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      {/* Alerts Row */}
-      {(stats.pendingQuotes > 0 || stats.lowFilamentSpools > 0) && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Today's action centre */}
+      <section className="space-y-3" aria-labelledby="today-actions-title">
+        <div>
+          <h2 id="today-actions-title" className="text-lg font-semibold text-foreground">Do zrobienia dzisiaj</h2>
+          <p className="text-sm text-muted-foreground">Najważniejsze sprawy wymagające reakcji.</p>
+        </div>
+        {stats.pendingQuotes === 0 && stats.lowFilamentSpools === 0 && stats.lowStockItems === 0 ? (
+          <Card className="border-green-500/20 bg-green-500/5">
+            <CardContent className="flex items-center gap-3 p-4">
+              <CheckCircle2 className="h-5 w-5 text-green-400" />
+              <p className="text-sm text-muted-foreground">Brak pilnych zadań. Wszystkie bieżące alerty są obsłużone.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {stats.pendingQuotes > 0 && (
             <Card className="bg-yellow-500/10 border-yellow-500/20">
               <CardContent className="p-4 flex items-center gap-3">
@@ -417,8 +474,21 @@ export default function AdminDashboardPage() {
               </CardContent>
             </Card>
           )}
-        </div>
-      )}
+          {stats.lowStockItems > 0 && (
+            <Card className="border-orange-500/20 bg-orange-500/10">
+              <CardContent className="flex items-center gap-3 p-4">
+                <Package className="h-5 w-5 text-orange-400" />
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">{stats.lowStockItems} pozycji poniżej minimum</p>
+                  <p className="text-sm text-muted-foreground">Niski stan magazynowy</p>
+                </div>
+                <Button asChild size="sm" variant="outline"><Link href="/admin/magazyn">Sprawdź</Link></Button>
+              </CardContent>
+            </Card>
+          )}
+          </div>
+        )}
+      </section>
 
       {/* AI Executive Report Widget */}
       {latestReport && (

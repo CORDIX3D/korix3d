@@ -18,8 +18,6 @@ import {
   Cog,
   FileBox,
   Timer,
-  Star,
-  MessageSquareQuote,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
@@ -69,12 +67,12 @@ const benefits = [
   { icon: Users, title: 'Wsparcie techniczne', description: 'Doradztwo w doborze materiałów' },
 ];
 
-// Stats data
-const stats = [
-  { number: '10,000+', label: 'Wydrukowanych modeli' },
-  { number: '500+', label: 'Zadowolonych klientów' },
-  { number: '14', label: 'Dostępnych materiałów' },
-  { number: '99%', label: 'Pozytywnych opinii' },
+// Verifiable service information displayed instead of invented business statistics.
+const serviceFacts = [
+  { value: 'STL, STEP', label: 'Obsługiwane pliki' },
+  { value: 'OBJ, 3MF', label: 'Dodatkowe formaty' },
+  { value: '6+', label: 'Rodzajów materiałów' },
+  { value: 'Indywidualnie', label: 'Wycena projektu' },
 ];
 
 // How it works steps
@@ -103,7 +101,6 @@ const steps = [
 
 export default function HomePage() {
   const [portfolio, setPortfolio] = useState<any[]>([]);
-  const [testimonials, setTestimonials] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -117,27 +114,6 @@ export default function HomePage() {
 
       if (portfolioData) setPortfolio(portfolioData);
 
-      // Static testimonials for now
-      setTestimonials([
-        {
-          name: 'Jan Kowalski',
-          company: 'TechParts Sp. z o.o.',
-          content: 'Profesjonalna współpraca od początku do końca. Jakość wydruków perfekcyjna, terminowość wzorowa. Polecam każdemu, kto szuka niezawodnego partnera do druku 3D.',
-          rating: 5,
-        },
-        {
-          name: 'Anna Nowak',
-          company: 'Design Studio',
-          content: 'KORIX3D pomógł mi zrealizować skomplikowane prototypy w rekordowym czasie. Ich doradztwo w doborze materiałów było bezcenne.',
-          rating: 5,
-        },
-        {
-          name: 'Piotr Wiśniewski',
-          company: 'Automotive Solutions',
-          content: 'Wykonują dla nas części zamienne od ponad roku. Jakość powtarzalna, ceny konkurencyjne. Najlepszy wybór dla małoseryjnej produkcji.',
-          rating: 5,
-        },
-      ]);
     };
 
     fetchData();
@@ -203,12 +179,12 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Stats */}
+          {/* Service facts */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-16 max-w-4xl mx-auto animate-fade-up">
-            {stats.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-3xl sm:text-4xl font-bold text-gradient mb-1">{stat.number}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
+            {serviceFacts.map((fact) => (
+              <div key={fact.label} className="text-center">
+                <div className="text-xl sm:text-2xl font-bold text-gradient mb-1">{fact.value}</div>
+                <div className="text-sm text-muted-foreground">{fact.label}</div>
               </div>
             ))}
           </div>
@@ -481,42 +457,6 @@ export default function HomePage() {
                 <ChevronRight className="ml-1 w-4 h-4" />
               </Button>
             </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section className="relative py-24 px-4 sm:px-6 lg:px-8 bg-card/50">
-        <div className="max-w-7xl mx-auto">
-          {/* Section Header */}
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Opinie klientów
-            </h2>
-            <p className="max-w-2xl mx-auto text-muted-foreground">
-              Co mówią o nas nasi klienci
-            </p>
-          </div>
-
-          {/* Testimonials */}
-          <div className="grid gap-6 md:grid-cols-3">
-            {testimonials.map((item, index) => (
-              <Card key={index} className="bg-background border-border">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-1 mb-4">
-                    {[...Array(item.rating)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-primary text-primary" />
-                    ))}
-                  </div>
-                  <MessageSquareQuote className="w-8 h-8 text-primary/30 mb-4" />
-                  <p className="text-foreground mb-6">{item.content}</p>
-                  <div>
-                    <div className="font-semibold text-foreground">{item.name}</div>
-                    <div className="text-sm text-muted-foreground">{item.company}</div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
           </div>
         </div>
       </section>

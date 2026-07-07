@@ -35,8 +35,8 @@ export function PublicHeader() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="relative">
+            <Link href="/" className="flex items-center gap-2" aria-label="KORIX3D - strona główna">
+              <div className="relative" aria-hidden="true">
                 <div className="w-10 h-10 bg-gradient-to-br from-primary to-orange-600 rounded-xl flex items-center justify-center">
                   <span className="text-white font-bold text-xl">K</span>
                 </div>

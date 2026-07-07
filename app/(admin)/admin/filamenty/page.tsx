@@ -61,6 +61,8 @@ export default function AdminFilamentsPage() {
   useEffect(() => {
     fetchFilaments();
     fetchMaterials();
+    // Wyszukiwanie jest zatwierdzane przyciskiem, a nie przy każdym znaku.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchFilaments = async () => {

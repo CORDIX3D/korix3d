@@ -93,6 +93,8 @@ export default function AccountingPage() {
 
   useEffect(() => {
     fetchReports();
+    // Odświeżaj automatycznie wyłącznie po zmianie roku.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear]);
 
   const fetchReports = async () => {

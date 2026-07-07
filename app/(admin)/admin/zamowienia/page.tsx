@@ -72,6 +72,8 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
+    // Wyszukiwanie jest zatwierdzane ręcznie; status odświeża listę automatycznie.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
   const fetchOrders = async () => {

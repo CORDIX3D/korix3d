@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 import {
   X,
   Send,
@@ -58,8 +58,6 @@ export function AIAssistant() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const supabase = createClient();
-
   // Fetch AI settings
   useEffect(() => {
     const fetchSettings = async () => {
@@ -101,7 +99,7 @@ export function AIAssistant() {
         timestamp: new Date()
       }]);
     }
-  }, [isOpen, settings]);
+  }, [isOpen, settings, messages.length]);
 
   const sendMessage = useCallback(async (messageContent: string, fileData?: any) => {
     if (!messageContent.trim() && !fileData) return;

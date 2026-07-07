@@ -117,7 +117,7 @@ export default function HomePage() {
     };
 
     fetchData();
-  }, [supabase]);
+  }, []);
 
   return (
     <div className="relative overflow-hidden">

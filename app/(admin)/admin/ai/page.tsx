@@ -98,6 +98,9 @@ export default function AdminAIPage() {
   useEffect(() => {
     fetchSettings();
     fetchAnalytics();
+    // Funkcje są uruchamiane tylko przy wejściu do modułu; ręczne odświeżanie
+    // korzysta z tych samych procedur przez przyciski poniżej.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchSettings = async () => {

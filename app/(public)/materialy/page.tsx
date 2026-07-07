@@ -30,6 +30,7 @@ export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [colors, setColors] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [expandedMaterial, setExpandedMaterial] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,12 +39,13 @@ export default function MaterialsPage() {
 
   const fetchMaterials = async () => {
     try {
-      const { data: materialsData } = await supabase
+      const { data: materialsData, error: queryError } = await supabase
         .from('materials')
         .select('*')
         .eq('available', true)
         .order('name');
 
+      if (queryError) throw queryError;
       if (materialsData) {
         setMaterials(materialsData);
 
@@ -61,6 +63,7 @@ export default function MaterialsPage() {
       }
     } catch (error) {
       console.error('Error fetching materials:', error);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -73,6 +76,8 @@ export default function MaterialsPage() {
       </div>
     );
   }
+
+  if (error) return <div className="min-h-[60vh] flex items-center justify-center px-4 text-center"><div><Layers className="mx-auto mb-4 h-14 w-14 text-destructive" /><h1 className="text-2xl font-bold">Nie udało się pobrać materiałów</h1><p className="mt-2 text-muted-foreground">Odśwież stronę i spróbuj ponownie.</p></div></div>;
 
   return (
     <div className="min-h-screen bg-background">
@@ -105,7 +110,7 @@ export default function MaterialsPage() {
                         expandedMaterial === material.id ? null : material.id
                       )
                     }
-                    className="w-full p-6 flex items-center justify-between text-left"
+                    className="w-full p-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between text-left"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-16 h-16 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -120,7 +125,7 @@ export default function MaterialsPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="w-full text-left sm:w-auto sm:text-right">
                       <div className="text-2xl font-bold text-primary">
                         {material.price_per_kg.toFixed(2)} zł/kg
                       </div>

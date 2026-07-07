@@ -10,13 +10,14 @@ import { BlogPost } from '@/lib/types/database';
 export default function BlogPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetchPosts();
   }, []);
 
   const fetchPosts = async () => {
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from('blog_posts')
       .select('*')
       .eq('published', true)
@@ -25,6 +26,7 @@ export default function BlogPage() {
       .limit(20);
 
     if (data) setPosts(data as BlogPost[]);
+    setError(Boolean(queryError));
     setLoading(false);
   };
 
@@ -55,8 +57,10 @@ export default function BlogPage() {
 
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {error && <div className="py-16 text-center"><PenTool className="mx-auto mb-4 h-16 w-16 text-destructive" /><h2 className="text-xl font-semibold">Nie udało się pobrać artykułów</h2><p className="mt-2 text-muted-foreground">Odśwież stronę i spróbuj ponownie.</p></div>}
+
           {/* Featured Post */}
-          {posts.length > 0 && (
+          {!error && posts.length > 0 && (
             <Link href={`/blog/${posts[0].slug}`} className="block mb-12">
               <Card className="bg-card border-border hover:border-primary/50 transition-all overflow-hidden group">
                 <CardContent className="p-0">
@@ -96,7 +100,7 @@ export default function BlogPage() {
           )}
 
           {/* Posts Grid */}
-          {posts.length > 1 ? (
+          {!error && (posts.length > 1 ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {posts.slice(1).map((post) => (
                 <Link key={post.id} href={`/blog/${post.slug}`}>
@@ -150,10 +154,10 @@ export default function BlogPage() {
                 Brak artykułów
               </h3>
               <p className="text-muted-foreground">
-                Nowe artykuły pojawią się wkrótce
+                Obecnie nie ma opublikowanych artykułów.
               </p>
             </div>
-          ) : null}
+          ) : null)}
         </div>
       </section>
     </div>

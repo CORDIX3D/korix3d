@@ -35,19 +35,19 @@ const services = [
     icon: FileBox,
     title: 'Rapid Prototyping',
     description: 'Szybkie tworzenie prototypów do testowania i walidacji projektu przed wdrożeniem.',
-    href: '/uslugi/prototypowanie',
+    href: '/wycena?usluga=prototypowanie',
   },
   {
     icon: Cog,
     title: 'Części inżynieryjne',
     description: 'Produkcja funkcjonalnych części z materiałów technicznych: PETG, ABS, ASA, PA-CF.',
-    href: '/uslugi/czesci-inzynieryjne',
+    href: '/wycena?usluga=czesci-inzynieryjne',
   },
   {
     icon: Layers,
     title: 'Małoseryjna produkcja',
     description: 'Ekonomiczne rozwiązanie dla małych serii produktowych bez kosztów formowania.',
-    href: '/uslugi/maloseryjna-produkcja',
+    href: '/wycena?usluga=produkcja-seryjna',
   },
 ];
 
@@ -284,7 +284,7 @@ export default function HomePage() {
       </section>
 
       {/* How It Works Section */}
-      <section className="relative py-24 px-4 sm:px-6 lg:px-8 bg-card/50">
+      <section id="o-nas" className="relative py-24 px-4 sm:px-6 lg:px-8 bg-card/50">
         <div className="max-w-7xl mx-auto">
           {/* Section Header */}
           <div className="text-center mb-16">

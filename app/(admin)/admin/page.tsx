@@ -34,23 +34,7 @@ import {
 } from 'recharts';
 import { supabase } from '@/lib/supabase/client';
 
-// Mock data for charts
-const revenueData = [
-  { month: 'Sty', revenue: 12500, orders: 45 },
-  { month: 'Lut', revenue: 15200, orders: 52 },
-  { month: 'Mar', revenue: 18900, orders: 68 },
-  { month: 'Kwi', revenue: 16700, orders: 55 },
-  { month: 'Maj', revenue: 21400, orders: 78 },
-  { month: 'Cze', revenue: 24800, orders: 89 },
-];
-
-const materialUsageData = [
-  { name: 'PLA', usage: 45, color: '#22c55e' },
-  { name: 'PETG', usage: 28, color: '#3b82f6' },
-  { name: 'ABS', usage: 12, color: '#ef4444' },
-  { name: 'TPU', usage: 8, color: '#a855f7' },
-  { name: 'Inne', usage: 7, color: '#6b7280' },
-];
+const chartColors = ['#FF6A00', '#3b82f6', '#22c55e', '#a855f7', '#ef4444', '#6b7280'];
 
 interface DashboardStats {
   totalRevenue: number;
@@ -93,73 +77,114 @@ export default function AdminDashboardPage() {
     lowFilamentSpools: 0,
   });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [revenueData, setRevenueData] = useState<Array<{ month: string; revenue: number; orders: number }>>([]);
+  const [materialUsageData, setMaterialUsageData] = useState<Array<{ name: string; usage: number; color: string }>>([]);
   const [latestReport, setLatestReport] = useState<ExecutiveReportWidget | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
+    setLoading(true);
+    setError('');
     try {
       // Fetch orders
-      const { data: orders } = await supabase
+      const { data: orders, error: ordersError } = await supabase
         .from('orders_3d')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(500);
 
       // Fetch pending quotes
-      const { data: quotes } = await supabase
+      const { data: quotes, error: quotesError } = await supabase
         .from('orders_3d')
         .select('*')
         .eq('status', 'new');
 
       // Fetch profiles count
-      const { data: profiles } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id');
 
       // Fetch filament spools with low weight
-      const { data: filaments } = await supabase
+      const { data: filaments, error: filamentsError } = await supabase
         .from('filaments')
         .select('*')
         .eq('active', true);
 
-      const lowFilaments = filaments?.filter(
-        (f) => f.remaining_weight_grams <= (f.min_weight_grams || 100)
+      const { data: warehouseItems, error: warehouseError } = await supabase
+        .from('warehouse_items')
+        .select('quantity, min_quantity');
+
+      const queryError = ordersError || quotesError || profilesError || filamentsError || warehouseError;
+      if (queryError) throw queryError;
+
+      const filamentsData = filaments as Array<{ remaining_weight_grams?: number; min_weight_grams?: number | null }> | undefined;
+      const lowFilaments = filamentsData?.filter(
+        (f) => (f.remaining_weight_grams ?? 0) <= (f.min_weight_grams ?? 100)
       ).length || 0;
 
       // Calculate stats
-      const totalRevenue = orders?.reduce(
+      const ordersData = orders as Array<{ final_price?: string | number; status?: string; printing_time_hours?: string | number; created_at?: string }> | undefined;
+      const totalRevenue = ordersData?.reduce(
         (sum, o) => sum + (Number(o.final_price) || 0),
         0
       ) || 0;
 
-      const pendingOrders = orders?.filter(
-        (o) => !['completed', 'cancelled'].includes(o.status)
+      const pendingOrders = ordersData?.filter(
+        (o) => !['completed', 'cancelled'].includes(o.status || '')
       ).length || 0;
 
-      const printingHours = orders?.reduce(
+      const printingHours = ordersData?.reduce(
         (sum, o) => sum + (Number(o.printing_time_hours) || 0),
         0
       ) || 0;
 
       setStats({
         totalRevenue,
-        revenueChange: 12.5, // Mock percentage change
+        revenueChange: 0,
         pendingOrders,
-        ordersChange: -2.3,
+        ordersChange: 0,
         newCustomers: profiles?.length || 0,
-        customersChange: 8.2,
+        customersChange: 0,
         printingHours,
-        printingChange: 5.4,
+        printingChange: 0,
         pendingQuotes: quotes?.length || 0,
-        lowStockItems: 0,
+        lowStockItems: (warehouseItems || []).filter((item: any) => Number(item.quantity) <= Number(item.min_quantity || 0)).length,
         lowFilamentSpools: lowFilaments,
       });
 
-      setRecentOrders(orders || []);
+      setRecentOrders((orders || []).slice(0, 10));
+
+      const now = new Date();
+      const monthlyRevenue = Array.from({ length: 6 }, (_, index) => {
+        const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+        const monthOrders = (ordersData || []).filter((order) => {
+          const createdAt = order.created_at ? new Date(order.created_at) : null;
+          return createdAt && createdAt.getFullYear() === date.getFullYear() && createdAt.getMonth() === date.getMonth();
+        });
+        return {
+          month: date.toLocaleDateString('pl-PL', { month: 'short' }),
+          revenue: monthOrders.reduce((sum, order) => sum + (Number(order.final_price) || 0), 0),
+          orders: monthOrders.length,
+        };
+      });
+      setRevenueData(monthlyRevenue);
+
+      const usageByMaterial = (filaments || []).reduce((acc: Record<string, number>, filament: any) => {
+        const name = filament.material_name || 'Inne';
+        const used = Math.max(0, Number(filament.original_weight_grams || 0) - Number(filament.remaining_weight_grams || 0));
+        acc[name] = (acc[name] || 0) + used;
+        return acc;
+      }, {});
+      setMaterialUsageData(Object.entries(usageByMaterial).map(([name, usage], index) => ({
+        name,
+        usage: Math.round(usage as number),
+        color: chartColors[index % chartColors.length],
+      })));
 
       // Fetch latest executive report
       const { data: executiveReports } = await supabase
@@ -173,6 +198,7 @@ export default function AdminDashboardPage() {
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setError('Nie udało się pobrać danych panelu. Sprawdź połączenie z Supabase i spróbuj ponownie.');
     } finally {
       setLoading(false);
     }
@@ -202,6 +228,10 @@ export default function AdminDashboardPage() {
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
+  }
+
+  if (error) {
+    return <div className="flex min-h-[60vh] flex-col items-center justify-center text-center"><AlertCircle className="mb-4 h-10 w-10 text-destructive" /><h1 className="text-xl font-semibold">Nie udało się załadować dashboardu</h1><p className="mt-2 max-w-lg text-sm text-muted-foreground">{error}</p><Button className="mt-5" variant="outline" onClick={fetchDashboardData}>Spróbuj ponownie</Button></div>;
   }
 
   return (
@@ -364,8 +394,8 @@ export default function AdminDashboardPage() {
                   </p>
                   <p className="text-sm text-muted-foreground">Oczekuje na wycenę</p>
                 </div>
-                <Button size="sm" className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30">
-                  Przejdź
+                <Button asChild size="sm" className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30">
+                  <Link href="/admin/zamowienia">Przejdź</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -381,8 +411,8 @@ export default function AdminDashboardPage() {
                   </p>
                   <p className="text-sm text-muted-foreground">Niski stan filamentu</p>
                 </div>
-                <Button size="sm" className="bg-red-500/20 text-red-400 hover:bg-red-500/30">
-                  Sprawdź
+                <Button asChild size="sm" className="bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                  <Link href="/admin/filamenty">Sprawdź</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -540,9 +570,8 @@ export default function AdminDashboardPage() {
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg text-foreground">Ostatnie zamówienia</CardTitle>
-          <Button variant="outline" size="sm">
-            Zobacz wszystkie
-            <ArrowUpRight className="w-4 h-4 ml-1" />
+          <Button asChild variant="outline" size="sm">
+            <Link href="/admin/zamowienia">Zobacz wszystkie<ArrowUpRight className="w-4 h-4 ml-1" /></Link>
           </Button>
         </CardHeader>
         <CardContent>

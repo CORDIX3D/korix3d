@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Menu, X, ShoppingCart, User, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/providers';
+import { useCart } from '@/lib/cart-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,7 @@ const publicNav = [
 export function PublicHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, profile, signOut, isAdmin, isEmployee } = useAuth();
+  const { itemCount } = useCart();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass">
@@ -64,7 +66,7 @@ export function PublicHeader() {
               <Button variant="ghost" size="icon" className="relative">
                 <ShoppingCart className="h-5 w-5" />
                 <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-xs flex items-center justify-center text-white">
-                  0
+                  {itemCount > 99 ? '99+' : itemCount}
                 </span>
               </Button>
             </Link>
@@ -89,16 +91,6 @@ export function PublicHeader() {
                       Panel klienta
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/panel/zamowienia" className="cursor-pointer">
-                      Moje zamówienia
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/panel/lista-zyczen" className="cursor-pointer">
-                      Lista życzeń
-                    </Link>
-                  </DropdownMenuItem>
                   {(isAdmin || isEmployee) && (
                     <>
                       <DropdownMenuSeparator />
@@ -110,11 +102,6 @@ export function PublicHeader() {
                     </>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/panel/ustawienia" className="cursor-pointer">
-                      Ustawienia
-                    </Link>
-                  </DropdownMenuItem>
                   <DropdownMenuItem
                     className="cursor-pointer text-destructive"
                     onClick={() => signOut()}
@@ -173,7 +160,7 @@ export function PublicHeader() {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <ShoppingCart className="h-4 w-4" />
-                Koszyk
+                Koszyk {itemCount > 0 && `(${itemCount})`}
               </Link>
             </div>
           </div>

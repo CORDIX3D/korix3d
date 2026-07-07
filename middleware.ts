@@ -1,17 +1,23 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { getSupabaseEnv } from './lib/supabase/env';
 
 export async function middleware(request: NextRequest) {
+  // If Supabase environment variables are not set, skip auth middleware in dev.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    // Allow running the app in development without Supabase configured.
+    // This avoids blocking requests with a fatal error and lets the UI run
+    // using local/dev fallbacks (localStorage, mocks, etc.).
+    console.warn('Supabase env vars missing — skipping auth middleware.');
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
 
-  const { url, anonKey, isConfigured } = getSupabaseEnv();
-
   const supabase = createServerClient(
-    url,
-    anonKey,
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -41,10 +47,6 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-
-  if (!isConfigured && process.env.NODE_ENV === 'development') {
-    return supabaseResponse;
-  }
 
   // Protected routes
   const isAdminRoute = pathname.startsWith('/admin');

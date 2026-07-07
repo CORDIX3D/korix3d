@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
+import { PanelError, PanelLoading } from '@/components/customer/panel-state';
 
 interface StatCard {
   title: string;
@@ -32,27 +33,23 @@ export default function CustomerDashboardPage() {
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [recentQuotes, setRecentQuotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-    }
-  }, [user]);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     if (!user) return;
 
+    setLoading(true);
+    setError('');
     try {
       // Fetch orders
-      const { data: orders } = await supabase
+      const { data: orders, error: ordersError } = await supabase
         .from('orders_3d')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
+        .order('created_at', { ascending: false });
 
       // Fetch quotes
-      const { data: quotes } = await supabase
+      const { data: quotes, error: quotesError } = await supabase
         .from('orders_3d')
         .select('*')
         .eq('user_id', user.id)
@@ -60,12 +57,15 @@ export default function CustomerDashboardPage() {
         .order('created_at', { ascending: false })
         .limit(5);
 
+      if (ordersError || quotesError) throw ordersError || quotesError;
+
       // Calculate stats
-      const totalOrders = orders?.length || 0;
-      const completedOrders = orders?.filter(o => o.status === 'completed').length || 0;
-      const pendingOrders = orders?.filter(o => !['completed', 'cancelled'].includes(o.status)).length || 0;
-      const totalSpent = orders
-        ?.filter(o => o.final_price)
+      const ordersData = orders as Array<{ status?: string; final_price?: string | number }> | undefined;
+      const totalOrders = ordersData?.length || 0;
+      const completedOrders = ordersData?.filter((o) => o.status === 'completed').length || 0;
+      const pendingOrders = ordersData?.filter((o) => !['completed', 'cancelled'].includes(o.status || '')).length || 0;
+      const totalSpent = ordersData
+        ?.filter((o) => Boolean(o.final_price))
         .reduce((sum, o) => sum + Number(o.final_price), 0) || 0;
 
       setStats([
@@ -99,14 +99,19 @@ export default function CustomerDashboardPage() {
         },
       ]);
 
-      setRecentOrders(orders || []);
+      setRecentOrders((orders || []).slice(0, 5));
       setRecentQuotes(quotes || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      setError('Nie udało się pobrać podsumowania konta. Sprawdź połączenie i spróbuj ponownie.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) void fetchDashboardData();
+  }, [user, fetchDashboardData]);
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; className: string }> = {
@@ -125,6 +130,9 @@ export default function CustomerDashboardPage() {
     const config = statusConfig[status] || { label: status, className: 'status-pending' };
     return <span className={`status-badge ${config.className}`}>{config.label}</span>;
   };
+
+  if (loading) return <PanelLoading label="Przygotowywanie panelu..." />;
+  if (error) return <PanelError message={error} onRetry={fetchDashboardData} />;
 
   return (
     <div className="space-y-6">
@@ -291,8 +299,8 @@ export default function CustomerDashboardPage() {
                           <span className="text-sm font-medium text-foreground">
                             {quote.final_price?.toFixed(2)} zł
                           </span>
-                          <Button size="sm" className="bg-primary hover:bg-primary/90">
-                            Akceptuj
+                          <Button asChild size="sm" className="bg-primary hover:bg-primary/90">
+                            <Link href={`/panel/zamowienia/${quote.id}`}>Zobacz wycenę</Link>
                           </Button>
                         </>
                       ) : (
@@ -318,7 +326,7 @@ export default function CustomerDashboardPage() {
               </h3>
               <p className="text-sm text-muted-foreground">
                 Nasz zespół dostępny jest od poniedziałku do piątku w godzinach 9:00-17:00.
-                Skontaktuj się z nami przez formularz kontaktowy lub wyślij wiadomość bezpośrednio z panelu.
+                Skontaktuj się z nami przez formularz kontaktowy.
               </p>
             </div>
           </div>

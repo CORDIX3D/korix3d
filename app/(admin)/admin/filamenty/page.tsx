@@ -34,11 +34,13 @@ import {
 import { supabase } from '@/lib/supabase/client';
 import { Filament, Material } from '@/lib/types/database';
 import { toast } from 'sonner';
+import { PanelError } from '@/components/customer/panel-state';
 
 export default function AdminFilamentsPage() {
   const [filaments, setFilaments] = useState<Filament[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFilament, setEditingFilament] = useState<Filament | null>(null);
@@ -63,6 +65,7 @@ export default function AdminFilamentsPage() {
 
   const fetchFilaments = async () => {
     setLoading(true);
+    setError('');
     let query = supabase
       .from('filaments')
       .select('*')
@@ -72,8 +75,9 @@ export default function AdminFilamentsPage() {
       query = query.or(`brand.ilike.%${search}%,material_name.ilike.%${search}%,color.ilike.%${search}%`);
     }
 
-    const { data } = await query;
-    if (data) setFilaments(data as Filament[]);
+    const { data, error: queryError } = await query;
+    if (queryError) setError('Nie udało się pobrać filamentów z Supabase.');
+    else setFilaments((data || []) as Filament[]);
     setLoading(false);
   };
 
@@ -88,16 +92,27 @@ export default function AdminFilamentsPage() {
   };
 
   const handleSubmit = async () => {
+    const originalWeight = Number(formData.original_weight_grams);
+    const remainingWeight = Number(formData.remaining_weight_grams);
+    const minimumWeight = Number(formData.min_weight_grams);
+    if (!formData.brand.trim() || !formData.material_name.trim() || !formData.color.trim()) {
+      toast.error('Uzupełnij wymagane pola', { description: 'Marka, materiał i kolor są wymagane.' });
+      return;
+    }
+    if (!Number.isFinite(originalWeight) || originalWeight <= 0 || !Number.isFinite(remainingWeight) || remainingWeight < 0 || remainingWeight > originalWeight || !Number.isFinite(minimumWeight) || minimumWeight < 0) {
+      toast.error('Nieprawidłowa waga', { description: 'Sprawdź wagę początkową, pozostałą oraz próg minimalny.' });
+      return;
+    }
     const data = {
-      brand: formData.brand,
+      brand: formData.brand.trim(),
       material_id: formData.material_id || null,
       material_name: formData.material_name,
       color: formData.color,
       color_hex: formData.color_hex,
-      original_weight_grams: parseFloat(formData.original_weight_grams),
-      remaining_weight_grams: parseFloat(formData.remaining_weight_grams),
+      original_weight_grams: originalWeight,
+      remaining_weight_grams: remainingWeight,
       price_paid: formData.price_paid ? parseFloat(formData.price_paid) : null,
-      min_weight_grams: parseFloat(formData.min_weight_grams),
+      min_weight_grams: minimumWeight,
       location: formData.location || null,
       notes: formData.notes || null,
       active: true,
@@ -161,6 +176,7 @@ export default function AdminFilamentsPage() {
   };
 
   const deleteFilament = async (id: string) => {
+    if (!window.confirm('Czy na pewno chcesz usunąć ten filament z aktywnego magazynu?')) return;
     const { error } = await supabase
       .from('filaments')
       .update({ active: false })
@@ -303,7 +319,7 @@ export default function AdminFilamentsPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="form-label">Cena zakupu szpulki (zł)</label>
+                    <label className="form-label">Cena zakupu (zł)</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -449,6 +465,8 @@ export default function AdminFilamentsPage() {
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
         </div>
+      ) : error ? (
+        <PanelError message={error} onRetry={fetchFilaments} />
       ) : filaments.length === 0 ? (
         <div className="text-center py-12">
           <Layers className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -510,16 +528,6 @@ export default function AdminFilamentsPage() {
                       <span className="text-muted-foreground">{percentage.toFixed(0)}%</span>
                     </div>
                   </div>
-
-
-                  {filament.price_paid && filament.original_weight_grams && (
-                    <div className="flex items-center justify-between text-sm mb-4">
-                      <span className="text-muted-foreground">Cena z kilograma</span>
-                      <span className="font-semibold text-foreground">
-                        {((filament.price_paid / filament.original_weight_grams) * 1000).toFixed(2)} zł/kg
-                      </span>
-                    </div>
-                  )}
 
                   {/* Location */}
                   {filament.location && (

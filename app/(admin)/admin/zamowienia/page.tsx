@@ -37,6 +37,7 @@ import {
 import { supabase } from '@/lib/supabase/client';
 import { Order3D } from '@/lib/types/database';
 import { toast } from 'sonner';
+import { PanelError } from '@/components/customer/panel-state';
 
 const statusOptions = [
   { value: 'all', label: 'Wszystkie statusy' },
@@ -55,6 +56,8 @@ const statusOptions = [
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order3D[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [submittingQuote, setSubmittingQuote] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order3D | null>(null);
@@ -72,6 +75,7 @@ export default function AdminOrdersPage() {
 
   const fetchOrders = async () => {
     setLoading(true);
+    setError('');
     let query = supabase
       .from('orders_3d')
       .select('*')
@@ -85,8 +89,9 @@ export default function AdminOrdersPage() {
       query = query.or(`order_number.ilike.%${search}%`);
     }
 
-    const { data } = await query.limit(50);
-    if (data) setOrders(data as Order3D[]);
+    const { data, error: queryError } = await query.limit(50);
+    if (queryError) setError('Nie udało się pobrać zamówień z Supabase.');
+    else setOrders((data || []) as Order3D[]);
     setLoading(false);
   };
 
@@ -107,14 +112,24 @@ export default function AdminOrdersPage() {
   const submitQuote = async () => {
     if (!selectedOrder) return;
 
+    const printingTime = Number(quoteForm.printing_time_hours);
+    const filamentWeight = Number(quoteForm.filament_used_grams);
+    const finalPrice = Number(quoteForm.final_price);
+    if (!Number.isFinite(printingTime) || printingTime <= 0 || !Number.isFinite(filamentWeight) || filamentWeight <= 0 || !Number.isFinite(finalPrice) || finalPrice <= 0) {
+      toast.error('Uzupełnij wycenę', { description: 'Czas druku, ilość filamentu i cena muszą być większe od zera.' });
+      return;
+    }
+
+    setSubmittingQuote(true);
+
     const { error } = await supabase
       .from('orders_3d')
       .update({
         status: 'quoted',
-        printing_time_hours: parseFloat(quoteForm.printing_time_hours),
-        filament_used_grams: parseFloat(quoteForm.filament_used_grams),
-        final_price: parseFloat(quoteForm.final_price),
-        admin_notes: quoteForm.admin_notes,
+        printing_time_hours: printingTime,
+        filament_used_grams: filamentWeight,
+        final_price: finalPrice,
+        admin_notes: quoteForm.admin_notes.trim() || null,
       })
       .eq('id', selectedOrder.id);
 
@@ -125,6 +140,7 @@ export default function AdminOrdersPage() {
       setQuoteDialog(false);
       fetchOrders();
     }
+    setSubmittingQuote(false);
   };
 
   const getStatusConfig = (status: string) => {
@@ -201,6 +217,8 @@ export default function AdminOrdersPage() {
             <div className="flex justify-center py-12">
               <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
+          ) : error ? (
+            <div className="p-6"><PanelError message={error} onRetry={fetchOrders} /></div>
           ) : orders.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">Brak zamówień</p>
@@ -246,6 +264,7 @@ export default function AdminOrdersPage() {
                               variant="ghost"
                               onClick={() => {
                                 setSelectedOrder(order);
+                                setQuoteForm({ printing_time_hours: '', filament_used_grams: '', final_price: '', admin_notes: '' });
                                 setQuoteDialog(true);
                               }}
                             >
@@ -423,10 +442,11 @@ export default function AdminOrdersPage() {
                 {selectedOrder.status === 'new' && (
                   <Button
                     onClick={submitQuote}
+                    disabled={submittingQuote}
                     className="flex-1 bg-gradient-primary hover:shadow-glow"
                   >
                     <Send className="w-4 h-4 mr-2" />
-                    Wyślij wycenę
+                    {submittingQuote ? 'Zapisywanie...' : 'Wyślij wycenę'}
                   </Button>
                 )}
                 <Button

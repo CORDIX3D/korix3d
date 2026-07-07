@@ -21,25 +21,28 @@ export default function FAQPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetchFAQs();
   }, []);
 
   const fetchFAQs = async () => {
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from('faq_items')
       .select('*')
       .eq('active', true)
       .order('sort_order');
 
     if (data) {
-      setFaqs(data as FAQItem[]);
+      const faqItems = data as FAQItem[];
+      setFaqs(faqItems);
       const uniqueCategories = Array.from(
-        new Set(data.map((f) => f.category).filter(Boolean))
+        new Set(faqItems.map((f) => f.category).filter(Boolean))
       ) as string[];
       setCategories(uniqueCategories);
     }
+    setError(Boolean(queryError));
     setLoading(false);
   };
 
@@ -117,6 +120,12 @@ export default function FAQPage() {
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <HelpCircle className="mx-auto mb-4 h-14 w-14 text-destructive" />
+              <p className="font-medium text-foreground">Nie udało się pobrać odpowiedzi</p>
+              <p className="mt-2 text-sm text-muted-foreground">Odśwież stronę i spróbuj ponownie.</p>
             </div>
           ) : filteredFAQs.length === 0 ? (
             <div className="text-center py-12">

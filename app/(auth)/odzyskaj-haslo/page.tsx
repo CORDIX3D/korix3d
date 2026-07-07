@@ -13,7 +13,7 @@ import { Eye, Mail, Loader2, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide
 import { toast } from 'sonner';
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email('Nieprawidłowy adres email'),
+  email: z.string().trim().toLowerCase().email('Nieprawidłowy adres email'),
 });
 
 type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
@@ -143,6 +143,7 @@ export default function ForgotPasswordPage() {
                   <Input
                     {...register('email')}
                     type="email"
+                    autoComplete="email"
                     placeholder="twoj@email.pl"
                     className="pl-12 h-12 bg-secondary border-border focus:border-primary"
                     disabled={isLoading}

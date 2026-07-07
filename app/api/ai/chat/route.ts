@@ -1,11 +1,14 @@
-export const dynamic = 'force-dynamic';
-
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 function getOpenAI() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('Brak zmiennej OPENAI_API_KEY');
+  }
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -13,10 +16,10 @@ function getOpenAI() {
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    throw new Error('Missing Supabase environment variables');
+    throw new Error('Brak konfiguracji Supabase');
   }
 
   return createSupabaseClient(url, key);
@@ -136,6 +139,30 @@ ZASADY ODPOWIADANIA:
 7. Bądź pomocny i przyjazny, jak doświadczony inżynier sprzedaży`;
 }
 
+function buildFallbackResponse(question: string, context: DatabaseContext): string {
+  const normalized = question.toLowerCase();
+
+  if (normalized.includes('materiał') || normalized.includes('filament') || normalized.includes('pla')) {
+    const materials = context.materials.filter((material) => material.available).map((material) => material.name);
+    if (materials.length) {
+      return `Aktualnie dostępne materiały to: ${materials.join(', ')}. Jeśli opiszesz zastosowanie elementu, pomożemy dobrać najlepszy materiał.`;
+    }
+  }
+
+  if (normalized.includes('czas') || normalized.includes('termin') || normalized.includes('ile trwa')) {
+    const days = context.settings.estimated_production_days;
+    return days && days !== '0'
+      ? `Aktualny szacowany czas realizacji wynosi około ${days} dni roboczych. Dokładny termin zależy od modelu, materiału i liczby sztuk.`
+      : 'Dokładny termin zależy od modelu, materiału i liczby sztuk. Prześlij plik przez formularz wyceny, a potwierdzimy czas realizacji.';
+  }
+
+  if (normalized.includes('cen') || normalized.includes('koszt') || normalized.includes('wycen')) {
+    return 'Cena zależy od wymiarów modelu, materiału, wypełnienia i liczby sztuk. Prześlij plik przez formularz wyceny, aby otrzymać dokładną kalkulację.';
+  }
+
+  return 'Dziękujemy za wiadomość. Asystent AI jest chwilowo niedostępny, ale możesz przesłać projekt przez formularz wyceny lub skontaktować się z nami bezpośrednio — odpowiemy najszybciej jak to możliwe.';
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
@@ -238,14 +265,32 @@ export async function POST(request: NextRequest) {
     const maxTokens = parseInt(dbContext.settings.max_tokens || '2048');
     const temperature = parseFloat(dbContext.settings.temperature || '0.7');
 
-    const openai = getOpenAI();
-    const stream = await openai.chat.completions.create({
-      model,
-      messages: openaiMessages,
-      max_tokens: maxTokens,
-      temperature,
-      stream: true,
-    });
+    let stream: AsyncIterable<{
+      choices: Array<{ delta: { content?: string | null } }>;
+    }>;
+    try {
+      const openai = getOpenAI();
+      stream = await openai.chat.completions.create({
+        model,
+        messages: openaiMessages,
+        max_tokens: maxTokens,
+        temperature,
+        stream: true,
+      });
+    } catch (error) {
+      console.error('OpenAI request error:', error);
+      const fallback = buildFallbackResponse(userMessage?.content || '', dbContext);
+      return new Response(
+        `data: ${JSON.stringify({ content: fallback })}\n\ndata: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`,
+        {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        }
+      );
+    }
 
     // Stream response
     const encoder = new TextEncoder();
@@ -329,8 +374,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('API Error:', error);
 
+    const configurationError = error instanceof Error &&
+      (error.message.includes('OPENAI_API_KEY') || error.message.includes('Supabase'));
     return new Response(JSON.stringify({
-      error: 'Wystąpił błąd. Skontaktuj się z supportem.'
+      error: configurationError
+        ? `Bot nie jest jeszcze skonfigurowany: ${(error as Error).message}`
+        : 'Wystąpił błąd podczas generowania odpowiedzi. Spróbuj ponownie.'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

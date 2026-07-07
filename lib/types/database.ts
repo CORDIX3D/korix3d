@@ -833,6 +833,32 @@ export interface Database {
           created_at?: string;
         };
       };
+      newsletter_subscribers: {
+        Row: {
+          id: string;
+          email: string;
+          active: boolean;
+          source: string;
+          subscribed_at: string;
+          unsubscribed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          active?: boolean;
+          source?: string;
+          subscribed_at?: string;
+          unsubscribed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          active?: boolean;
+          source?: string;
+          subscribed_at?: string;
+          unsubscribed_at?: string | null;
+        };
+      };
       ai_conversations: {
         Row: {
           id: string;
@@ -1319,7 +1345,10 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      accept_order_quote: {
+        Args: { p_order_id: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       [_ in never]: never;
@@ -1346,6 +1375,7 @@ export type Settings = Database['public']['Tables']['settings']['Row'];
 export type DiscountCode = Database['public']['Tables']['discount_codes']['Row'];
 export type PortfolioItem = Database['public']['Tables']['portfolio_items']['Row'];
 export type ContactSubmission = Database['public']['Tables']['contact_submissions']['Row'];
+export type NewsletterSubscriber = Database['public']['Tables']['newsletter_subscribers']['Row'];
 export type AIConversation = Database['public']['Tables']['ai_conversations']['Row'];
 export type AIMessage = Database['public']['Tables']['ai_messages']['Row'];
 export type AIFeedback = Database['public']['Tables']['ai_feedback']['Row'];

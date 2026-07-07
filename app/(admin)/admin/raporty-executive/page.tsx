@@ -57,6 +57,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { PanelError } from '@/components/customer/panel-state';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
@@ -105,6 +106,7 @@ const MONTHS = [
 export default function ExecutiveReportsPage() {
   const [reports, setReports] = useState<ExecutiveReportData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [generating, setGenerating] = useState(false);
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth()).toString());
@@ -120,6 +122,7 @@ export default function ExecutiveReportsPage() {
 
   const fetchReports = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const response = await fetch(`/api/executive/reports?year=${selectedYear}`);
       const data = await response.json();
@@ -127,9 +130,11 @@ export default function ExecutiveReportsPage() {
       if (response.ok) {
         setReports(data.data || []);
       } else {
+        setLoadError(data.error || 'Nie udało się pobrać raportów.');
         toast.error('Błąd', { description: data.error });
       }
     } catch {
+      setLoadError('Nie udało się połączyć z usługą raportów AI.');
       toast.error('Błąd', { description: 'Nie udało się pobrać raportów' });
     }
     setLoading(false);
@@ -452,6 +457,8 @@ export default function ExecutiveReportsPage() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
+          ) : loadError ? (
+            <div className="p-6"><PanelError message={loadError} onRetry={fetchReports} /></div>
           ) : reports.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Brain className="w-12 h-12 text-muted-foreground mb-4" />

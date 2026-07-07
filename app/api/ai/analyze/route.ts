@@ -1,8 +1,8 @@
-export const dynamic = 'force-dynamic';
-
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+
+export const dynamic = 'force-dynamic';
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

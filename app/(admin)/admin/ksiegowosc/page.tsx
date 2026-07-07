@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { PanelError } from '@/components/customer/panel-state';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { AccountingReport } from '@/lib/types/database';
@@ -82,6 +83,7 @@ const MONTHS = [
 export default function AccountingPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [generating, setGenerating] = useState(false);
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
@@ -95,6 +97,7 @@ export default function AccountingPage() {
 
   const fetchReports = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const response = await fetch(`/api/accounting/reports?year=${selectedYear}`);
       const data = await response.json();
@@ -102,9 +105,11 @@ export default function AccountingPage() {
       if (response.ok) {
         setReports(data.reports || []);
       } else {
+        setLoadError(data.error || 'Nie udało się pobrać raportów.');
         toast.error('Błąd', { description: data.error });
       }
     } catch (error) {
+      setLoadError('Nie udało się połączyć z usługą raportów księgowych.');
       toast.error('Błąd', { description: 'Nie udało się pobrać raportów' });
     }
     setLoading(false);
@@ -391,6 +396,8 @@ export default function AccountingPage() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
+          ) : loadError ? (
+            <div className="p-6"><PanelError message={loadError} onRetry={fetchReports} /></div>
           ) : reports.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <FileSpreadsheet className="w-12 h-12 text-muted-foreground mb-4" />

@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/lib/providers';
+import { CartProvider } from '@/lib/cart-provider';
 
 export const metadata: Metadata = {
   title: 'KORIX3D - Profesjonalny Druk 3D | Od pomysłu do rzeczywistości',
@@ -69,8 +70,10 @@ export default function RootLayout({
     <html lang="pl" className="dark">
       <body className="font-sans antialiased">
         <AuthProvider>
-          {children}
-          <Toaster position="top-right" richColors closeButton />
+          <CartProvider>
+            {children}
+            <Toaster position="top-right" richColors closeButton />
+          </CartProvider>
         </AuthProvider>
       </body>
     </html>

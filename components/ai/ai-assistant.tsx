@@ -70,10 +70,11 @@ export function AIAssistant() {
           .in('setting_key', ['greeting', 'enabled', 'system_prompt']);
 
         if (data) {
+          const settingsData = data as Array<{ setting_key: string; setting_value: string }>;
           const settingsMap: AISettings = {
-            greeting: data.find(s => s.setting_key === 'greeting')?.setting_value || 'Witaj! Jestem KORIX AI.',
-            enabled: data.find(s => s.setting_key === 'enabled')?.setting_value !== 'false',
-            system_prompt: data.find(s => s.setting_key === 'system_prompt')?.setting_value || ''
+            greeting: settingsData.find((s) => s.setting_key === 'greeting')?.setting_value || 'Witaj! Jestem KORIX AI.',
+            enabled: settingsData.find((s) => s.setting_key === 'enabled')?.setting_value !== 'false',
+            system_prompt: settingsData.find((s) => s.setting_key === 'system_prompt')?.setting_value || ''
           };
           setSettings(settingsMap);
         }
@@ -145,12 +146,14 @@ ${messageContent}`;
       });
 
       if (!response.ok) {
-        throw new Error('Błąd komunikacji');
+        const errorBody = await response.json().catch(() => null);
+        throw new Error(errorBody?.error || 'Błąd komunikacji z botem');
       }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = '';
+      let streamBuffer = '';
       let newConversationId = conversationId;
 
       if (reader) {
@@ -168,8 +171,9 @@ ${messageContent}`;
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
+          streamBuffer += decoder.decode(value, { stream: true });
+          const lines = streamBuffer.split('\n');
+          streamBuffer = lines.pop() || '';
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -210,7 +214,7 @@ ${messageContent}`;
       setMessages(prev => [...prev, {
         id: `error_${Date.now()}`,
         role: 'assistant',
-        content: 'Przepraszam, wystąpił błąd. Spróbuj ponownie.',
+        content: error instanceof Error ? error.message : 'Przepraszam, wystąpił błąd. Spróbuj ponownie.',
         timestamp: new Date()
       }]);
     } finally {

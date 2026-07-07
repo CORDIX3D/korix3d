@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -14,16 +14,17 @@ import { Eye, EyeOff, Mail, Lock, Loader2, ArrowLeft, AlertCircle } from 'lucide
 import { toast } from 'sonner';
 
 const loginSchema = z.object({
-  email: z.string().email('Nieprawidłowy adres email'),
+  email: z.string().trim().toLowerCase().email('Nieprawidłowy adres email'),
   password: z.string().min(6, 'Hasło musi mieć co najmniej 6 znaków'),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-function LoginPageContent() {
+export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/';
+  const requestedRedirect = searchParams.get('redirect') || '/';
+  const redirect = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/';
   const { signIn } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -116,6 +117,7 @@ function LoginPageContent() {
                   <Input
                     {...register('email')}
                     type="email"
+                    autoComplete="email"
                     placeholder="twoj@email.pl"
                     className="pl-12 h-12 bg-secondary border-border focus:border-primary"
                     disabled={isLoading}
@@ -133,12 +135,14 @@ function LoginPageContent() {
                   <Input
                     {...register('password')}
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     placeholder="••••••••"
                     className="pl-12 pr-12 h-12 bg-secondary border-border focus:border-primary"
                     disabled={isLoading}
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Ukryj hasło' : 'Pokaż hasło'}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -154,14 +158,7 @@ function LoginPageContent() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 rounded border-border bg-secondary accent-primary"
-                  />
-                  <span className="text-sm text-muted-foreground">Zapamiętaj mnie</span>
-                </label>
+              <div className="flex justify-end">
                 <Link
                   href="/odzyskaj-haslo"
                   className="text-sm text-primary hover:underline"
@@ -207,13 +204,5 @@ function LoginPageContent() {
         </Card>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-background" />}>
-      <LoginPageContent />
-    </Suspense>
   );
 }

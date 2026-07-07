@@ -9,9 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import {
-  MapPin,
   Mail,
-  Phone,
   Clock,
   Send,
   Loader2,
@@ -22,11 +20,11 @@ import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 const contactSchema = z.object({
-  name: z.string().min(2, 'Imię musi mieć co najmniej 2 znaki'),
-  email: z.string().email('Nieprawidłowy adres email'),
-  phone: z.string().optional(),
-  subject: z.string().min(3, 'Temat musi mieć co najmniej 3 znaki'),
-  message: z.string().min(10, 'Wiadomość musi mieć co najmniej 10 znaków'),
+  name: z.string().trim().min(2, 'Imię musi mieć co najmniej 2 znaki').max(100, 'Imię jest za długie'),
+  email: z.string().trim().toLowerCase().email('Nieprawidłowy adres email').max(254),
+  phone: z.string().trim().max(30, 'Numer telefonu jest za długi').refine((value) => !value || /^[+\d\s()-]+$/.test(value), 'Nieprawidłowy numer telefonu').optional(),
+  subject: z.string().trim().min(3, 'Temat musi mieć co najmniej 3 znaki').max(150, 'Temat jest za długi'),
+  message: z.string().trim().min(10, 'Wiadomość musi mieć co najmniej 10 znaków').max(5000, 'Wiadomość jest za długa'),
 });
 
 type ContactFormValues = z.infer<typeof contactSchema>;
@@ -41,16 +39,20 @@ const businessHours = [
   { day: 'Niedziela', hours: 'Zamknięte' },
 ];
 
-export default function ContactPage() {
+export default function ContactPage({ searchParams }: { searchParams?: { temat?: string; produkt?: string } }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
+    defaultValues: {
+      subject: searchParams?.produkt ? `Pytanie o produkt ${searchParams.produkt}` : searchParams?.temat === 'zamowienie' ? 'Zapytanie dotyczące zamówienia' : '',
+    },
   });
 
   const onSubmit = async (data: ContactFormValues) => {
@@ -61,7 +63,7 @@ export default function ContactPage() {
         {
           name: data.name,
           email: data.email,
-          phone: data.phone,
+          phone: data.phone || null,
           subject: data.subject,
           message: data.message,
         },
@@ -98,7 +100,7 @@ export default function ContactPage() {
               Twoja wiadomość została wysłana. Odpowiemy w ciągu 24 godzin w dni robocze.
             </p>
             <Button
-              onClick={() => setSubmitted(false)}
+              onClick={() => { reset(); setSubmitted(false); }}
               variant="outline"
               className="w-full"
             >
@@ -139,6 +141,7 @@ export default function ContactPage() {
                       <label className="form-label">Imię i nazwisko *</label>
                       <Input
                         {...register('name')}
+                        autoComplete="name"
                         placeholder="Jan Kowalski"
                         className="h-12 bg-secondary border-border"
                       />
@@ -151,6 +154,7 @@ export default function ContactPage() {
                       <Input
                         {...register('email')}
                         type="email"
+                        autoComplete="email"
                         placeholder="twoj@email.pl"
                         className="h-12 bg-secondary border-border"
                       />
@@ -165,6 +169,7 @@ export default function ContactPage() {
                     <Input
                       {...register('phone')}
                       type="tel"
+                      autoComplete="tel"
                       placeholder="+48 123 456 789"
                       className="h-12 bg-secondary border-border"
                     />
@@ -226,19 +231,6 @@ export default function ContactPage() {
                   <div className="space-y-4">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <MapPin className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-foreground">Adres</h3>
-                        <p className="text-muted-foreground">
-                          ul. Przykładowa 1<br />
-                          00-001 Warszawa
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
                         <Mail className="w-5 h-5 text-primary" />
                       </div>
                       <div>
@@ -252,20 +244,6 @@ export default function ContactPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <Phone className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-foreground">Telefon</h3>
-                        <a
-                          href="tel:+48123456789"
-                          className="text-primary hover:underline"
-                        >
-                          +48 123 456 789
-                        </a>
-                      </div>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -299,20 +277,6 @@ export default function ContactPage() {
                 </CardContent>
               </Card>
 
-              {/* Map */}
-              <Card className="bg-card border-border overflow-hidden">
-                <div className="aspect-video bg-secondary">
-                  <iframe
-                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2443.484743098387!2d21.012228700000005!3d52.2296756!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x471ecc8c0d1c6c7d%3A0x5ce09b3f3c3d3c3c!2sWarszawa%2C%20Poland!5e0!3m2!1sen!2sus!4v1699999999999!5m2!1sen!2sus"
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                </div>
-              </Card>
             </div>
           </div>
         </div>

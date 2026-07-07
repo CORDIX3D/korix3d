@@ -1,26 +1,29 @@
 'use client';
 
 import Link from 'next/link';
-import { Mail, Phone, MapPin, Facebook, Instagram, Linkedin, Printer } from 'lucide-react';
+import { FormEvent, useState } from 'react';
+import { Mail, Printer } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 const footerLinks = {
   sklep: [
-    { name: 'Filamenty', href: '/sklep?k=f filamenty' },
+    { name: 'Filamenty', href: '/sklep?k=filamenty' },
     { name: 'Akcesoria', href: '/sklep?k=akcesoria' },
     { name: 'Drukarki 3D', href: '/sklep?k=drukarki-3d' },
     { name: 'Gotowe produkty', href: '/sklep?k=gotowe-produkty' },
   ],
   uslugi: [
     { name: 'Wycena wydruku', href: '/wycena' },
-    { name: 'Prototypowanie', href: '/uslugi/prototypowanie' },
-    { name: 'Części inżynieryjne', href: '/uslugi/czesci-inzynieryjne' },
-    { name: 'Małoseryjna produkcja', href: '/uslugi/maloseryjna-produkcja' },
+    { name: 'Prototypowanie', href: '/wycena?usluga=prototypowanie' },
+    { name: 'Części inżynieryjne', href: '/wycena?usluga=czesci-inzynieryjne' },
+    { name: 'Małoseryjna produkcja', href: '/wycena?usluga=produkcja-seryjna' },
   ],
   firma: [
-    { name: 'O nas', href: '/o-nas' },
+    { name: 'O nas', href: '/#o-nas' },
     { name: 'Portfolio', href: '/portfolio' },
     { name: 'Blog', href: '/blog' },
-    { name: 'Kariera', href: '/kariera' },
+    { name: 'Kariera', href: '/kontakt?temat=kariera' },
   ],
   pomoc: [
     { name: 'FAQ', href: '/faq' },
@@ -31,6 +34,30 @@ const footerLinks = {
 };
 
 export function PublicFooter() {
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
+
+  const subscribeNewsletter = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = newsletterEmail.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      toast.error('Podaj poprawny adres email');
+      return;
+    }
+    setNewsletterLoading(true);
+    const { error } = await supabase.from('newsletter_subscribers').insert([{
+      email,
+      source: 'footer',
+    }]);
+    setNewsletterLoading(false);
+    if (error && error.code !== '23505') {
+      toast.error('Nie udało się zapisać', { description: 'Spróbuj ponownie za chwilę.' });
+      return;
+    }
+    setNewsletterEmail('');
+    toast.success(error?.code === '23505' ? 'Ten adres jest już zapisany' : 'Zapisano do newslettera');
+  };
+
   return (
     <footer className="bg-card border-t border-border">
       {/* Main Footer */}
@@ -54,26 +81,6 @@ export function PublicFooter() {
               <a href="mailto:kontakt@korix3d.pl" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                 <Mail className="h-4 w-4 text-primary" />
                 kontakt@korix3d.pl
-              </a>
-              <a href="tel:+48123456789" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <Phone className="h-4 w-4 text-primary" />
-                +48 123 456 789
-              </a>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <MapPin className="h-4 w-4 text-primary" />
-                ul. Przykładowa 1, 00-001 Warszawa
-              </div>
-            </div>
-            {/* Social Links */}
-            <div className="flex items-center gap-3 mt-4">
-              <a href="#" className="p-2 rounded-lg bg-secondary hover:bg-primary/20 transition-colors">
-                <Facebook className="h-4 w-4 text-muted-foreground hover:text-primary" />
-              </a>
-              <a href="#" className="p-2 rounded-lg bg-secondary hover:bg-primary/20 transition-colors">
-                <Instagram className="h-4 w-4 text-muted-foreground hover:text-primary" />
-              </a>
-              <a href="#" className="p-2 rounded-lg bg-secondary hover:bg-primary/20 transition-colors">
-                <Linkedin className="h-4 w-4 text-muted-foreground hover:text-primary" />
               </a>
             </div>
           </div>
@@ -141,17 +148,24 @@ export function PublicFooter() {
                 Otrzymuj informacje o nowościach i promocjach
               </p>
             </div>
-            <form className="flex gap-2 w-full md:w-auto">
+            <form onSubmit={subscribeNewsletter} className="flex gap-2 w-full md:w-auto">
               <input
                 type="email"
+                value={newsletterEmail}
+                onChange={(event) => setNewsletterEmail(event.target.value)}
+                autoComplete="email"
+                aria-label="Adres email do newslettera"
+                required
+                disabled={newsletterLoading}
                 placeholder="Twój email"
                 className="flex-1 md:w-64 px-4 py-2 bg-secondary border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
               <button
                 type="submit"
+                disabled={newsletterLoading}
                 className="px-4 py-2 bg-gradient-primary text-white rounded-lg font-medium hover:shadow-glow transition-shadow"
               >
-                Zapisz się
+                {newsletterLoading ? 'Zapisywanie...' : 'Zapisz się'}
               </button>
             </form>
           </div>
@@ -174,7 +188,10 @@ export function PublicFooter() {
                 Dostawa i płatności
               </Link>
               <Link href="/reklamacje" className="hover:text-foreground transition-colors">
-                Reklamacje i zwroty
+                Reklamacje
+              </Link>
+              <Link href="/zwroty" className="hover:text-foreground transition-colors">
+                Zwroty
               </Link>
             </div>
           </div>

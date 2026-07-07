@@ -1,0 +1,17 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Layers, Thermometer } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase/client';
+import { Material } from '@/lib/types/database';
+
+export default function MaterialDetailPage({ params }: { params: { slug: string } }) {
+  const [material, setMaterial] = useState<Material | null>(null); const [loading, setLoading] = useState(true);
+  useEffect(() => { supabase.from('materials').select('*').eq('slug', params.slug).eq('available', true).maybeSingle().then(({ data }: { data: Material | null }) => { setMaterial(data); setLoading(false); }); }, [params.slug]);
+  if (loading) return <div className="min-h-[60vh] flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
+  if (!material) return <div className="min-h-[60vh] flex items-center justify-center text-center"><div><Layers className="mx-auto mb-4 h-14 w-14 text-muted-foreground" /><h1 className="text-2xl font-bold">Materiał niedostępny</h1><Button asChild className="mt-6"><Link href="/materialy">Wróć do materiałów</Link></Button></div></div>;
+  const properties = material.properties && typeof material.properties === 'object' && !Array.isArray(material.properties) ? material.properties as Record<string, unknown> : {};
+  return <div className="mx-auto min-h-screen max-w-5xl px-4 py-12"><Link href="/materialy" className="mb-8 inline-flex items-center gap-2 text-muted-foreground hover:text-primary"><ArrowLeft className="h-4 w-4" />Wróć do materiałów</Link><div className="grid gap-10 lg:grid-cols-[1fr_1.4fr]"><div className="aspect-square overflow-hidden rounded-2xl bg-primary/10">{material.image_url ? <img src={material.image_url} alt={material.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center"><Layers className="h-24 w-24 text-primary/40" /></div>}</div><div><h1 className="mb-4 text-4xl font-bold">{material.name}</h1><p className="mb-6 text-lg leading-7 text-muted-foreground">{material.description}</p><p className="mb-6 text-3xl font-bold text-primary">{Number(material.price_per_kg).toFixed(2)} zł/kg</p><div className="mb-8 grid gap-4 sm:grid-cols-2"><div className="rounded-xl bg-secondary p-4"><Thermometer className="mb-2 h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">Temperatura dyszy</p><p className="font-semibold">{material.print_temp_min || '—'}–{material.print_temp_max || '—'}°C</p></div><div className="rounded-xl bg-secondary p-4"><Thermometer className="mb-2 h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">Temperatura stołu</p><p className="font-semibold">{material.bed_temp_min || '—'}–{material.bed_temp_max || '—'}°C</p></div></div>{Object.keys(properties).length > 0 && <div className="mb-8 rounded-xl border p-5"><h2 className="mb-3 font-semibold">Właściwości</h2><div className="grid gap-2 text-sm text-muted-foreground">{Object.entries(properties).filter(([, value]) => typeof value !== 'object').map(([key, value]) => <div key={key} className="flex justify-between gap-4 border-b py-2 last:border-0"><span>{key.replace(/_/g, ' ')}</span><span className="text-foreground">{String(value)}</span></div>)}</div></div>}<Button asChild><Link href={`/wycena?material=${material.id}`}>Wyceń wydruk z {material.name}</Link></Button></div></div></div>;
+}

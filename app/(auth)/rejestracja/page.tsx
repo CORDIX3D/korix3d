@@ -14,10 +14,11 @@ import { Eye, EyeOff, Mail, Lock, User, Loader2, ArrowLeft, AlertCircle, CheckCi
 import { toast } from 'sonner';
 
 const registerSchema = z.object({
-  full_name: z.string().min(2, 'Imię musi mieć co najmniej 2 znaki'),
-  email: z.string().email('Nieprawidłowy adres email'),
-  password: z.string().min(6, 'Hasło musi mieć co najmniej 6 znaków'),
+  full_name: z.string().trim().min(2, 'Imię musi mieć co najmniej 2 znaki').max(100),
+  email: z.string().trim().toLowerCase().email('Nieprawidłowy adres email'),
+  password: z.string().min(8, 'Hasło musi mieć co najmniej 8 znaków').regex(/[a-z]/, 'Hasło musi zawierać małą literę').regex(/[A-Z]/, 'Hasło musi zawierać wielką literę').regex(/\d/, 'Hasło musi zawierać cyfrę'),
   confirmPassword: z.string(),
+  terms: z.boolean().refine((value) => value, 'Zaakceptuj regulamin i politykę prywatności'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Hasła nie są zgodne',
   path: ['confirmPassword'],
@@ -41,6 +42,7 @@ export default function RegisterPage() {
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
+    defaultValues: { terms: false },
   });
 
   const onSubmit = async (data: RegisterFormValues) => {
@@ -154,6 +156,7 @@ export default function RegisterPage() {
                   <Input
                     {...register('full_name')}
                     type="text"
+                    autoComplete="name"
                     placeholder="Jan Kowalski"
                     className="pl-12 h-12 bg-secondary border-border focus:border-primary"
                     disabled={isLoading}
@@ -171,6 +174,7 @@ export default function RegisterPage() {
                   <Input
                     {...register('email')}
                     type="email"
+                    autoComplete="email"
                     placeholder="twoj@email.pl"
                     className="pl-12 h-12 bg-secondary border-border focus:border-primary"
                     disabled={isLoading}
@@ -188,12 +192,14 @@ export default function RegisterPage() {
                   <Input
                     {...register('password')}
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                     placeholder="••••••••"
                     className="pl-12 pr-12 h-12 bg-secondary border-border focus:border-primary"
                     disabled={isLoading}
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Ukryj hasło' : 'Pokaż hasło'}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -216,12 +222,14 @@ export default function RegisterPage() {
                   <Input
                     {...register('confirmPassword')}
                     type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                     placeholder="••••••••"
                     className="pl-12 pr-12 h-12 bg-secondary border-border focus:border-primary"
                     disabled={isLoading}
                   />
                   <button
                     type="button"
+                    aria-label={showConfirmPassword ? 'Ukryj powtórzone hasło' : 'Pokaż powtórzone hasło'}
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -240,7 +248,7 @@ export default function RegisterPage() {
               <div className="flex items-start gap-2">
                 <input
                   type="checkbox"
-                  required
+                  {...register('terms')}
                   className="w-4 h-4 mt-1 rounded border-border bg-secondary accent-primary"
                 />
                 <span className="text-sm text-muted-foreground">
@@ -254,6 +262,7 @@ export default function RegisterPage() {
                   </Link>
                 </span>
               </div>
+              {errors.terms && <p className="text-sm text-destructive">{errors.terms.message}</p>}
 
               <Button
                 type="submit"

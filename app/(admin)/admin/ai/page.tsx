@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { PanelError, PanelLoading } from '@/components/customer/panel-state';
 import {
   AreaChart,
   Area,
@@ -60,6 +61,7 @@ interface AILogRecord {
   success: boolean;
   created_at: string;
   question_type: string | null;
+  conversation_id?: string | null;
 }
 
 interface AnalyticsData {
@@ -87,6 +89,7 @@ const SUGGESTED_PROMPTS = [
 export default function AdminAIPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
@@ -100,11 +103,13 @@ export default function AdminAIPage() {
 
   const fetchSettings = async () => {
     setLoading(true);
+    setLoadError('');
     const { data, error } = await supabase
       .from('ai_settings')
       .select('*');
 
     if (error) {
+      setLoadError('Nie udało się pobrać ustawień AI z Supabase.');
       toast.error('Błąd', { description: 'Nie udało się pobrać ustawień AI' });
     } else if (data) {
       const settingsMap: Record<string, string> = {};
@@ -146,14 +151,15 @@ export default function AdminAIPage() {
         .limit(20);
 
       if (logsData) {
-        const successCount = logsData.filter(l => l.success).length;
-        const avgTime = logsData.length > 0
-          ? logsData.reduce((sum, l) => sum + (l.response_time_ms || 0), 0) / logsData.length
+        const logs = logsData as AILogRecord[];
+        const successCount = logs.filter((l) => l.success).length;
+        const avgTime = logs.length > 0
+          ? logs.reduce((sum, l) => sum + (l.response_time_ms || 0), 0) / logs.length
           : 0;
 
         // Group queries
         const queryCounts: Record<string, number> = {};
-        logsData.forEach(l => {
+        logs.forEach((l) => {
           const query = l.query.toLowerCase().slice(0, 50);
           queryCounts[query] = (queryCounts[query] || 0) + 1;
         });
@@ -171,13 +177,13 @@ export default function AdminAIPage() {
           date.setDate(date.getDate() - i);
           const dateStr = date.toISOString().split('T')[0];
 
-          const dayLogs = logsData.filter(l =>
+          const dayLogs = logs.filter((l) =>
             l.created_at.startsWith(dateStr)
           );
 
           dailyStats.push({
             date: dateStr.slice(5), // MM-DD
-            conversations: new Set(dayLogs.map(l => l.conversation_id).filter(Boolean)).size,
+            conversations: new Set(dayLogs.map((l) => l.conversation_id).filter(Boolean)).size,
             messages: dayLogs.length
           });
         }
@@ -236,6 +242,10 @@ export default function AdminAIPage() {
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
   };
+
+  if (loading) return <PanelLoading label="Pobieranie konfiguracji AI..." />;
+  if (loadError) return <PanelError message={loadError} onRetry={fetchSettings} />;
+  if (Object.keys(settings).length === 0) return <PanelError message="Brak konfiguracji AI. Uzupełnij rekordy w tabeli ai_settings." onRetry={fetchSettings} />;
 
   return (
     <div className="space-y-6">

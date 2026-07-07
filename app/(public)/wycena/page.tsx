@@ -37,9 +37,9 @@ const quoteSchema = z.object({
   layer_height: z.enum(['0.1', '0.2', '0.3']),
   infill: z.enum(['10', '20', '30', '50', '80', '100']),
   quality: z.enum(['standard', 'high', 'ultra']),
-  quantity: z.number().min(1).max(1000),
+  quantity: z.number({ invalid_type_error: 'Podaj liczbę sztuk' }).int('Ilość musi być liczbą całkowitą').min(1, 'Minimalna ilość to 1').max(1000, 'Maksymalna ilość to 1000'),
   priority: z.enum(['standard', 'express', 'urgent']),
-  notes: z.string().optional(),
+  notes: z.string().trim().max(2000, 'Uwagi mogą mieć maksymalnie 2000 znaków').optional(),
   delivery_type: z.enum(['pickup', 'courier', 'paczkomat']),
 });
 
@@ -78,7 +78,6 @@ export default function QuotePage() {
   const [colors, setColors] = useState<any[]>([]);
   const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [uploading, setUploading] = useState(false);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -146,6 +145,7 @@ export default function QuotePage() {
     const maxSize = 50 * 1024 * 1024; // 50MB
 
     const validFiles: File[] = [];
+    const existingFiles = new Set(uploadedFiles.map((file) => `${file.name}:${file.size}`));
     for (const file of Array.from(files)) {
       const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
       if (!validExtensions.includes(ext)) {
@@ -160,10 +160,20 @@ export default function QuotePage() {
         });
         continue;
       }
+      if (existingFiles.has(`${file.name}:${file.size}`)) {
+        toast.info('Plik został już dodany', { description: file.name });
+        continue;
+      }
+      if (uploadedFiles.length + validFiles.length >= 10) {
+        toast.error('Osiągnięto limit plików', { description: 'Do jednej wyceny możesz dodać maksymalnie 10 plików.' });
+        break;
+      }
       validFiles.push(file);
+      existingFiles.add(`${file.name}:${file.size}`);
     }
 
     setUploadedFiles((prev) => [...prev, ...validFiles]);
+    e.target.value = '';
   };
 
   const removeFile = (index: number) => {
@@ -171,6 +181,10 @@ export default function QuotePage() {
   };
 
   const onSubmit = async (data: QuoteFormValues) => {
+    if (!user) {
+      toast.error('Zaloguj się', { description: 'Konto jest wymagane do wysłania i śledzenia wyceny.' });
+      return;
+    }
     if (uploadedFiles.length === 0) {
       toast.error('Dodaj pliki', {
         description: 'Musisz dodać co najmniej jeden plik 3D',
@@ -181,19 +195,25 @@ export default function QuotePage() {
     setSubmitting(true);
 
     try {
-      // Create order
+      const deliveryLabel = deliveryOptions.find((option) => option.value === data.delivery_type)?.label;
+      const configurationNotes = [
+        `Wypełnienie: ${data.infill}%`,
+        `Jakość: ${data.quality}`,
+        `Dostawa: ${deliveryLabel ?? data.delivery_type}`,
+        data.notes,
+      ].filter(Boolean).join('\n');
+
+      // Parametry bez osobnych kolumn zachowujemy w notatce do zamówienia.
       const orderData = {
-        user_id: user?.id,
+        user_id: user.id,
         material_id: data.material_id,
         material_name: selectedMaterial?.name,
         color: colors.find((c) => c.id === data.color)?.name,
         color_hex: colors.find((c) => c.id === data.color)?.hex,
         layer_height: parseFloat(data.layer_height),
-        infill: parseInt(data.infill),
-        quality: data.quality,
         quantity: data.quantity,
         priority: data.priority,
-        notes: data.notes,
+        notes: configurationNotes,
         status: 'new',
         files: uploadedFiles.map((f) => ({
           name: f.name,
@@ -577,6 +597,9 @@ export default function QuotePage() {
                     max={1000}
                     className="h-12 bg-secondary border-border w-32"
                   />
+                  {errors.quantity && (
+                    <p className="text-sm text-destructive">{errors.quantity.message}</p>
+                  )}
                 </div>
 
                 {/* Priority */}
@@ -614,8 +637,12 @@ export default function QuotePage() {
                   <Textarea
                     {...register('notes')}
                     placeholder="Dodatkowe informacje o projekcie..."
+                    maxLength={2000}
                     className="bg-secondary border-border min-h-[100px]"
                   />
+                  {errors.notes && (
+                    <p className="text-sm text-destructive">{errors.notes.message}</p>
+                  )}
                 </div>
 
                 <div className="flex justify-between">
@@ -765,7 +792,7 @@ export default function QuotePage() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || !user}
                     className="bg-gradient-primary hover:shadow-glow min-w-[160px]"
                   >
                     {submitting ? (
@@ -774,7 +801,7 @@ export default function QuotePage() {
                         Wysyłanie...
                       </>
                     ) : (
-                      'Wyślij zlecenie'
+                      user ? 'Wyślij zlecenie' : 'Zaloguj się, aby wysłać'
                     )}
                   </Button>
                 </div>

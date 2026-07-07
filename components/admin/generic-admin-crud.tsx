@@ -39,6 +39,11 @@ export type AdminCrudConfig = {
   defaultInsert?: Record<string, unknown>;
   softDeleteField?: string;
   readOnly?: boolean;
+  filters?: Array<{
+    field: string;
+    operator?: 'eq' | 'in';
+    value: unknown;
+  }>;
 };
 
 type DbRow = Record<string, any>;
@@ -105,6 +110,11 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const fetchRows = async () => {
     setLoading(true);
     let query = (supabase as any).from(config.table).select('*');
+    for (const filter of config.filters || []) {
+      query = filter.operator === 'in'
+        ? query.in(filter.field, filter.value)
+        : query.eq(filter.field, filter.value);
+    }
     if (config.orderBy) query = query.order(config.orderBy, { ascending: false });
     const { data, error } = await query;
     if (error) {

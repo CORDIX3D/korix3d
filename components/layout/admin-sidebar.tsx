@@ -29,6 +29,7 @@ import {
   Bot,
   FileSpreadsheet,
   Brain,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/providers';
@@ -106,6 +107,7 @@ const adminNav = [
       { name: 'Księgowość', href: '/admin/ksiegowosc', icon: FileSpreadsheet },
       { name: 'AI Raporty', href: '/admin/raporty-executive', icon: Brain },
       { name: 'Powiadomienia', href: '/admin/powiadomienia', icon: Bell },
+      { name: 'Historia zmian', href: '/admin/historia', icon: History },
     ],
   },
 ];

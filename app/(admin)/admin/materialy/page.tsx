@@ -153,9 +153,10 @@ export default function AdminMaterialsPage() {
 
   const handleSubmit = async () => {
     const name = formData.name.trim();
+    const colorName = formData.color_name.trim();
     const pricePerKg = Number(formData.price_per_kg);
-    if (!name || !Number.isFinite(pricePerKg) || pricePerKg <= 0) {
-      toast.error('Uzupełnij nazwę i cenę z kilograma');
+    if (!name || !colorName || !Number.isFinite(pricePerKg) || pricePerKg <= 0) {
+      toast.error('Uzupełnij rodzaj materiału, kolor i cenę z kilograma');
       return;
     }
 
@@ -175,9 +176,10 @@ export default function AdminMaterialsPage() {
         available: true,
         updated_at: new Date().toISOString(),
       };
-      let materialId = editingMaterial?.id || '';
-      if (editingMaterial) {
-        const result = await supabase.from('materials').update(data).eq('id', editingMaterial.id);
+      const existingMaterial = editingMaterial || materials.find((material) => material.name.trim().toLowerCase() === name.toLowerCase());
+      let materialId = existingMaterial?.id || '';
+      if (existingMaterial) {
+        const result = await supabase.from('materials').update({ ...data, slug: existingMaterial.slug }).eq('id', existingMaterial.id);
         if (result.error) throw result.error;
       } else {
         const result = await supabase.from('materials').insert([data]).select('id').single();
@@ -185,19 +187,13 @@ export default function AdminMaterialsPage() {
         materialId = result.data.id;
       }
 
-      const colorName = formData.color_name.trim();
-      const existingColor = colors.find((color) => color.material_id === materialId);
-      if (colorName) {
-        const colorData = { material_id: materialId, name: colorName, hex: formData.color_hex, available: true };
-        const colorResult = existingColor
-          ? await supabase.from('material_colors').update(colorData).eq('id', existingColor.id)
-          : await supabase.from('material_colors').insert([colorData]);
-        if (colorResult.error) throw colorResult.error;
-      } else if (existingColor) {
-        const colorResult = await supabase.from('material_colors').update({ available: false }).eq('id', existingColor.id);
-        if (colorResult.error) throw colorResult.error;
-      }
-      toast.success(editingMaterial ? 'Materiał zaktualizowany' : 'Materiał dodany do wyceny');
+      const existingColor = colors.find((color) => color.material_id === materialId && color.name.trim().toLowerCase() === colorName.toLowerCase());
+      const colorData = { material_id: materialId, name: colorName, hex: formData.color_hex, available: true };
+      const colorResult = existingColor
+        ? await supabase.from('material_colors').update(colorData).eq('id', existingColor.id)
+        : await supabase.from('material_colors').insert([colorData]);
+      if (colorResult.error) throw colorResult.error;
+      toast.success(existingMaterial ? 'Materiał i kolor zaktualizowane' : 'Materiał i kolor dodane');
       setDialogOpen(false);
       resetForm();
       fetchMaterials();
@@ -248,7 +244,7 @@ export default function AdminMaterialsPage() {
                   <div className="space-y-2"><label className="form-label">Cena z kilograma (zł/kg) *</label><Input type="number" step="0.01" min="0" value={formData.price_per_kg} onChange={(e) => setFormData({ ...formData, price_per_kg: e.target.value })} className="h-11 bg-secondary border-border" /></div>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_120px]">
-                  <div className="space-y-2"><label className="form-label">Kolor</label><Input value={formData.color_name} onChange={(e) => setFormData({ ...formData, color_name: e.target.value })} placeholder="np. Zielony" className="h-11 bg-secondary border-border" /></div>
+                  <div className="space-y-2"><label className="form-label">Kolor *</label><Input value={formData.color_name} onChange={(e) => setFormData({ ...formData, color_name: e.target.value })} placeholder="np. Zielony" className="h-11 bg-secondary border-border" /></div>
                   <div className="space-y-2"><label className="form-label">Próbka</label><div className="flex h-11 items-center gap-2 rounded-md border bg-secondary px-2"><Input type="color" value={formData.color_hex} onChange={(e) => setFormData({ ...formData, color_hex: e.target.value })} className="h-8 w-12 cursor-pointer border-0 p-0" /><span className="text-xs text-muted-foreground">{formData.color_hex}</span></div></div>
                 </div>
                 <div className="space-y-2"><label className="form-label">Opis</label><textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full h-24 bg-secondary border border-border rounded-lg p-3 text-foreground" /></div>

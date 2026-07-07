@@ -45,7 +45,7 @@ function createEmptyDatabaseContext(): DatabaseContext {
     orders3D: [],
     recentOrders: [],
     productionQueue: 0,
-    settings: {},
+    settings: { context_available: 'false' },
   };
 }
 
@@ -100,6 +100,7 @@ async function getDatabaseContext(userId: string | null, userRole: string | null
     productionQueue,
     settings: {
       ...settings,
+      context_available: 'true',
       estimated_production_days: estimatedDays.toString(),
       total_queued_hours: totalQueuedHours.toString()
     }
@@ -107,6 +108,7 @@ async function getDatabaseContext(userId: string | null, userRole: string | null
 }
 
 function buildSystemPrompt(context: DatabaseContext, userRole: string | null, userName: string | null): string {
+  const hasLiveContext = context.settings.context_available === 'true';
   const availableMaterials = context.materials.filter(m => m.available).map(m =>
     `- ${m.name}: ${m.price_per_kg} PLN/kg, ${m.properties ? JSON.stringify(m.properties) : 'brak dodatkowych właściwości'}`
   ).join('\n');
@@ -121,11 +123,8 @@ function buildSystemPrompt(context: DatabaseContext, userRole: string | null, us
 
   const basePrompt = context.settings.system_prompt || 'Jesteś KORIX AI - asystentem firmy KORIX3D.';
 
-  return `${basePrompt}
-
-AKTUALNE DANE Z BAZY:
-
-=== MATERIAŁY DOSTĘPNE ===
+  const liveDataPrompt = hasLiveContext
+    ? `=== MATERIAŁY DOSTĘPNE ===
 ${availableMaterials || 'Brak dostępnych materiałów'}
 
 === FILAMENTY NA STANIE (min. 500g) ===
@@ -136,7 +135,15 @@ ${warehouseStatus || 'Wszystkie produkty w normie'}
 
 === PRODUKCJA ===
 - Zamówienia w kolejce: ${context.productionQueue}
-- Szacowany czas produkcji: ${context.settings.estimated_production_days || 'nieznany'} dni roboczych
+- Szacowany czas produkcji: ${context.settings.estimated_production_days || 'nieznany'} dni roboczych`
+    : `=== DANE FIRMOWE ===
+Aktualny stan magazynu i kolejki produkcyjnej jest chwilowo niedostępny. Nie twierdź, że materiału lub produktu nie ma. Odpowiadaj merytorycznie na pytania ogólne, a przy pytaniu o dostępność, cenę albo termin zaznacz, że wymagają potwierdzenia przez formularz wyceny lub kontakt z firmą.`;
+
+  return `${basePrompt}
+
+AKTUALNE DANE Z BAZY:
+
+${liveDataPrompt}
 
 === INFORMACJE O UŻYTKOWNIKU ===
 Rola: ${userRole || 'gość'}

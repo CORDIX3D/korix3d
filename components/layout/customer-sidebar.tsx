@@ -41,8 +41,11 @@ export function CustomerSidebar() {
     <>
       {/* Mobile Menu Button */}
       <button
+        type="button"
         className="lg:hidden fixed top-20 left-4 z-40 p-2 bg-card border border-border rounded-lg shadow-lg"
         onClick={() => setMobileOpen(!mobileOpen)}
+        aria-label={mobileOpen ? 'Zamknij menu klienta' : 'Otwórz menu klienta'}
+        aria-expanded={mobileOpen}
       >
         <Menu className="w-5 h-5 text-foreground" />
       </button>

@@ -130,6 +130,9 @@ export function PublicHeader() {
               type="button"
               className="lg:hidden p-2 text-muted-foreground hover:text-foreground"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? 'Zamknij menu' : 'Otwórz menu'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
             >
               {mobileMenuOpen ? (
                 <X className="h-6 w-6" />
@@ -142,7 +145,7 @@ export function PublicHeader() {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-border">
+          <div id="mobile-navigation" className="lg:hidden py-4 border-t border-border">
             <div className="flex flex-col gap-1">
               {publicNav.map((item) => (
                 <Link

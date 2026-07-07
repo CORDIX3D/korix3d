@@ -122,8 +122,11 @@ export function AdminSidebar() {
     <>
       {/* Mobile Menu Button */}
       <button
+        type="button"
         className="lg:hidden fixed top-20 left-4 z-40 p-2 bg-card border border-border rounded-lg shadow-lg"
         onClick={() => setMobileOpen(!mobileOpen)}
+        aria-label={mobileOpen ? 'Zamknij menu administratora' : 'Otwórz menu administratora'}
+        aria-expanded={mobileOpen}
       >
         {mobileOpen ? (
           <X className="w-5 h-5 text-foreground" />

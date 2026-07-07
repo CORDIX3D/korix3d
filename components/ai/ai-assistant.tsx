@@ -295,7 +295,9 @@ ${messageContent}`;
     <>
       {/* Floating Button */}
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
+        aria-label="Otwórz asystenta KORIX AI"
         className={cn(
           'fixed bottom-6 right-6 z-50',
           'w-16 h-16 rounded-full',
@@ -349,14 +351,18 @@ ${messageContent}`;
             </div>
             <div className="flex items-center gap-1">
               <button
+                type="button"
                 onClick={clearConversation}
+                aria-label="Wyczyść konwersację"
                 className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
                 title="Wyczyść konwersację"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
+                aria-label="Zamknij asystenta KORIX AI"
                 className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white/50 hover:text-white"
               >
                 <X className="w-4 h-4" />
@@ -394,10 +400,10 @@ ${messageContent}`;
                   </p>
                   {message.role === 'assistant' && message.content && message.id !== 'greeting' && (
                     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/10">
-                      <button className="p-1 rounded hover:bg-white/10 transition-colors text-white/30 hover:text-green-400">
+                      <button type="button" aria-label="Oceń odpowiedź pozytywnie" className="p-1 rounded hover:bg-white/10 transition-colors text-white/30 hover:text-green-400">
                         <ThumbsUp className="w-3 h-3" />
                       </button>
-                      <button className="p-1 rounded hover:bg-white/10 transition-colors text-white/30 hover:text-red-400">
+                      <button type="button" aria-label="Oceń odpowiedź negatywnie" className="p-1 rounded hover:bg-white/10 transition-colors text-white/30 hover:text-red-400">
                         <ThumbsDown className="w-3 h-3" />
                       </button>
                     </div>
@@ -443,7 +449,9 @@ ${messageContent}`;
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => { setUploadedFile(null); setFileAnalysis(null); }}
+                  aria-label="Usuń załączony plik"
                   className="p-1 rounded hover:bg-white/10 text-white/50 hover:text-white"
                 >
                   <X className="w-4 h-4" />
@@ -456,6 +464,7 @@ ${messageContent}`;
           <div className="p-4 border-t border-white/10">
             <form onSubmit={handleSubmit} className="flex items-end gap-2">
               <input
+                id="ai-file-upload"
                 type="file"
                 ref={fileInputRef}
                 accept=".stl"
@@ -465,6 +474,7 @@ ${messageContent}`;
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
+                aria-label="Prześlij plik STL"
                 className="p-3 rounded-xl bg-white/5 border border-white/10 text-white/50 hover:text-[#FF6A00] hover:border-[#FF6A00]/30 transition-all"
                 title="Prześlij plik STL"
               >
@@ -472,6 +482,7 @@ ${messageContent}`;
               </button>
               <div className="flex-1 relative">
                 <textarea
+                  aria-label="Wiadomość do asystenta KORIX AI"
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -491,6 +502,7 @@ ${messageContent}`;
               </div>
               <button
                 type="submit"
+                aria-label={isLoading ? 'Wysyłanie wiadomości' : 'Wyślij wiadomość'}
                 disabled={isLoading || (!input.trim() && !fileAnalysis)}
                 className={cn(
                   'p-3 rounded-xl transition-all',

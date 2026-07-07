@@ -138,8 +138,9 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="form-label">Imię i nazwisko *</label>
+                      <label htmlFor="contact-name" className="form-label">Imię i nazwisko *</label>
                       <Input
+                        id="contact-name"
                         {...register('name')}
                         autoComplete="name"
                         placeholder="Jan Kowalski"
@@ -150,8 +151,9 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
                       )}
                     </div>
                     <div className="space-y-2">
-                      <label className="form-label">Email *</label>
+                      <label htmlFor="contact-email" className="form-label">Email *</label>
                       <Input
+                        id="contact-email"
                         {...register('email')}
                         type="email"
                         autoComplete="email"
@@ -165,8 +167,9 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
                   </div>
 
                   <div className="space-y-2">
-                    <label className="form-label">Telefon</label>
+                    <label htmlFor="contact-phone" className="form-label">Telefon</label>
                     <Input
+                      id="contact-phone"
                       {...register('phone')}
                       type="tel"
                       autoComplete="tel"
@@ -176,8 +179,9 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
                   </div>
 
                   <div className="space-y-2">
-                    <label className="form-label">Temat *</label>
+                    <label htmlFor="contact-subject" className="form-label">Temat *</label>
                     <Input
+                      id="contact-subject"
                       {...register('subject')}
                       placeholder="Wycena zamówienia"
                       className="h-12 bg-secondary border-border"
@@ -188,8 +192,9 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
                   </div>
 
                   <div className="space-y-2">
-                    <label className="form-label">Wiadomość *</label>
+                    <label htmlFor="contact-message" className="form-label">Wiadomość *</label>
                     <Textarea
+                      id="contact-message"
                       {...register('message')}
                       placeholder="Opisz swoje pytanie lub projekt..."
                       className="bg-secondary border-border min-h-[150px]"

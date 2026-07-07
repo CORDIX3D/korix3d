@@ -28,7 +28,13 @@ export function OrderFileDownload({ file }: { file: StoredOrderFile }) {
     if (error || !data?.signedUrl) {
       toast.error('Nie udało się pobrać pliku', { description: 'Link do pliku nie mógł zostać utworzony.' });
     } else {
-      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+      const anchor = document.createElement('a');
+      anchor.href = data.signedUrl;
+      anchor.download = file.name || 'model-3d';
+      anchor.rel = 'noopener noreferrer';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
     }
     setLoading(false);
   };

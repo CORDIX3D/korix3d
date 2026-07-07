@@ -188,10 +188,31 @@ function createLocalFallback() {
       }),
     },
     rpc: async (name: string, args: Record<string, any>) => {
-      if (name !== 'accept_order_quote') return { data: null, error: new Error(`Unknown local RPC: ${name}`) };
       const orders = read('orders_3d');
       const userRaw = localStorage.getItem('dev_auth_user');
       const user = userRaw ? JSON.parse(userRaw) : null;
+
+      if (name === 'finalize_quote_files') {
+        let finalized = false;
+        const updated = orders.map((order: any) => {
+          if (order.id === args.p_order_id && order.user_id === user?.id && order.status === 'new' && Array.isArray(order.files) && order.files.length === 0) {
+            finalized = true;
+            return { ...order, files: args.p_files, updated_at: new Date().toISOString() };
+          }
+          return order;
+        });
+        write('orders_3d', updated);
+        return { data: finalized, error: null };
+      }
+
+      if (name === 'discard_incomplete_quote') {
+        const filtered = orders.filter((order: any) => !(order.id === args.p_order_id && order.user_id === user?.id && order.status === 'new' && Array.isArray(order.files) && order.files.length === 0));
+        const discarded = filtered.length !== orders.length;
+        write('orders_3d', filtered);
+        return { data: discarded, error: null };
+      }
+
+      if (name !== 'accept_order_quote') return { data: null, error: new Error(`Unknown local RPC: ${name}`) };
       let accepted = false;
       const updated = orders.map((order: any) => {
         if (order.id === args.p_order_id && order.user_id === user?.id && order.status === 'quoted') {

@@ -214,6 +214,31 @@ export default function QuotePage() {
         data.notes,
       ].filter(Boolean).join('\n');
 
+      // Najpierw tworzymy pusty rekord. Polityka Storage pozwala wysyłać pliki
+      // wyłącznie do istniejącego zamówienia należącego do użytkownika.
+      const orderData = {
+        id: orderId,
+        user_id: user.id,
+        material_id: data.material_id,
+        material_name: selectedMaterial?.name,
+        color: colors.find((c) => c.id === data.color)?.name,
+        color_hex: colors.find((c) => c.id === data.color)?.hex,
+        layer_height: parseFloat(data.layer_height),
+        quantity: data.quantity,
+        priority: data.priority,
+        notes: configurationNotes,
+        status: 'new',
+        files: [],
+      };
+
+      const { data: createdOrder, error: orderError } = await supabase
+        .from('orders_3d')
+        .insert([orderData])
+        .select('order_number')
+        .single();
+
+      if (orderError) throw orderError;
+
       const storedFiles = [];
       for (let index = 0; index < uploadedFiles.length; index += 1) {
         const file = uploadedFiles[index];
@@ -246,29 +271,14 @@ export default function QuotePage() {
         setUploadProgress({ completed: index + 1, total: uploadedFiles.length });
       }
 
-      // Parametry bez osobnych kolumn zachowujemy w notatce do zamówienia.
-      const orderData = {
-        id: orderId,
-        user_id: user.id,
-        material_id: data.material_id,
-        material_name: selectedMaterial?.name,
-        color: colors.find((c) => c.id === data.color)?.name,
-        color_hex: colors.find((c) => c.id === data.color)?.hex,
-        layer_height: parseFloat(data.layer_height),
-        quantity: data.quantity,
-        priority: data.priority,
-        notes: configurationNotes,
-        status: 'new',
-        files: storedFiles,
-      };
+      const { data: finalized, error: finalizeError } = await supabase.rpc('finalize_quote_files', {
+        p_order_id: orderId,
+        p_files: storedFiles,
+      });
 
-      const { data: createdOrder, error } = await supabase
-        .from('orders_3d')
-        .insert([orderData])
-        .select('order_number')
-        .single();
-
-      if (error) throw error;
+      if (finalizeError || !finalized) {
+        throw new Error(finalizeError?.message || 'Nie udało się przypisać plików do zamówienia.');
+      }
 
       toast.success('Zlecenie przyjęte', {
         description: 'Przeanalizujemy Twój projekt i wyślemy wycenę',
@@ -282,6 +292,8 @@ export default function QuotePage() {
         const { error: cleanupError } = await supabase.storage.from('quote-files').remove(uploadedPaths);
         if (cleanupError) console.error('Error cleaning up quote files:', cleanupError);
       }
+      const { error: discardError } = await supabase.rpc('discard_incomplete_quote', { p_order_id: orderId });
+      if (discardError) console.error('Error discarding incomplete quote:', discardError);
       toast.error('Błąd', {
         description: error instanceof Error ? error.message : 'Wystąpił błąd podczas wysyłania zlecenia',
       });

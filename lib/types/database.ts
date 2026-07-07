@@ -1349,6 +1349,14 @@ export interface Database {
         Args: { p_order_id: string };
         Returns: boolean;
       };
+      finalize_quote_files: {
+        Args: { p_order_id: string; p_files: Json };
+        Returns: boolean;
+      };
+      discard_incomplete_quote: {
+        Args: { p_order_id: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       [_ in never]: never;

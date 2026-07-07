@@ -22,7 +22,6 @@ import {
   Bell,
   BarChart3,
   Building2,
-  Palette,
   Clock,
   Mail,
   Image,
@@ -65,8 +64,7 @@ const adminNav = [
     items: [
       { name: 'Produkty', href: '/admin/produkty', icon: Package },
       { name: 'Kategorie', href: '/admin/produkty/kategorie', icon: Tag },
-      { name: 'Materiały', href: '/admin/materialy', icon: Box },
-      { name: 'Kolory', href: '/admin/materialy/kolory', icon: Palette },
+      { name: 'Materiały i kolory', href: '/admin/materialy', icon: Box },
     ],
   },
   {

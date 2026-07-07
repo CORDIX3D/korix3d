@@ -14,7 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Box, Edit, ImagePlus, Loader2, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
-import { Material } from '@/lib/types/database';
+import { Material, MaterialColor } from '@/lib/types/database';
 import { toast } from 'sonner';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
@@ -29,6 +29,7 @@ const slugify = (value: string) =>
 
 export default function AdminMaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [colors, setColors] = useState<MaterialColor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -45,6 +46,8 @@ export default function AdminMaterialsPage() {
     print_temp_max: '',
     bed_temp_min: '',
     bed_temp_max: '',
+    color_name: '',
+    color_hex: '#22c55e',
   });
 
   useEffect(() => {
@@ -61,9 +64,15 @@ export default function AdminMaterialsPage() {
 
   const fetchMaterials = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('materials').select('*').order('name');
-    if (error) toast.error('Błąd', { description: 'Nie udało się pobrać materiałów' });
-    else if (data) setMaterials(data as Material[]);
+    const [materialsResult, colorsResult] = await Promise.all([
+      supabase.from('materials').select('*').order('name'),
+      supabase.from('material_colors').select('*').order('created_at'),
+    ]);
+    if (materialsResult.error || colorsResult.error) toast.error('Błąd', { description: 'Nie udało się pobrać materiałów i kolorów' });
+    else {
+      setMaterials((materialsResult.data || []) as Material[]);
+      setColors((colorsResult.data || []) as MaterialColor[]);
+    }
     setLoading(false);
   };
 
@@ -81,10 +90,13 @@ export default function AdminMaterialsPage() {
       print_temp_max: '',
       bed_temp_min: '',
       bed_temp_max: '',
+      color_name: '',
+      color_hex: '#22c55e',
     });
   };
 
   const openEditDialog = (material: Material) => {
+    const materialColor = colors.find((color) => color.material_id === material.id);
     setEditingMaterial(material);
     setImageFile(null);
     setImagePreview(material.image_url || '');
@@ -97,6 +109,8 @@ export default function AdminMaterialsPage() {
       print_temp_max: material.print_temp_max?.toString() || '',
       bed_temp_min: material.bed_temp_min?.toString() || '',
       bed_temp_max: material.bed_temp_max?.toString() || '',
+      color_name: materialColor?.name || '',
+      color_hex: materialColor?.hex || '#22c55e',
     });
     setDialogOpen(true);
   };
@@ -161,10 +175,28 @@ export default function AdminMaterialsPage() {
         available: true,
         updated_at: new Date().toISOString(),
       };
-      const result = editingMaterial
-        ? await supabase.from('materials').update(data).eq('id', editingMaterial.id)
-        : await supabase.from('materials').insert([data]);
-      if (result.error) throw result.error;
+      let materialId = editingMaterial?.id || '';
+      if (editingMaterial) {
+        const result = await supabase.from('materials').update(data).eq('id', editingMaterial.id);
+        if (result.error) throw result.error;
+      } else {
+        const result = await supabase.from('materials').insert([data]).select('id').single();
+        if (result.error) throw result.error;
+        materialId = result.data.id;
+      }
+
+      const colorName = formData.color_name.trim();
+      const existingColor = colors.find((color) => color.material_id === materialId);
+      if (colorName) {
+        const colorData = { material_id: materialId, name: colorName, hex: formData.color_hex, available: true };
+        const colorResult = existingColor
+          ? await supabase.from('material_colors').update(colorData).eq('id', existingColor.id)
+          : await supabase.from('material_colors').insert([colorData]);
+        if (colorResult.error) throw colorResult.error;
+      } else if (existingColor) {
+        const colorResult = await supabase.from('material_colors').update({ available: false }).eq('id', existingColor.id);
+        if (colorResult.error) throw colorResult.error;
+      }
       toast.success(editingMaterial ? 'Materiał zaktualizowany' : 'Materiał dodany do wyceny');
       setDialogOpen(false);
       resetForm();
@@ -201,8 +233,8 @@ export default function AdminMaterialsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Materiały do wyceny</h1>
-          <p className="text-muted-foreground mt-1">Dodawaj materiały i cenę z kilograma używaną w formularzu wyceny.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Materiały i kolory</h1>
+          <p className="text-muted-foreground mt-1">Zarządzaj rodzajem materiału, kolorem, zdjęciem, opisem, ceną i parametrami druku w jednym miejscu.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={fetchMaterials} variant="outline" size="sm"><RefreshCw className="w-4 h-4 mr-2" />Odśwież</Button>
@@ -212,8 +244,12 @@ export default function AdminMaterialsPage() {
               <DialogHeader><DialogTitle>{editingMaterial ? 'Edytuj materiał' : 'Dodaj materiał do wyceny'}</DialogTitle></DialogHeader>
               <div className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2"><label className="form-label">Nazwa *</label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="PLA, PETG, ABS..." className="h-11 bg-secondary border-border" /></div>
+                  <div className="space-y-2"><label className="form-label">Rodzaj materiału *</label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="PLA, PETG, ABS..." className="h-11 bg-secondary border-border" /></div>
                   <div className="space-y-2"><label className="form-label">Cena z kilograma (zł/kg) *</label><Input type="number" step="0.01" min="0" value={formData.price_per_kg} onChange={(e) => setFormData({ ...formData, price_per_kg: e.target.value })} className="h-11 bg-secondary border-border" /></div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_120px]">
+                  <div className="space-y-2"><label className="form-label">Kolor</label><Input value={formData.color_name} onChange={(e) => setFormData({ ...formData, color_name: e.target.value })} placeholder="np. Zielony" className="h-11 bg-secondary border-border" /></div>
+                  <div className="space-y-2"><label className="form-label">Próbka</label><div className="flex h-11 items-center gap-2 rounded-md border bg-secondary px-2"><Input type="color" value={formData.color_hex} onChange={(e) => setFormData({ ...formData, color_hex: e.target.value })} className="h-8 w-12 cursor-pointer border-0 p-0" /><span className="text-xs text-muted-foreground">{formData.color_hex}</span></div></div>
                 </div>
                 <div className="space-y-2"><label className="form-label">Opis</label><textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full h-24 bg-secondary border border-border rounded-lg p-3 text-foreground" /></div>
                 <div className="space-y-2">
@@ -257,7 +293,8 @@ export default function AdminMaterialsPage() {
           {filteredMaterials.map((material) => (
             <Card key={material.id} className="bg-card border-border">
               <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><Box className="w-8 h-8 text-primary" /><div><h3 className="font-semibold text-foreground">{material.name}</h3><p className="text-xs text-muted-foreground">{material.slug}</p></div></div><Badge variant={material.available ? 'default' : 'secondary'}>{material.available ? 'W wycenie' : 'Ukryty'}</Badge></div>
+                <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3">{material.image_url ? <OptimizedImage src={material.image_url} alt={material.name} className="h-12 w-12 rounded-lg object-cover" sizes="48px" /> : <Box className="h-8 w-8 text-primary" />}<div><h3 className="font-semibold text-foreground">{material.name}</h3><p className="text-xs text-muted-foreground">{material.slug}</p></div></div><Badge variant={material.available ? 'default' : 'secondary'}>{material.available ? 'W wycenie' : 'Ukryty'}</Badge></div>
+                {colors.filter((color) => color.material_id === material.id && color.available).length > 0 && <div className="flex flex-wrap gap-2">{colors.filter((color) => color.material_id === material.id && color.available).map((color) => <span key={color.id} className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs"><span className="h-4 w-4 rounded-full border" style={{ backgroundColor: color.hex }} />{color.name}</span>)}</div>}
                 {material.description && <p className="text-sm text-muted-foreground line-clamp-3">{material.description}</p>}
                 <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Cena z kilograma</span><span className="font-semibold text-foreground">{material.price_per_kg.toFixed(2)} zł/kg</span></div>
                 <div className="text-sm text-muted-foreground">Dysza: {material.print_temp_min || '—'}-{material.print_temp_max || '—'}°C • Stół: {material.bed_temp_min || '—'}-{material.bed_temp_max || '—'}°C</div>

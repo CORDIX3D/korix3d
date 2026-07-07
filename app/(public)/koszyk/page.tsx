@@ -5,6 +5,7 @@ import { Minus, Package, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useCart } from '@/lib/cart-provider';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export default function CartPage() {
   const { items, subtotal, hydrated, removeFromCart, updateQuantity, clearCart } = useCart();
@@ -26,7 +27,7 @@ export default function CartPage() {
           {items.map((item) => (
             <Card key={item.id}><CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
               <Link href={`/sklep/${item.slug}`} className="flex min-w-0 flex-1 items-center gap-4">
-                <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-secondary">{item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center"><Package className="h-10 w-10 text-muted-foreground" /></div>}</div>
+                <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-secondary">{item.image ? <OptimizedImage src={item.image} alt={item.name} className="h-full w-full object-cover" sizes="96px" /> : <div className="flex h-full items-center justify-center"><Package className="h-10 w-10 text-muted-foreground" /></div>}</div>
                 <div className="min-w-0"><h2 className="font-semibold sm:text-lg">{item.name}</h2><p className="mt-1 text-xs text-muted-foreground">SKU: {item.sku}</p><p className="mt-2 font-bold text-primary">{item.price.toFixed(2)} zł</p></div>
               </Link>
               <div className="flex items-center justify-between gap-4 sm:justify-end">

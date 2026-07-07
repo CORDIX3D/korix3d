@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 import {
   Dialog,
   DialogContent,
@@ -275,7 +276,7 @@ export default function AdminProductsPage() {
             return (
               <Card key={product.id} className="bg-card border-border overflow-hidden">
                 <div className="aspect-video bg-secondary flex items-center justify-center overflow-hidden">
-                  {image ? <img src={image} alt={product.name} className="w-full h-full object-cover" /> : <ImagePlus className="w-12 h-12 text-muted-foreground" />}
+                  {image ? <OptimizedImage src={image} alt={product.name} className="w-full h-full object-cover" sizes="(max-width: 640px) 100vw, 33vw" /> : <ImagePlus className="w-12 h-12 text-muted-foreground" />}
                 </div>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">

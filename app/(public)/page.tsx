@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -416,7 +417,7 @@ export default function HomePage() {
               >
                 {item.image_url && (
                   <div className="aspect-[4/3] relative bg-secondary">
-                    <img
+                    <OptimizedImage
                       src={item.image_url}
                       alt={item.title}
                       className="w-full h-full object-cover"

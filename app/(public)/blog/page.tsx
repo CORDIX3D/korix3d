@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { PenTool, Calendar, ArrowRight, User } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { BlogPost } from '@/lib/types/database';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export default function BlogPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -67,7 +68,7 @@ export default function BlogPage() {
                   <div className="grid md:grid-cols-2 gap-6">
                     {posts[0].cover_image_url && (
                       <div className="aspect-video md:aspect-auto bg-secondary overflow-hidden">
-                        <img
+                        <OptimizedImage
                           src={posts[0].cover_image_url}
                           alt={posts[0].title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -108,7 +109,7 @@ export default function BlogPage() {
                     <CardContent className="p-0">
                       {post.cover_image_url ? (
                         <div className="aspect-video bg-secondary overflow-hidden">
-                          <img
+                          <OptimizedImage
                             src={post.cover_image_url}
                             alt={post.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

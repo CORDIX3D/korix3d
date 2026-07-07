@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCart } from '@/lib/cart-provider';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export default function CheckoutPage() {
   const { items, subtotal, hydrated, clearCart } = useCart();
@@ -64,7 +65,7 @@ export default function CheckoutPage() {
         </CardContent></Card>
       </div>
       <Card className="h-fit lg:sticky lg:top-24"><CardHeader><CardTitle>Twoje zamówienie</CardTitle></CardHeader><CardContent className="space-y-5">
-        <div className="max-h-72 space-y-4 overflow-y-auto pr-1">{items.map((item) => <div key={item.id} className="flex items-center gap-3"><div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary">{item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : <Package className="h-6 w-6 text-muted-foreground" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.quantity} × {item.price.toFixed(2)} zł</p></div><p className="text-sm font-semibold">{(item.quantity * item.price).toFixed(2)} zł</p></div>)}</div>
+        <div className="max-h-72 space-y-4 overflow-y-auto pr-1">{items.map((item) => <div key={item.id} className="flex items-center gap-3"><div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-secondary">{item.image ? <OptimizedImage src={item.image} alt={item.name} className="h-full w-full object-cover" sizes="56px" /> : <Package className="h-6 w-6 text-muted-foreground" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.quantity} × {item.price.toFixed(2)} zł</p></div><p className="text-sm font-semibold">{(item.quantity * item.price).toFixed(2)} zł</p></div>)}</div>
         <div className="flex items-center justify-between border-t pt-5"><span>Wartość produktów</span><strong className="text-xl">{subtotal.toFixed(2)} zł</strong></div>
         <p className="text-xs text-muted-foreground">Koszt dostawy i dane do płatności potwierdzimy przed realizacją. Nie pobieramy teraz danych karty.</p>
         {error && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}

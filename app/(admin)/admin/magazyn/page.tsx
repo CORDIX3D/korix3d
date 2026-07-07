@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 import {
   Dialog,
   DialogContent,
@@ -416,7 +417,7 @@ export default function AdminWarehousePage() {
                 <Label>Zdjęcie produktu</Label>
                 {imagePreview ? (
                   <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
-                    <img src={imagePreview} alt="Podgląd zdjęcia produktu" className="h-28 w-28 rounded-md border object-cover" />
+                    <OptimizedImage src={imagePreview} alt="Podgląd zdjęcia produktu" className="h-28 w-28 rounded-md border object-cover" sizes="112px" />
                     <div className="flex flex-wrap gap-2">
                       <Button type="button" variant="outline" asChild>
                         <label className="cursor-pointer">

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -412,7 +413,7 @@ function ProductCard({
           <CardContent className="p-0 flex flex-col sm:flex-row">
             <div className="w-full aspect-video sm:aspect-auto sm:w-48 sm:h-48 bg-secondary flex-shrink-0 relative">
               {mainImage ? (
-                <img
+                <OptimizedImage
                   src={mainImage}
                   alt={product.name}
                   className="w-full h-full object-cover"
@@ -459,7 +460,7 @@ function ProductCard({
       >
         <div className="relative aspect-square bg-secondary overflow-hidden">
           {mainImage ? (
-            <img
+            <OptimizedImage
               src={mainImage}
               alt={product.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

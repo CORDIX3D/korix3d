@@ -18,15 +18,6 @@ import { Material, MaterialColor } from '@/lib/types/database';
 import { toast } from 'sonner';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ł/g, 'l')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || `material-${Date.now()}`;
-
 export default function AdminMaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [colors, setColors] = useState<MaterialColor[]>([]);
@@ -137,20 +128,6 @@ export default function AdminMaterialsPage() {
     setFormData((current) => ({ ...current, image_url: '' }));
   };
 
-  const uploadImage = async (file: File) => {
-    const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const path = `materials/${crypto.randomUUID()}.${extension}`;
-    const { error } = await supabase.storage.from('product-images').upload(path, file, { cacheControl: '3600', contentType: file.type, upsert: false });
-    if (error) throw error;
-    return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl;
-  };
-
-  const optionalNumber = (value: string) => {
-    if (!value.trim()) return null;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  };
-
   const handleSubmit = async () => {
     const name = formData.name.trim();
     const colorName = formData.color_name.trim();
@@ -162,38 +139,17 @@ export default function AdminMaterialsPage() {
 
     setSaving(true);
     try {
-      const imageUrl = imageFile ? await uploadImage(imageFile) : formData.image_url.trim() || null;
-      const data = {
-        name,
-        slug: editingMaterial?.slug || slugify(name),
-        description: formData.description.trim() || null,
-        price_per_kg: pricePerKg,
-        image_url: imageUrl,
-        print_temp_min: optionalNumber(formData.print_temp_min),
-        print_temp_max: optionalNumber(formData.print_temp_max),
-        bed_temp_min: optionalNumber(formData.bed_temp_min),
-        bed_temp_max: optionalNumber(formData.bed_temp_max),
-        available: true,
-        updated_at: new Date().toISOString(),
-      };
-      const existingMaterial = editingMaterial || materials.find((material) => material.name.trim().toLowerCase() === name.toLowerCase());
-      let materialId = existingMaterial?.id || '';
-      if (existingMaterial) {
-        const result = await supabase.from('materials').update({ ...data, slug: existingMaterial.slug }).eq('id', existingMaterial.id);
-        if (result.error) throw result.error;
-      } else {
-        const result = await supabase.from('materials').insert([data]).select('id').single();
-        if (result.error) throw result.error;
-        materialId = result.data.id;
-      }
+      const payload = new FormData();
+      if (editingMaterial) payload.set('id', editingMaterial.id);
+      Object.entries(formData).forEach(([key, value]) => payload.set(key, value));
+      payload.set('existing_image_url', formData.image_url);
+      payload.set('remove_image', !imageFile && !imagePreview ? 'true' : 'false');
+      if (imageFile) payload.set('image', imageFile);
 
-      const existingColor = colors.find((color) => color.material_id === materialId && color.name.trim().toLowerCase() === colorName.toLowerCase());
-      const colorData = { material_id: materialId, name: colorName, hex: formData.color_hex, available: true };
-      const colorResult = existingColor
-        ? await supabase.from('material_colors').update(colorData).eq('id', existingColor.id)
-        : await supabase.from('material_colors').insert([colorData]);
-      if (colorResult.error) throw colorResult.error;
-      toast.success(existingMaterial ? 'Materiał i kolor zaktualizowane' : 'Materiał i kolor dodane');
+      const response = await fetch('/api/admin/materials', { method: 'POST', body: payload });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Nie udało się zapisać materiału');
+      toast.success(editingMaterial ? 'Materiał i kolor zaktualizowane' : 'Materiał i kolor zapisane');
       setDialogOpen(false);
       resetForm();
       fetchMaterials();

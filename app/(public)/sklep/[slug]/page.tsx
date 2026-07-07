@@ -19,8 +19,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 export default async function ProductPage({ params }: { params: { slug: string } }) {
   const supabase = await createClient();
   const { data, error } = await supabase.from('products').select('*').eq('slug', params.slug).eq('active', true).maybeSingle();
-  if (error) throw new Error('Nie udało się pobrać produktu.');
-  if (!data) notFound();
+  if (error || !data) notFound();
   const product = data as Product;
   const images = Array.isArray(product.images) ? product.images as string[] : [];
   const { data: category } = product.category_id ? await supabase.from('categories').select('name').eq('id', product.category_id).maybeSingle() : { data: null };

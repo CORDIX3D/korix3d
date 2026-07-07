@@ -17,8 +17,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 export default async function PortfolioDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: item, error } = await supabase.from('portfolio_items').select('*').eq('id', params.id).eq('active', true).maybeSingle();
-  if (error) throw new Error('Nie udało się pobrać realizacji.');
-  if (!item) notFound();
+  if (error || !item) notFound();
   const images = Array.isArray(item.images) ? item.images as string[] : [];
   const mainImage = item.image_url || images[0];
 

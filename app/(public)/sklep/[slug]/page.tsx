@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Package, Weight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
@@ -7,6 +8,13 @@ import type { Product } from '@/lib/types/database';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: product } = await supabase.from('products').select('name, short_description, description').eq('slug', params.slug).eq('active', true).maybeSingle();
+  if (!product) notFound();
+  return { title: product.name, description: product.short_description || product.description || undefined };
+}
 
 export default async function ProductPage({ params }: { params: { slug: string } }) {
   const supabase = await createClient();

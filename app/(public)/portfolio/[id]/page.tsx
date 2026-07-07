@@ -1,10 +1,18 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Clock, Image as ImageIcon, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: item } = await supabase.from('portfolio_items').select('title, description').eq('id', params.id).eq('active', true).maybeSingle();
+  if (!item) notFound();
+  return { title: item.title, description: item.description || undefined };
+}
 
 export default async function PortfolioDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();

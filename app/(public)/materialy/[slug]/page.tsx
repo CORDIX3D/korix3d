@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Layers, Thermometer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,13 @@ import { createClient } from '@/lib/supabase/server';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: material } = await supabase.from('materials').select('name, description').eq('slug', params.slug).eq('available', true).maybeSingle();
+  if (!material) notFound();
+  return { title: material.name, description: material.description || undefined };
+}
 
 export default async function MaterialDetailPage({ params }: { params: { slug: string } }) {
   const supabase = await createClient();

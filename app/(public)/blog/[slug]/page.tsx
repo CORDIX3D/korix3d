@@ -1,10 +1,18 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: post } = await supabase.from('blog_posts').select('title, excerpt').eq('slug', params.slug).eq('published', true).maybeSingle();
+  if (!post) notFound();
+  return { title: post.title, description: post.excerpt || undefined };
+}
 
 export default async function BlogPostPage({ params }: { params: { slug: string } }) {
   const supabase = await createClient();

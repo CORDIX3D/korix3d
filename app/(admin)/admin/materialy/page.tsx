@@ -213,16 +213,33 @@ export default function AdminMaterialsPage() {
     else fetchMaterials();
   };
 
-  const hideMaterial = async (material: Material) => {
-    const { error } = await supabase
-      .from('materials')
-      .update({ available: false, updated_at: new Date().toISOString() })
-      .eq('id', material.id);
-    if (error) toast.error('Nie udało się ukryć materiału');
-    else {
-      toast.success('Materiał ukryty w wycenie');
-      fetchMaterials();
+  const deleteMaterial = async (material: Material) => {
+    if (!window.confirm(`Czy na pewno chcesz trwale usunąć materiał „${material.name}”, jego kolory i zdjęcie?`)) return;
+
+    const { error: colorsError } = await supabase.from('material_colors').delete().eq('material_id', material.id);
+    if (colorsError) {
+      toast.error('Nie udało się usunąć kolorów materiału', { description: colorsError.message });
+      return;
     }
+
+    const { error } = await supabase.from('materials').delete().eq('id', material.id);
+    if (error) {
+      toast.error('Nie udało się usunąć materiału', { description: error.message });
+      return;
+    }
+
+    if (material.image_url) {
+      const marker = '/storage/v1/object/public/product-images/';
+      const markerIndex = material.image_url.indexOf(marker);
+      if (markerIndex >= 0) {
+        const storagePath = decodeURIComponent(material.image_url.slice(markerIndex + marker.length));
+        const { error: storageError } = await supabase.storage.from('product-images').remove([storagePath]);
+        if (storageError) toast.warning('Materiał usunięto, ale nie udało się usunąć jego zdjęcia ze Storage.');
+      }
+    }
+
+    toast.success('Materiał został trwale usunięty');
+    fetchMaterials();
   };
 
   return (
@@ -294,7 +311,7 @@ export default function AdminMaterialsPage() {
                 {material.description && <p className="text-sm text-muted-foreground line-clamp-3">{material.description}</p>}
                 <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Cena z kilograma</span><span className="font-semibold text-foreground">{material.price_per_kg.toFixed(2)} zł/kg</span></div>
                 <div className="text-sm text-muted-foreground">Dysza: {material.print_temp_min || '—'}-{material.print_temp_max || '—'}°C • Stół: {material.bed_temp_min || '—'}-{material.bed_temp_max || '—'}°C</div>
-                <div className="flex gap-2 pt-2"><Button size="sm" variant="outline" onClick={() => openEditDialog(material)} className="flex-1"><Edit className="w-4 h-4 mr-1" />Edytuj</Button><Button size="sm" variant="outline" onClick={() => toggleAvailable(material)}>{material.available ? 'Ukryj' : 'Pokaż'}</Button><Button size="sm" variant="ghost" onClick={() => hideMaterial(material)} className="text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /></Button></div>
+                <div className="flex gap-2 pt-2"><Button size="sm" variant="outline" onClick={() => openEditDialog(material)} className="flex-1"><Edit className="w-4 h-4 mr-1" />Edytuj</Button><Button size="sm" variant="outline" onClick={() => toggleAvailable(material)}>{material.available ? 'Ukryj' : 'Pokaż'}</Button><Button size="sm" variant="ghost" aria-label={`Usuń materiał ${material.name}`} title="Usuń trwale" onClick={() => deleteMaterial(material)} className="text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /></Button></div>
               </CardContent>
             </Card>
           ))}

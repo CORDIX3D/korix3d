@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { generateExecutiveReport } from '@/lib/executive/report-generator';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   const cookieStore = await cookies();
   const supabase = createServerClient(

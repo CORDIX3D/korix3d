@@ -23,7 +23,6 @@ import {
   BarChart3,
   MessageSquare,
   Sparkles,
-  AlertTriangle,
   TrendingUp,
   Clock,
   Users,
@@ -332,20 +331,6 @@ export default function AdminAIPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {typeof process !== 'undefined' && !process.env.OPENAI_API_KEY && (
-                <div className="flex items-center gap-3 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-                  <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-500">
-                      Brak klucza API OpenAI
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Dodaj zmienną środowiskową OPENAI_API_KEY w panelu hostingu
-                    </p>
-                  </div>
-                </div>
-              )}
-
               <div className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Model GPT</Label>

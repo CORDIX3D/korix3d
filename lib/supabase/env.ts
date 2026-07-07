@@ -11,3 +11,11 @@ export function getSupabaseEnv() {
     ),
   };
 }
+
+export function getRequiredSupabaseEnv() {
+  const env = getSupabaseEnv();
+  if (!env.isConfigured) {
+    throw new Error('Brak konfiguracji Supabase w zmiennych środowiskowych');
+  }
+  return env;
+}

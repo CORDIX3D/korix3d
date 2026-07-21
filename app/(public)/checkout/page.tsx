@@ -34,6 +34,19 @@ export default function CheckoutPage() {
     event.preventDefault();
     if (submitting) return;
 
+    const hasInvalidCartItem = items.some(
+      (item) =>
+        !item.id ||
+        !Number.isFinite(item.price) ||
+        item.price < 0 ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity < 1
+    );
+    if (hasInvalidCartItem) {
+      setError('Koszyk zawiera nieprawidłową pozycję. Wróć do koszyka, usuń ją i dodaj produkt ponownie.');
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     const form = new FormData(event.currentTarget);
@@ -63,7 +76,11 @@ export default function CheckoutPage() {
         throw new Error(normalizeCheckoutError(result.error));
       }
 
-      setOrderNumber(result.orderNumber);
+      if (!result.orderNumber) {
+        throw new Error('Zamówienie zostało zapisane, ale nie udało się odczytać jego numeru. Skontaktuj się z nami, jeśli nie otrzymasz potwierdzenia.');
+      }
+
+      setOrderNumber(String(result.orderNumber));
       clearCart();
     } catch (submitError) {
       setError(
@@ -240,9 +257,15 @@ export default function CheckoutPage() {
               {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
               {submitting ? 'Zapisywanie...' : 'Złóż zamówienie'}
             </Button>
-            <Button asChild variant="ghost" className="w-full">
-              <Link href="/koszyk">Wróć do koszyka</Link>
-            </Button>
+            {submitting ? (
+              <Button type="button" variant="ghost" className="w-full" disabled>
+                Wróć do koszyka
+              </Button>
+            ) : (
+              <Button asChild variant="ghost" className="w-full">
+                <Link href="/koszyk">Wróć do koszyka</Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>

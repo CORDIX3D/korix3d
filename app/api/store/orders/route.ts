@@ -75,7 +75,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ orderNumber: order?.orderNumber || orderNumber });
+    const savedOrderNumber =
+      typeof order === 'object' && order !== null && 'orderNumber' in order
+        ? String(order.orderNumber || orderNumber)
+        : orderNumber;
+
+    return NextResponse.json({ orderNumber: savedOrderNumber });
   } catch (error) {
     console.error('Store order API error:', error);
     return NextResponse.json(

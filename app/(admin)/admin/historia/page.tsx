@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase/client';
 import { AlertCircle, Eye, History, RefreshCw, Search } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
 type AuditRow = {
   id: string;
@@ -71,11 +72,12 @@ function formatValue(value: unknown) {
 }
 
 export default function AdminHistoryPage() {
+  const searchParams = useSearchParams();
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [actors, setActors] = useState<Record<string, Actor>>({});
   const [selected, setSelected] = useState<AuditRow | null>(null);
   const [search, setSearch] = useState('');
-  const [moduleFilter, setModuleFilter] = useState('all');
+  const [moduleFilter, setModuleFilter] = useState(searchParams.get('modul') || 'all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -188,4 +190,3 @@ export default function AdminHistoryPage() {
     </div>
   );
 }
-

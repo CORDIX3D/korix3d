@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/client';
 import { Category, Product } from '@/lib/types/database';
 import { PanelError } from '@/components/customer/panel-state';
+import Link from 'next/link';
 
 const emptyForm = {
   sku: '',
@@ -220,6 +221,33 @@ export default function AdminWarehousePage() {
       return;
     }
 
+    const price = Number(formData.price);
+    const comparePrice = formData.compare_price ? Number(formData.compare_price) : null;
+    const costPrice = formData.cost_price ? Number(formData.cost_price) : null;
+    const stockQuantity = Number.parseInt(formData.stock_quantity || '0', 10);
+    const minStockQuantity = Number.parseInt(formData.min_stock_quantity || '0', 10);
+    const weightGrams = formData.weight_grams ? Number.parseInt(formData.weight_grams, 10) : null;
+
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error('Podaj poprawną cenę produktu większą od 0.');
+      return;
+    }
+
+    if (
+      (comparePrice !== null && (!Number.isFinite(comparePrice) || comparePrice < 0)) ||
+      (costPrice !== null && (!Number.isFinite(costPrice) || costPrice < 0)) ||
+      !Number.isFinite(stockQuantity) ||
+      !Number.isFinite(minStockQuantity) ||
+      stockQuantity < 0 ||
+      minStockQuantity < 0 ||
+      (weightGrams !== null && (!Number.isFinite(weightGrams) || weightGrams < 0))
+    ) {
+      toast.error('Sprawdź wartości liczbowe', {
+        description: 'Stan, minimum, koszt i waga nie mogą być ujemne.',
+      });
+      return;
+    }
+
     setSaving(true);
     let imageUrl = formData.image_url;
     try {
@@ -239,12 +267,12 @@ export default function AdminWarehousePage() {
       short_description: formData.short_description || null,
       description: formData.description || null,
       category_id: formData.category_id || null,
-      price: parseFloat(formData.price),
-      compare_price: formData.compare_price ? parseFloat(formData.compare_price) : null,
-      cost_price: formData.cost_price ? parseFloat(formData.cost_price) : null,
-      stock_quantity: parseInt(formData.stock_quantity || '0', 10),
-      min_stock_quantity: parseInt(formData.min_stock_quantity || '0', 10),
-      weight_grams: formData.weight_grams ? parseInt(formData.weight_grams, 10) : null,
+      price,
+      compare_price: comparePrice,
+      cost_price: costPrice,
+      stock_quantity: stockQuantity,
+      min_stock_quantity: minStockQuantity,
+      weight_grams: weightGrams,
       images: imageUrl ? [imageUrl] : [],
       active: formData.active,
       featured: formData.featured,
@@ -290,6 +318,10 @@ export default function AdminWarehousePage() {
           </p>
         </div>
 
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button asChild variant="outline">
+            <Link href="/admin/historia?modul=products">Historia zmian</Link>
+          </Button>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNewDialog}>
@@ -495,6 +527,7 @@ export default function AdminWarehousePage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

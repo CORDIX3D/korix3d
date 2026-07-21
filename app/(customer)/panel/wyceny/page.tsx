@@ -18,9 +18,20 @@ export default function QuotesPage() {
   const loadQuotes = useCallback(async () => {
     if (!user) return;
     setLoading(true); setError('');
-    const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('user_id', user.id).in('status', ['new', 'quoted']).order('created_at', { ascending: false });
-    if (queryError) setError('Nie udało się pobrać wycen. Spróbuj ponownie.'); else setQuotes((data ?? []) as Order3D[]);
-    setLoading(false);
+    try {
+      const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('user_id', user.id).in('status', ['new', 'quoted']).order('created_at', { ascending: false });
+      if (queryError) {
+        setError('Nie udało się pobrać wycen. Spróbuj ponownie.');
+        setQuotes([]);
+      } else {
+        setQuotes((data ?? []) as Order3D[]);
+      }
+    } catch {
+      setError('Nie udało się połączyć z Supabase podczas pobierania wycen.');
+      setQuotes([]);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
   useEffect(() => { void loadQuotes(); }, [loadQuotes]);
   return <div className="space-y-6"><PanelHeading title="Wyceny" description="Tutaj znajdziesz oczekujące oraz przygotowane wyceny." />

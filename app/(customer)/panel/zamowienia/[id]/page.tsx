@@ -46,20 +46,39 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
   const loadOrder = useCallback(async () => {
     if (!user) return;
     setLoading(true); setError('');
-    const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('id', params.id).eq('user_id', user.id).maybeSingle();
-    if (queryError) setError('Nie udało się pobrać szczegółów zamówienia.'); else if (!data) setError('Zamówienie nie istnieje lub nie masz do niego dostępu.'); else setOrder(data as Order3D);
-    setLoading(false);
+    try {
+      const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('id', params.id).eq('user_id', user.id).maybeSingle();
+      if (queryError) {
+        setError('Nie udało się pobrać szczegółów zamówienia.');
+        setOrder(null);
+      } else if (!data) {
+        setError('Zamówienie nie istnieje lub nie masz do niego dostępu.');
+        setOrder(null);
+      } else {
+        setOrder(data as Order3D);
+      }
+    } catch {
+      setError('Nie udało się połączyć z Supabase podczas pobierania zamówienia.');
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
   }, [params.id, user]);
 
   useEffect(() => { void loadOrder(); }, [loadOrder]);
 
   const acceptQuote = async () => {
-    if (!order || order.status !== 'quoted') return;
+    if (!order || order.status !== 'quoted' || accepting) return;
     setAccepting(true);
-    const { data: accepted, error: updateError } = await supabase.rpc('accept_order_quote', { p_order_id: order.id });
-    if (updateError || !accepted) toast.error('Nie udało się zaakceptować wyceny');
-    else { setOrder({ ...order, status: 'accepted' }); toast.success('Wycena została zaakceptowana'); }
-    setAccepting(false);
+    try {
+      const { data: accepted, error: updateError } = await supabase.rpc('accept_order_quote', { p_order_id: order.id });
+      if (updateError || !accepted) toast.error('Nie udało się zaakceptować wyceny');
+      else { setOrder({ ...order, status: 'accepted' }); toast.success('Wycena została zaakceptowana'); }
+    } catch {
+      toast.error('Nie udało się połączyć z Supabase podczas akceptowania wyceny');
+    } finally {
+      setAccepting(false);
+    }
   };
 
   if (loading) return <PanelLoading label="Pobieranie szczegółów..." />;

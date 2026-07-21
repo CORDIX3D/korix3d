@@ -1,21 +1,23 @@
-import { createClient } from '@/lib/supabase/server';
 import { NextRequest } from 'next/server';
-import OpenAI from 'openai';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-function getOpenAI() {
-  if (process.env.ENABLE_OPENAI_ASSISTANT !== 'true' || !process.env.OPENAI_API_KEY) {
-    throw new Error('Asystent OpenAI jest wyłączony');
-  }
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-}
+type DatabaseContext = {
+  materials: Array<{ name: string; price_per_kg: number; available: boolean }>;
+  products: Array<{ name: string; price: number; stock_quantity: number; active: boolean }>;
+  productionQueue: number;
+  estimatedProductionDays: number | null;
+};
 
-function isPaidAIEnabled() {
-  return process.env.ENABLE_OPENAI_ASSISTANT === 'true' && Boolean(process.env.OPENAI_API_KEY);
+function createEmptyContext(): DatabaseContext {
+  return {
+    materials: [],
+    products: [],
+    productionQueue: 0,
+    estimatedProductionDays: null,
+  };
 }
 
 function getSupabaseAdmin() {
@@ -29,170 +31,103 @@ function getSupabaseAdmin() {
   return createSupabaseClient(url, key);
 }
 
-interface DatabaseContext {
-  materials: Array<{ name: string; price_per_kg: number; available: boolean; properties: any; print_temp_min: number | null; print_temp_max: number | null }>;
-  filaments: Array<{ brand: string; material_name: string; color: string; remaining_weight_grams: number; active: boolean }>;
-  warehouse: Array<{ name: string; quantity: number; min_quantity: number | null }>;
-  products: Array<{ name: string; price: number; stock_quantity: number; active: boolean }>;
-  orders3D: Array<{ status: string; priority: string; printing_time_hours: number | null; created_at: string }>;
-  recentOrders: Array<{ order_number: string; status: string; created_at: string }>;
-  productionQueue: number;
-  settings: Record<string, string>;
-}
-
-function createEmptyDatabaseContext(): DatabaseContext {
-  return {
-    materials: [],
-    filaments: [],
-    warehouse: [],
-    products: [],
-    orders3D: [],
-    recentOrders: [],
-    productionQueue: 0,
-    settings: { context_available: 'false' },
-  };
-}
-
-async function getDatabaseContext(userId: string | null, userRole: string | null): Promise<DatabaseContext> {
+async function getDatabaseContext(): Promise<DatabaseContext> {
   const supabaseAdmin = getSupabaseAdmin();
-
-  const [
-    materialsResult,
-    filamentsResult,
-    warehouseResult,
-    productsResult,
-    orders3DResult,
-    recentOrdersResult,
-    settingsResult
-  ] = await Promise.all([
-    supabaseAdmin.from('materials').select('name, price_per_kg, available, properties, print_temp_min, print_temp_max'),
-    supabaseAdmin.from('filaments').select('brand, material_name, color, remaining_weight_grams, active'),
-    supabaseAdmin.from('warehouse_items').select('name, quantity, min_quantity'),
-    supabaseAdmin.from('products').select('name, price, stock_quantity, active'),
-    supabaseAdmin.from('orders_3d').select('status, priority, printing_time_hours, created_at'),
-    userId ? supabaseAdmin.from('orders_3d').select('order_number, status, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(5) : { data: [] },
-    supabaseAdmin.from('ai_settings').select('setting_key, setting_value')
+  const [materialsResult, productsResult, ordersResult] = await Promise.all([
+    supabaseAdmin
+      .from('materials')
+      .select('name, price_per_kg, available')
+      .eq('available', true)
+      .order('name'),
+    supabaseAdmin
+      .from('products')
+      .select('name, price, stock_quantity, active')
+      .eq('active', true)
+      .order('name')
+      .limit(20),
+    supabaseAdmin
+      .from('orders_3d')
+      .select('status, printing_time_hours')
+      .in('status', ['queued', 'printing', 'post_processing']),
   ]);
 
-  const settings: Record<string, string> = {};
-  (settingsResult.data || []).forEach((s: any) => {
-    settings[s.setting_key] = s.setting_value;
-  });
-
-  // Calculate production queue (orders currently being processed)
-  const productionQueue = (orders3DResult.data || []).filter(
-    (o: any) => ['queued', 'printing', 'post_processing'].includes(o.status)
-  ).length;
-
-  // Calculate estimated production time
-  const queuedOrders = (orders3DResult.data || []).filter((o: any) => o.status === 'queued');
-  const printingOrders = (orders3DResult.data || []).filter((o: any) => o.status === 'printing');
-  const totalQueuedHours = queuedOrders.reduce((sum: number, o: any) => sum + (o.printing_time_hours || 0), 0);
-  const totalPrintingHours = printingOrders.reduce((sum: number, o: any) => sum + (o.printing_time_hours || 0), 0);
-
-  // Working hours per day (assuming 8 hours)
-  const workingHoursPerDay = 8;
-  const estimatedDays = Math.ceil((totalQueuedHours + totalPrintingHours * 0.5) / workingHoursPerDay);
+  const orders = ordersResult.data || [];
+  const totalHours = orders.reduce((sum: number, order: any) => sum + Number(order.printing_time_hours || 0), 0);
 
   return {
     materials: materialsResult.data || [],
-    filaments: filamentsResult.data || [],
-    warehouse: warehouseResult.data || [],
     products: productsResult.data || [],
-    orders3D: orders3DResult.data || [],
-    recentOrders: recentOrdersResult.data || [],
-    productionQueue,
-    settings: {
-      ...settings,
-      context_available: 'true',
-      estimated_production_days: estimatedDays.toString(),
-      total_queued_hours: totalQueuedHours.toString()
-    }
+    productionQueue: orders.length,
+    estimatedProductionDays: totalHours > 0 ? Math.ceil(totalHours / 8) : null,
   };
 }
 
-function buildSystemPrompt(context: DatabaseContext, userRole: string | null, userName: string | null): string {
-  const hasLiveContext = context.settings.context_available === 'true';
-  const availableMaterials = context.materials.filter(m => m.available).map(m =>
-    `- ${m.name}: ${m.price_per_kg} PLN/kg, ${m.properties ? JSON.stringify(m.properties) : 'brak dodatkowych właściwości'}`
-  ).join('\n');
-
-  const availableFilaments = context.filaments.filter(f => f.active && f.remaining_weight_grams > 500).map(f =>
-    `- ${f.brand} ${f.material_name} (${f.color}): ${f.remaining_weight_grams}g`
-  ).join('\n');
-
-  const warehouseStatus = context.warehouse.filter(w => w.min_quantity && w.quantity < w.min_quantity).map(w =>
-    `- ${w.name}: ${w.quantity} szt. (minimum: ${w.min_quantity})`
-  ).join('\n');
-
-  const basePrompt = context.settings.system_prompt || 'Jesteś KORIX AI - asystentem firmy KORIX3D.';
-
-  const liveDataPrompt = hasLiveContext
-    ? `=== MATERIAŁY DOSTĘPNE ===
-${availableMaterials || 'Brak dostępnych materiałów'}
-
-=== FILAMENTY NA STANIE (min. 500g) ===
-${availableFilaments || 'Brak filamentów'}
-
-=== STAN MAGAZYNOWY - NISKIE STANY ===
-${warehouseStatus || 'Wszystkie produkty w normie'}
-
-=== PRODUKCJA ===
-- Zamówienia w kolejce: ${context.productionQueue}
-- Szacowany czas produkcji: ${context.settings.estimated_production_days || 'nieznany'} dni roboczych`
-    : `=== DANE FIRMOWE ===
-Aktualny stan magazynu i kolejki produkcyjnej jest chwilowo niedostępny. Nie twierdź, że materiału lub produktu nie ma. Odpowiadaj merytorycznie na pytania ogólne, a przy pytaniu o dostępność, cenę albo termin zaznacz, że wymagają potwierdzenia przez formularz wyceny lub kontakt z firmą.`;
-
-  return `${basePrompt}
-
-AKTUALNE DANE Z BAZY:
-
-${liveDataPrompt}
-
-=== INFORMACJE O UŻYTKOWNIKU ===
-Rola: ${userRole || 'gość'}
-${userName ? `Imię: ${userName}` : ''}
-
-ZASADY ODPOWIADANIA:
-1. Odpowiadaj profesjonalnie i konkretnie w języku polskim
-2. Używaj aktualnych danych z bazy - NIE wymyślaj cen ani dostępności
-3. Jeśli nie znasz odpowiedzi, powiedz że sprawdzisz i wróć do pytania
-4. Dla pytań o materiały - polecaj konkretne produkty z listy powyżej
-5. Dla pytań o produkcję - podawaj realne terminy na podstawie kolejki
-6. Jeśli klient pyta o swoje zamówienie, odpowiedz ogólnie i zasugeruj zalogowanie
-7. Bądź pomocny i przyjazny, jak doświadczony inżynier sprzedaży`;
+function includesAny(text: string, words: string[]) {
+  return words.some((word) => text.includes(word));
 }
 
-function buildFallbackResponse(question: string, context: DatabaseContext): string {
+function buildFreeResponse(question: string, context: DatabaseContext): string {
   const normalized = question.toLowerCase();
 
-  if (normalized.includes('kontakt') || normalized.includes('telefon') || normalized.includes('mail') || normalized.includes('email')) {
-    return 'Możesz skontaktować się z KORIX3D mailowo: kontakt@korix3d.pl. Jeśli chcesz wycenić wydruk, najlepiej użyć formularza „Wycena” i dołączyć plik modelu 3D.';
+  if (includesAny(normalized, ['kontakt', 'telefon', 'mail', 'email'])) {
+    return 'Możesz skontaktować się z KORIX3D mailowo: kontakt@korix3d.pl. Jeśli chcesz wycenić wydruk, użyj formularza „Wycena” i dołącz plik modelu 3D.';
   }
 
-  if (normalized.includes('plik') || normalized.includes('stl') || normalized.includes('obj') || normalized.includes('3mf') || normalized.includes('step')) {
-    return 'Do wyceny możesz przesłać pliki STL, OBJ, 3MF oraz STEP. Po przesłaniu modelu zespół sprawdzi geometrię, dobierze materiał i potwierdzi ostateczną cenę oraz termin.';
+  if (includesAny(normalized, ['plik', 'stl', 'obj', '3mf', 'step'])) {
+    return 'Do wyceny możesz przesłać pliki STL, OBJ, 3MF oraz STEP. Po przesłaniu modelu sprawdzimy geometrię, dobierzemy materiał i potwierdzimy ostateczną cenę oraz termin.';
   }
 
-  if (normalized.includes('materiał') || normalized.includes('filament') || normalized.includes('pla')) {
-    const materials = context.materials.filter((material) => material.available).map((material) => material.name);
-    if (materials.length) {
-      return `Aktualnie dostępne materiały to: ${materials.join(', ')}. Jeśli opiszesz zastosowanie elementu, pomożemy dobrać najlepszy materiał.`;
+  if (includesAny(normalized, ['materiał', 'material', 'filament', 'pla', 'petg', 'abs', 'asa', 'tpu'])) {
+    const materials = context.materials.map((material) =>
+      `${material.name}${material.price_per_kg ? ` (${Number(material.price_per_kg).toFixed(0)} zł/kg)` : ''}`
+    );
+
+    if (materials.length > 0) {
+      return `Aktualnie w bazie widzę takie dostępne materiały: ${materials.join(', ')}. Jeśli napiszesz, do czego ma służyć element, pomożemy dobrać materiał pod wytrzymałość, temperaturę, wygląd albo cenę.`;
     }
+
+    return 'Dobór materiału zależy od zastosowania. PLA sprawdza się do modeli wizualnych, PETG do części bardziej użytkowych, ASA/ABS do większej odporności, a TPU do elementów elastycznych. Ostateczną dostępność potwierdzimy przy wycenie.';
   }
 
-  if (normalized.includes('czas') || normalized.includes('termin') || normalized.includes('ile trwa')) {
-    const days = context.settings.estimated_production_days;
-    return days && days !== '0'
-      ? `Aktualny szacowany czas realizacji wynosi około ${days} dni roboczych. Dokładny termin zależy od modelu, materiału i liczby sztuk.`
-      : 'Dokładny termin zależy od modelu, materiału i liczby sztuk. Prześlij plik przez formularz wyceny, a potwierdzimy czas realizacji.';
+  if (includesAny(normalized, ['cena', 'koszt', 'wycena', 'ile kosztuje'])) {
+    return 'Cena zależy od wymiarów modelu, materiału, wypełnienia, jakości i liczby sztuk. Najlepiej prześlij plik przez formularz wyceny — podamy cenę szacunkową, a ostateczną potwierdzimy po analizie modelu.';
   }
 
-  if (normalized.includes('cen') || normalized.includes('koszt') || normalized.includes('wycen')) {
-    return 'Cena zależy od wymiarów modelu, materiału, wypełnienia i liczby sztuk. Prześlij plik przez formularz wyceny, aby otrzymać dokładną kalkulację.';
+  if (includesAny(normalized, ['czas', 'termin', 'ile trwa', 'realizacja'])) {
+    if (context.estimatedProductionDays) {
+      return `Na podstawie aktualnej kolejki szacowany czas produkcji to około ${context.estimatedProductionDays} dni roboczych. Dokładny termin zależy od modelu, materiału i liczby sztuk.`;
+    }
+
+    return 'Termin realizacji zależy od modelu, materiału i liczby sztuk. Po przesłaniu pliku przez formularz wyceny potwierdzimy realny czas wykonania.';
   }
 
-  return 'Dziękujemy za wiadomość. Asystent AI jest chwilowo niedostępny, ale możesz przesłać projekt przez formularz wyceny lub skontaktować się z nami bezpośrednio — odpowiemy najszybciej jak to możliwe.';
+  if (includesAny(normalized, ['sklep', 'produkt', 'kup', 'koszyk'])) {
+    const products = context.products
+      .filter((product) => product.stock_quantity > 0)
+      .slice(0, 5)
+      .map((product) => `${product.name} (${Number(product.price).toFixed(2)} zł)`);
+
+    if (products.length > 0) {
+      return `W sklepie są dostępne m.in.: ${products.join(', ')}. Pełną listę znajdziesz w zakładce „Sklep”.`;
+    }
+
+    return 'Produkty dostępne w sklepie znajdziesz w zakładce „Sklep”. Jeśli czegoś nie ma na stanie, napisz do nas — sprawdzimy możliwość realizacji.';
+  }
+
+  return 'Jestem bezpłatnym asystentem KORIX3D. Mogę pomóc w doborze materiału, przygotowaniu pliku do wyceny, informacjach o terminach, sklepie i kontakcie. Napisz, co chcesz wydrukować i do czego element będzie używany.';
+}
+
+function createEventStream(content: string, conversationId?: string | null) {
+  return new Response(
+    `data: ${JSON.stringify({ content })}\n\ndata: ${JSON.stringify({ done: true, conversationId })}\n\n`,
+    {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    }
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -205,266 +140,91 @@ export async function POST(request: NextRequest) {
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: 'Brak wiadomości' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    let user: { id: string } | null = null;
-    let profile: { role: string | null; full_name: string | null } | null = null;
-    let supabaseAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
-    let dbContext = createEmptyDatabaseContext();
+    const userMessage = messages[messages.length - 1];
+    const question = typeof userMessage?.content === 'string' ? userMessage.content : '';
 
-    // Supabase enriches answers with business data and stores history, but it
-    // must never prevent the assistant from answering when runtime env vars
-    // are temporarily unavailable (for example in a Netlify function).
+    let userId: string | null = null;
+    let convId = conversationId || null;
+    let supabaseAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
+    let context = createEmptyContext();
+
     try {
       const supabase = await createClient();
       const authResult = await supabase.auth.getUser();
-      user = authResult.data.user ? { id: authResult.data.user.id } : null;
+      userId = authResult.data.user?.id || null;
       supabaseAdmin = getSupabaseAdmin();
+      context = await getDatabaseContext();
 
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role, full_name')
-          .eq('id', user.id)
-          .maybeSingle();
-        profile = data;
-      }
-
-      dbContext = await getDatabaseContext(user?.id || null, profile?.role || null);
-    } catch (supabaseError) {
-      console.warn('AI context unavailable; continuing without Supabase:', supabaseError);
-    }
-
-    // Build system prompt with context
-    const systemPrompt = buildSystemPrompt(dbContext, profile?.role || null, profile?.full_name || null);
-
-    // Get or create conversation
-    let convId = conversationId;
-    if (supabaseAdmin && !convId && sessionId) {
-      const { data: existingConv } = await supabaseAdmin
-        .from('ai_conversations')
-        .select('id')
-        .eq('session_id', sessionId)
-        .maybeSingle();
-
-      if (existingConv) {
-        convId = existingConv.id;
-      } else {
-        const { data: newConv } = await supabaseAdmin
+      if (!convId && sessionId) {
+        const { data: existingConversation } = await supabaseAdmin
           .from('ai_conversations')
-          .insert({
-            session_id: sessionId,
-            user_id: user?.id || null
-          })
           .select('id')
-          .single();
-        convId = newConv?.id;
+          .eq('session_id', sessionId)
+          .maybeSingle();
+
+        if (existingConversation) {
+          convId = existingConversation.id;
+        } else {
+          const { data: newConversation } = await supabaseAdmin
+            .from('ai_conversations')
+            .insert({
+              session_id: sessionId,
+              user_id: userId,
+            })
+            .select('id')
+            .single();
+          convId = newConversation?.id || null;
+        }
       }
+
+      if (convId && question) {
+        await supabaseAdmin
+          .from('ai_messages')
+          .insert({
+            conversation_id: convId,
+            role: 'user',
+            content: question,
+          });
+      }
+    } catch (contextError) {
+      console.warn('AI local context unavailable; answering without database context:', contextError);
     }
 
-    // Get conversation history for context
-    let conversationHistory: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
-    if (supabaseAdmin && convId) {
-      const { data: history } = await supabaseAdmin
-        .from('ai_messages')
-        .select('role, content')
-        .eq('conversation_id', convId)
-        .order('created_at', { ascending: true })
-        .limit(20);
+    const answer = buildFreeResponse(question, context);
 
-      conversationHistory = (history || []).map(h => ({
-        role: h.role as 'user' | 'assistant' | 'system',
-        content: h.content
-      }));
-    }
-
-    // Prepare messages for OpenAI
-    const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory,
-      ...messages.filter((m: any) => m.role !== 'system').map((m: any) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content
-      }))
-    ];
-
-    // Store user message
-    const userMessage = messages[messages.length - 1];
-    if (supabaseAdmin && convId && userMessage?.role === 'user') {
-      await supabaseAdmin
-        .from('ai_messages')
-        .insert({
-          conversation_id: convId,
-          role: 'user',
-          content: userMessage.content
-        });
-    }
-
-    // Call OpenAI with streaming
-    const model = dbContext.settings.model || 'gpt-4o-mini';
-    const maxTokens = parseInt(dbContext.settings.max_tokens || '2048');
-    const temperature = parseFloat(dbContext.settings.temperature || '0.7');
-
-    if (!isPaidAIEnabled()) {
-      const fallback = buildFallbackResponse(userMessage?.content || '', dbContext);
+    try {
       if (supabaseAdmin && convId) {
         await supabaseAdmin
           .from('ai_messages')
           .insert({
             conversation_id: convId,
             role: 'assistant',
-            content: fallback
+            content: answer,
           });
 
         await supabaseAdmin
           .from('ai_logs')
           .insert({
-            user_id: user?.id || null,
+            user_id: userId,
             conversation_id: convId,
-            query: userMessage?.content || '',
+            query: question,
             response_time_ms: Date.now() - startTime,
             tokens_used: 0,
-            model: 'local-fallback',
-            success: true
+            model: 'free-local-assistant',
+            success: true,
           });
       }
-
-      return new Response(
-        `data: ${JSON.stringify({ content: fallback })}\n\ndata: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`,
-        {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
-        }
-      );
+    } catch (logError) {
+      console.warn('AI local answer was created, but history logging failed:', logError);
     }
 
-    let stream: AsyncIterable<{
-      choices: Array<{ delta: { content?: string | null } }>;
-    }>;
-    try {
-      const openai = getOpenAI();
-      stream = await openai.chat.completions.create({
-        model,
-        messages: openaiMessages,
-        max_tokens: maxTokens,
-        temperature,
-        stream: true,
-      });
-    } catch (error) {
-      console.error('OpenAI request error:', error);
-      const fallback = buildFallbackResponse(userMessage?.content || '', dbContext);
-      return new Response(
-        `data: ${JSON.stringify({ content: fallback })}\n\ndata: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`,
-        {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
-        }
-      );
-    }
-
-    // Stream response
-    const encoder = new TextEncoder();
-    let fullResponse = '';
-    let tokensUsed = 0;
-
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content || '';
-            if (content) {
-              fullResponse += content;
-              tokensUsed++;
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
-            }
-          }
-
-          // Store assistant message
-          if (supabaseAdmin && convId && fullResponse) {
-            await supabaseAdmin
-              .from('ai_messages')
-              .insert({
-                conversation_id: convId,
-                role: 'assistant',
-                content: fullResponse
-              });
-
-            // Update conversation timestamp
-            await supabaseAdmin
-              .from('ai_conversations')
-              .update({ updated_at: new Date().toISOString() })
-              .eq('id', convId);
-          }
-
-          // Log analytics
-          if (supabaseAdmin) {
-            await supabaseAdmin
-              .from('ai_logs')
-              .insert({
-                user_id: user?.id || null,
-                conversation_id: convId,
-                query: userMessage?.content || '',
-                response_time_ms: Date.now() - startTime,
-                tokens_used: tokensUsed,
-                model,
-                success: true
-              });
-          }
-
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`));
-          controller.close();
-        } catch (error) {
-          console.error('Streaming error:', error);
-
-          // Log error
-          if (supabaseAdmin) {
-            await supabaseAdmin
-              .from('ai_logs')
-              .insert({
-                user_id: user?.id || null,
-                conversation_id: convId,
-                query: userMessage?.content || '',
-                response_time_ms: Date.now() - startTime,
-                model,
-                success: false,
-                error_message: String(error)
-              });
-          }
-
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Wystąpił błąd podczas generowania odpowiedzi' })}\n\n`));
-          controller.close();
-        }
-      },
-    });
-
-    return new Response(readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-
+    return createEventStream(answer, convId);
   } catch (error) {
-    console.error('API Error:', error);
-
-    const configurationError = error instanceof Error &&
-      (error.message.includes('OPENAI_API_KEY') || error.message.includes('Supabase'));
-    return new Response(JSON.stringify({
-      error: configurationError
-        ? `Bot nie jest jeszcze skonfigurowany: ${(error as Error).message}`
-        : 'Wystąpił błąd podczas generowania odpowiedzi. Spróbuj ponownie.'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    console.error('AI local API error:', error);
+    return createEventStream('Asystent jest chwilowo niedostępny. Możesz skorzystać z formularza wyceny albo napisać na kontakt@korix3d.pl.');
   }
 }

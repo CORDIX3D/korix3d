@@ -31,108 +31,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    const paidAiEnabled = Deno.env.get("ENABLE_OPENAI_REPORTS") === "true";
-
-    if (!paidAiEnabled || !openaiApiKey) {
-      // Return a fallback analysis
-      const fallbackAnalysis = generateFallbackAnalysis(reportData);
-      return new Response(JSON.stringify({ analysis: fallbackAnalysis }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Call OpenAI for analysis
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Jesteś doświadczonym analitykiem finansowym specjalizującym się w firmach produkcyjnych.
-            Twoim zadaniem jest przeanalizowanie danych finansowych i przygotowanie szczegółowego raportu.
-            Odpowiadaj w języku polskim, profesjonalnym tonem.
-            Używaj sformatowanego tekstu z nagłówkami i punktami.`
-          },
-          {
-            role: "user",
-            content: `Przeanalizuj poniższe dane finansowe firmy KORIX3D i przygotuj szczegółowy raport:
-
-            PRZYCHODY:
-            - Całkowity przychód: ${reportData.revenue?.total || 0} PLN
-            - Zamówienia 3D: ${reportData.revenue?.byType?.orders3D || 0} PLN
-            - Zamówienia sklepowe: ${reportData.revenue?.byType?.storeOrders || 0} PLN
-
-            KOSZTY:
-            - Całkowite koszty: ${reportData.expenses?.total || 0} PLN
-            - Materiały: ${reportData.expenses?.materials || 0} PLN
-            - Energia: ${reportData.expenses?.electricity || 0} PLN
-            - Utrzymanie: ${reportData.expenses?.maintenance || 0} PLN
-            - Dostawa: ${reportData.expenses?.shipping || 0} PLN
-
-            ZYSKI:
-            - Zysk brutto: ${reportData.profit?.gross || 0} PLN
-            - Marża: ${reportData.profit?.margin || 0}%
-
-            ZAMÓWIENIA:
-            - Całkowita liczba: ${reportData.orders?.total || 0}
-            - Średnia wartość: ${reportData.orders?.averageValue || 0} PLN
-
-            PRODUKCJA:
-            - Godziny pracy: ${reportData.production?.totalHours || 0} h
-            - Wykorzystanie maszyn: ${reportData.production?.utilization || 0}%
-            - Kolejka: ${reportData.production?.queueSize || 0}
-
-            MAGAZYN:
-            - Wartość: ${reportData.warehouse?.totalValue || 0} PLN
-            - Niskie stany: ${reportData.warehouse?.lowStock || 0} pozycji
-
-            KLIENTÓW:
-            - Całkowita liczba: ${reportData.customers?.total || 0}
-            - Nowi: ${reportData.customers?.new || 0}
-
-            Przygotuj analizę zawierającą:
-            1. Podsumowanie wykonawcze
-            2. Analizę przychodów
-            3. Analizę kosztów
-            4. Rekomendacje
-            5. Analizę ryzyka
-            6. Możliwości rozwoju`
-          }
-        ],
-        max_tokens: 2000,
-        temperature: 0.7
-      })
-    });
-
-    if (!response.ok) {
-      const fallbackAnalysis = generateFallbackAnalysis(reportData);
-      return new Response(JSON.stringify({ analysis: fallbackAnalysis }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const result = await response.json();
-    const analysis = result.choices?.[0]?.message?.content || generateFallbackAnalysis(reportData);
-
-    return new Response(JSON.stringify({ analysis }), {
+    return new Response(JSON.stringify({ analysis: generateFallbackAnalysis(reportData) }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
   } catch (error) {
-    console.error("AI Analysis Error:", error);
+    console.error("Local analysis error:", error);
     return new Response(
       JSON.stringify({
-        error: "Błąd analizy AI",
-        analysis: "Analiza AI jest tymczasowo niedostępna. Proszę skontaktować się z administratorem."
+        error: "Błąd analizy",
+        analysis: "Analiza jest tymczasowo niedostępna. Spróbuj ponownie później.",
       }),
       {
         status: 500,
@@ -143,41 +51,31 @@ Deno.serve(async (req: Request) => {
 });
 
 function generateFallbackAnalysis(data: any): string {
-  const revenue = data.revenue?.total || 0;
-  const expenses = data.expenses?.total || 0;
-  const profit = data.profit?.gross || 0;
-  const margin = data.profit?.margin || 0;
+  const revenue = Number(data.revenue?.total || 0);
+  const expenses = Number(data.expenses?.total || 0);
+  const profit = Number(data.profit?.gross || revenue - expenses);
+  const margin = Number(data.profit?.margin || (revenue > 0 ? (profit / revenue) * 100 : 0));
+  const lowStock = Number(data.warehouse?.lowStock || 0);
+  const queueSize = Number(data.production?.queueSize || 0);
+  const utilization = Number(data.production?.utilization || 0);
 
   return `AUTOMATYCZNA ANALIZA FINANSOWA
 
-=== PODSUMOWANIE WYKONAWCZE ===
-Przychód całkowity: ${revenue.toFixed(2)} PLN
-Koszty całkowite: ${expenses.toFixed(2)} PLN
+=== PODSUMOWANIE ===
+Przychód: ${revenue.toFixed(2)} PLN
+Koszty: ${expenses.toFixed(2)} PLN
 Zysk brutto: ${profit.toFixed(2)} PLN
-Marża zysku: ${margin.toFixed(1)}%
+Marża: ${margin.toFixed(1)}%
 
-=== ANALIZA PRZYCHODÓW ===
-${revenue > 0 ? "Firma generuje przychody. " : "Brak przychodów w analizowanym okresie. "}
-${data.revenue?.byType?.orders3D > data.revenue?.byType?.storeOrders ? "Głównym źródłem przychodów są zamówienia 3D." : "Sprzedaż sklepowa stanowi istotną część przychodów."}
-
-=== ANALIZA KOSZTÓW ===
-Główne kategorie kosztów:
-• Materiały: ${(data.expenses?.materials || 0).toFixed(2)} PLN
-• Energia: ${(data.expenses?.electricity || 0).toFixed(2)} PLN
-• Utrzymanie: ${(data.expenses?.maintenance || 0).toFixed(2)} PLN
+=== WNIOSKI ===
+${revenue > 0 ? "Firma generuje przychody w analizowanym okresie." : "Brak przychodów w analizowanym okresie."}
+${profit >= 0 ? "Wynik operacyjny jest dodatni." : "Wynik operacyjny jest ujemny i wymaga kontroli kosztów."}
+${lowStock > 0 ? `Magazyn wymaga uwagi: ${lowStock} pozycji ma niski stan.` : "Stany magazynowe nie wskazują krytycznych braków."}
+${queueSize > 10 ? `Kolejka produkcyjna jest wysoka: ${queueSize} zleceń.` : "Kolejka produkcyjna jest pod kontrolą."}
 
 === REKOMENDACJE ===
-${margin < 20 ? "• MARŻA NISKA - Rozważ optymalizację kosztów lub dostosowanie cen" : "• Marża na akceptowalnym poziomie"}
-${data.warehouse?.lowStock > 0 ? `• UZUPEŁNIENIE MAGAZYNU - ${data.warehouse.lowStock} pozycji wymaga uzupełnienia` : "• Stany magazynowe w normie"}
-${data.production?.utilization < 50 ? "• NISKIE WYKORZYSTANIE - Zwiększ działania marketingowe" : "• Wykorzystanie maszyn w normie"}
-
-=== ANALIZA RYZYKA ===
-${profit < 0 ? "• WYSOKIE RYZYKO: Firma generuje stratę" : "• Ryzyko operacyjne: NISKIE"}
-${data.production?.queueSize > 10 ? "• ŚREDNIE RYZYKO: Duża kolejka produkcyjna" : "• Ryzyko produkcyjne: NISKIE"}
-
-=== MOŻLIWOŚCI ROZWOJU ===
-• Rozszerzenie oferty materiałowej
-• Wprowadzenie programu lojalnościowego
-• Automatyzacja procesów produkcyjnych
-• Rozwój kanałów sprzedaży`;
+${margin < 20 ? "• Przeanalizuj ceny i koszty materiałów, bo marża jest niska." : "• Utrzymuj obecną politykę cenową i monitoruj marżę."}
+${lowStock > 0 ? "• Uzupełnij pozycje magazynowe poniżej minimum." : "• Kontynuuj regularny monitoring magazynu."}
+${utilization < 50 ? "• Rozważ działania sprzedażowe, bo wykorzystanie produkcji jest niskie." : "• Monitoruj obciążenie maszyn i terminy realizacji."}
+• Kontynuuj zbieranie danych o zamówieniach, kosztach i czasie produkcji.`;
 }

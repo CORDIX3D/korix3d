@@ -6,6 +6,16 @@ export const dynamic = 'force-dynamic';
 
 type DatabaseContext = {
   materials: Array<{ name: string; price_per_kg: number; available: boolean }>;
+  filaments: Array<{
+    brand: string;
+    material_name: string;
+    color: string;
+    color_hex: string | null;
+    remaining_weight_grams: number;
+    min_weight_grams: number | null;
+    location: string | null;
+    active: boolean | null;
+  }>;
   products: Array<{
     id?: string;
     sku: string | null;
@@ -30,6 +40,7 @@ type DatabaseContext = {
 function createEmptyContext(): DatabaseContext {
   return {
     materials: [],
+    filaments: [],
     products: [],
     warehouseItems: [],
     productionQueue: 0,
@@ -50,12 +61,17 @@ function getSupabaseAdmin() {
 
 async function getDatabaseContext(): Promise<DatabaseContext> {
   const supabaseAdmin = getSupabaseAdmin();
-  const [materialsResult, productsResult, warehouseResult, ordersResult] = await Promise.all([
+  const [materialsResult, filamentsResult, productsResult, warehouseResult, ordersResult] = await Promise.all([
     supabaseAdmin
       .from('materials')
       .select('name, price_per_kg, available')
       .eq('available', true)
       .order('name'),
+    supabaseAdmin
+      .from('filaments')
+      .select('brand, material_name, color, color_hex, remaining_weight_grams, min_weight_grams, location, active')
+      .eq('active', true)
+      .order('material_name'),
     supabaseAdmin
       .from('products')
       .select('id, sku, name, slug, price, stock_quantity, min_stock_quantity, active')
@@ -76,6 +92,7 @@ async function getDatabaseContext(): Promise<DatabaseContext> {
 
   return {
     materials: materialsResult.data || [],
+    filaments: filamentsResult.data || [],
     products: productsResult.data || [],
     warehouseItems: warehouseResult.data || [],
     productionQueue: orders.length,
@@ -97,19 +114,34 @@ function normalizeText(value: string | null | undefined) {
     .trim();
 }
 
-function scoreProductMatch(question: string, product: DatabaseContext['products'][number]) {
+function stockStatusLabel(quantity: number, minimum: number | null | undefined) {
+  if (quantity <= 0) return 'niedostępny';
+  if (minimum && quantity <= minimum) return 'dostępny, ale stan jest niski';
+  return 'dostępny';
+}
+
+function scoreTextMatch(question: string, values: Array<string | null | undefined>) {
   const normalizedQuestion = normalizeText(question);
-  const name = normalizeText(product.name);
-  const sku = normalizeText(product.sku);
-  const slug = normalizeText(product.slug);
-  const tokens = name.split(' ').filter((token) => token.length >= 3);
-
   let score = 0;
-  if (sku && normalizedQuestion.includes(sku)) score += 12;
-  if (slug && normalizedQuestion.includes(slug)) score += 8;
-  if (name && normalizedQuestion.includes(name)) score += 10;
-  score += tokens.filter((token) => normalizedQuestion.includes(token)).length;
 
+  values.forEach((value) => {
+    const normalizedValue = normalizeText(value);
+    if (!normalizedValue) return;
+
+    const tokens = normalizedValue.split(' ').filter((token) => token.length >= 3);
+    if (normalizedQuestion.includes(normalizedValue)) score += 10;
+    score += tokens.filter((token) => normalizedQuestion.includes(token)).length;
+  });
+
+  return score;
+}
+
+function scoreProductMatch(question: string, product: DatabaseContext['products'][number]) {
+  let score = scoreTextMatch(question, [product.name, product.slug]);
+  const normalizedQuestion = normalizeText(question);
+  const sku = normalizeText(product.sku);
+
+  if (sku && normalizedQuestion.includes(sku)) score += 12;
   return score;
 }
 
@@ -135,12 +167,6 @@ function findWarehouseItemForProduct(product: DatabaseContext['products'][number
   });
 }
 
-function stockStatusLabel(quantity: number, minimum: number | null | undefined) {
-  if (quantity <= 0) return 'niedostępny';
-  if (minimum && quantity <= minimum) return 'dostępny, ale stan jest niski';
-  return 'dostępny';
-}
-
 function formatProductStock(product: DatabaseContext['products'][number], context: DatabaseContext) {
   const warehouseItem = findWarehouseItemForProduct(product, context);
   const quantity = Number(product.stock_quantity || 0);
@@ -151,6 +177,28 @@ function formatProductStock(product: DatabaseContext['products'][number], contex
     : '';
 
   return `${product.name}${product.sku ? ` (${product.sku})` : ''}: ${status}, stan sklepu: ${quantity} szt., cena: ${Number(product.price).toFixed(2)} zł.${warehouseDetails}`;
+}
+
+function scoreFilamentMatch(question: string, filament: DatabaseContext['filaments'][number]) {
+  return scoreTextMatch(question, [filament.brand, filament.material_name, filament.color]);
+}
+
+function findMatchingFilaments(question: string, context: DatabaseContext) {
+  return context.filaments
+    .map((filament) => ({ filament, score: scoreFilamentMatch(question, filament) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.filament);
+}
+
+function formatFilamentStock(filament: DatabaseContext['filaments'][number]) {
+  const remaining = Number(filament.remaining_weight_grams || 0);
+  const minimum = filament.min_weight_grams ?? null;
+  const status = stockStatusLabel(remaining, minimum);
+  const location = filament.location ? ` Lokalizacja: ${filament.location}.` : '';
+  const colorHex = filament.color_hex ? ` Próbka koloru: ${filament.color_hex}.` : '';
+
+  return `${filament.material_name} ${filament.color} (${filament.brand}): ${status}, zostało ${remaining} g.${minimum ? ` Minimum: ${minimum} g.` : ''}${location}${colorHex}`;
 }
 
 function findMatchingMaterials(question: string, context: DatabaseContext) {
@@ -181,9 +229,22 @@ function buildFreeResponse(question: string, context: DatabaseContext): string {
     'sklep',
     'kup',
     'koszyk',
+    'kolor',
+    'filament',
+    'szpul',
   ]);
-  const matchingProducts = findMatchingProducts(question, context);
+  const asksAboutFilaments = includesAny(normalized, ['filament', 'szpula', 'szpulka', 'pla', 'petg', 'abs', 'asa', 'tpu', 'kolor']);
 
+  const matchingFilaments = findMatchingFilaments(question, context);
+  if ((asksAboutStock || asksAboutFilaments) && matchingFilaments.length > 0) {
+    return [
+      'Sprawdziłem magazyn filamentów:',
+      matchingFilaments.slice(0, 6).map(formatFilamentStock).join('\n'),
+      'To są stany z bazy magazynowej, bez użycia płatnego AI.',
+    ].join('\n');
+  }
+
+  const matchingProducts = findMatchingProducts(question, context);
   if (asksAboutStock && matchingProducts.length > 0) {
     return matchingProducts
       .slice(0, 5)
@@ -198,13 +259,19 @@ function buildFreeResponse(question: string, context: DatabaseContext): string {
       .slice(0, 8)
       .map((product) => `${product.name}: ${product.stock_quantity} szt., ${Number(product.price).toFixed(2)} zł`);
 
+    const lowFilaments = context.filaments
+      .filter((filament) => Number(filament.remaining_weight_grams || 0) <= Number(filament.min_weight_grams || 0))
+      .slice(0, 5)
+      .map((filament) => `${filament.material_name} ${filament.color}: ${filament.remaining_weight_grams} g`);
+
     const unavailableCount = context.products.filter((product) => product.stock_quantity <= 0).length;
     return [
       availableProducts.length
         ? `Największe dostępne stany w sklepie:\n${availableProducts.join('\n')}`
         : 'Aktualnie nie widzę produktów z dodatnim stanem sklepowym.',
+      lowFilaments.length ? `Niskie stany filamentów:\n${lowFilaments.join('\n')}` : '',
       unavailableCount > 0 ? `Produkty bez stanu: ${unavailableCount}.` : '',
-      'Jeśli pytasz o konkretny produkt, podaj nazwę albo SKU — sprawdzę dokładny stan.',
+      'Jeśli pytasz o konkretny produkt, materiał albo kolor, podaj nazwę, SKU lub kolor — sprawdzę dokładny stan.',
     ].filter(Boolean).join('\n\n');
   }
 
@@ -225,6 +292,14 @@ function buildFreeResponse(question: string, context: DatabaseContext): string {
   }
 
   if (includesAny(normalized, ['materiał', 'material', 'filament', 'pla', 'petg', 'abs', 'asa', 'tpu'])) {
+    const filamentSummary = context.filaments
+      .slice(0, 8)
+      .map((filament) => `${filament.material_name} ${filament.color} (${filament.remaining_weight_grams} g)`);
+
+    if (filamentSummary.length > 0) {
+      return `Aktualnie w magazynie widzę m.in.: ${filamentSummary.join(', ')}. Jeśli napiszesz konkretny materiał i kolor, sprawdzę dokładny stan szpulki.`;
+    }
+
     const materials = context.materials.map((material) =>
       `${material.name}${material.price_per_kg ? ` (${Number(material.price_per_kg).toFixed(0)} zł/kg)` : ''}`
     );

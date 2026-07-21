@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { MouseEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
@@ -44,6 +44,10 @@ const sortOptions = [
   { value: 'available', label: 'Największa dostępność' },
 ];
 
+function canAddProductToCart(product: Product) {
+  return product.stock_quantity > 0 && Number.isFinite(Number(product.price)) && Number(product.price) >= 0;
+}
+
 export default function ShopPage() {
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get('k');
@@ -67,14 +71,24 @@ export default function ShopPage() {
 
   useEffect(() => {
     const fetchCategories = async () => {
-      const { data, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('active', true)
-        .order('sort_order');
-      if (data) setCategories(data as Category[]);
-      if (categoriesError) setError(true);
-      setCategoriesLoaded(true);
+      try {
+        const { data, error: categoriesError } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('active', true)
+          .order('sort_order');
+        if (categoriesError) {
+          setCategories([]);
+          setError(true);
+        } else {
+          setCategories((data || []) as Category[]);
+        }
+      } catch {
+        setCategories([]);
+        setError(true);
+      } finally {
+        setCategoriesLoaded(true);
+      }
     };
     fetchCategories();
   }, []);
@@ -89,43 +103,53 @@ export default function ShopPage() {
     if (!categoriesLoaded) return;
     setLoading(true);
     setError(false);
-    let query = supabase
-      .from('products')
-      .select('*')
-      .eq('active', true);
+    try {
+      let query = supabase
+        .from('products')
+        .select('*')
+        .eq('active', true);
 
-    if (selectedCategory) {
-      const category = categories.find((c) => c.slug === selectedCategory);
-      if (category) {
-        query = query.eq('category_id', category.id);
+      if (selectedCategory) {
+        const category = categories.find((c) => c.slug === selectedCategory);
+        if (category) {
+          query = query.eq('category_id', category.id);
+        }
       }
+
+      if (debouncedSearch) {
+        const safeSearch = debouncedSearch.replace(/[%_,]/g, ' ');
+        query = query.or(`name.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
+      }
+
+      // Sorting
+      switch (sortBy) {
+        case 'price_asc':
+          query = query.order('price', { ascending: true });
+          break;
+        case 'price_desc':
+          query = query.order('price', { ascending: false });
+          break;
+        case 'available':
+          query = query.order('stock_quantity', { ascending: false });
+          break;
+        default:
+          query = query.order('created_at', { ascending: false });
+      }
+
+      const { data, error: queryError } = await query.limit(24);
+
+      if (queryError) {
+        setProducts([]);
+        setError(true);
+      } else {
+        setProducts((data || []) as Product[]);
+      }
+    } catch {
+      setProducts([]);
+      setError(true);
+    } finally {
+      setLoading(false);
     }
-
-    if (debouncedSearch) {
-      const safeSearch = debouncedSearch.replace(/[%_,]/g, ' ');
-      query = query.or(`name.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
-    }
-
-    // Sorting
-    switch (sortBy) {
-      case 'price_asc':
-        query = query.order('price', { ascending: true });
-        break;
-      case 'price_desc':
-        query = query.order('price', { ascending: false });
-        break;
-      case 'available':
-        query = query.order('stock_quantity', { ascending: false });
-        break;
-      default:
-        query = query.order('created_at', { ascending: false });
-    }
-
-    const { data, error: queryError } = await query.limit(24);
-
-    if (data) setProducts(data);
-    if (queryError) setError(true);
-    setLoading(false);
   }, [categories, categoriesLoaded, debouncedSearch, selectedCategory, sortBy]);
 
   useEffect(() => {
@@ -405,6 +429,17 @@ function ProductCard({
   const { addToCart } = useCart();
   const images = product.images as string[] || [];
   const mainImage = images[0] || null;
+  const canAddToCart = canAddProductToCart(product);
+  const addProductToCart = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!canAddToCart) {
+      toast.error('Nie można dodać produktu', { description: 'Produkt jest niedostępny albo ma nieprawidłową cenę.' });
+      return;
+    }
+    addToCart(product);
+    toast.success('Dodano do koszyka', { description: product.name });
+  };
 
   if (viewMode === 'list') {
     return (
@@ -443,7 +478,7 @@ function ProductCard({
                       {Number(product.compare_price).toFixed(2)} zł
                     </p>
                   )}
-                  <Button size="sm" className="mt-3" disabled={product.stock_quantity <= 0} onClick={(event) => { event.preventDefault(); event.stopPropagation(); addToCart(product); toast.success('Dodano do koszyka', { description: product.name }); }}><ShoppingCart className="mr-2 h-4 w-4" />Do koszyka</Button>
+                  <Button size="sm" className="mt-3" disabled={!canAddToCart} onClick={addProductToCart}><ShoppingCart className="mr-2 h-4 w-4" />Do koszyka</Button>
                 </div>
               </div>
             </div>
@@ -475,8 +510,8 @@ function ProductCard({
           <div
             className="absolute inset-x-0 bottom-0 flex gap-2 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
           >
-            <button type="button" disabled={product.stock_quantity <= 0} onClick={(event) => { event.preventDefault(); event.stopPropagation(); addToCart(product); toast.success('Dodano do koszyka', { description: product.name }); }} className="flex-1 rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {product.stock_quantity > 0 ? 'Dodaj do koszyka' : 'Brak w magazynie'}
+            <button type="button" disabled={!canAddToCart} onClick={addProductToCart} className="flex-1 rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+              {canAddToCart ? 'Dodaj do koszyka' : product.stock_quantity > 0 ? 'Niedostępny' : 'Brak w magazynie'}
             </button>
           </div>
 

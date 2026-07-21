@@ -126,22 +126,30 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const fetchRows = async () => {
     setLoading(true);
     setLoadError(null);
-    let query = (supabase as any).from(config.table).select('*');
-    for (const filter of config.filters || []) {
-      query = filter.operator === 'in'
-        ? query.in(filter.field, filter.value)
-        : query.eq(filter.field, filter.value);
-    }
-    if (config.orderBy) query = query.order(config.orderBy, { ascending: false });
-    const { data, error } = await query;
-    if (error) {
-      toast.error(`Nie udało się pobrać danych: ${config.title}`, { description: error.message });
-      setLoadError(error.message);
+    try {
+      let query = (supabase as any).from(config.table).select('*');
+      for (const filter of config.filters || []) {
+        query = filter.operator === 'in'
+          ? query.in(filter.field, filter.value)
+          : query.eq(filter.field, filter.value);
+      }
+      if (config.orderBy) query = query.order(config.orderBy, { ascending: false });
+      const { data, error } = await query;
+      if (error) {
+        toast.error(`Nie udało się pobrać danych: ${config.title}`, { description: error.message });
+        setLoadError(error.message);
+        setRows([]);
+      } else {
+        setRows((data || []) as DbRow[]);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nieoczekiwany błąd pobierania danych.';
+      toast.error(`Nie udało się pobrać danych: ${config.title}`, { description: message });
+      setLoadError(message);
       setRows([]);
-    } else {
-      setRows((data || []) as DbRow[]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {

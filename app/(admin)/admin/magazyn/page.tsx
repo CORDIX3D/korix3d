@@ -72,6 +72,11 @@ function createSlug(value: string) {
     .replace(/^-+|-+$/g, '');
 }
 
+function parseDecimal(value: string) {
+  const number = Number(value.replace(',', '.'));
+  return Number.isFinite(number) ? number : NaN;
+}
+
 export default function AdminWarehousePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -242,9 +247,9 @@ export default function AdminWarehousePage() {
       return;
     }
 
-    const price = Number(formData.price);
-    const comparePrice = formData.compare_price ? Number(formData.compare_price) : null;
-    const costPrice = formData.cost_price ? Number(formData.cost_price) : null;
+    const price = parseDecimal(formData.price);
+    const comparePrice = formData.compare_price ? parseDecimal(formData.compare_price) : null;
+    const costPrice = formData.cost_price ? parseDecimal(formData.cost_price) : null;
     const stockQuantity = Number.parseInt(formData.stock_quantity || '0', 10);
     const minStockQuantity = Number.parseInt(formData.min_stock_quantity || '0', 10);
     const weightGrams = formData.weight_grams ? Number.parseInt(formData.weight_grams, 10) : null;

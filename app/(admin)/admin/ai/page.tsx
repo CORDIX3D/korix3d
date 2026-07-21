@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,13 +8,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Bot,
   Save,
@@ -73,16 +66,10 @@ interface AnalyticsData {
   recentLogs: AILogRecord[];
 }
 
-const DEFAULT_MODELS = [
-  { value: 'gpt-4.1', label: 'GPT-4.1 (Najnowszy)' },
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Szybki)' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-];
 
 const SUGGESTED_PROMPTS = [
-  "Jesteś KORIX AI - inteligentnym asystentem firmy KORIX3D, specjalizującej się w profesjonalnym druku 3D. Pomagasz klientom w wyborze materiałów, technologii, ustawień druku oraz odpowiedziach na pytania dotyczące produkcji. Odpowiadaj profesjonalnie, przyjaźnie i konkretnie. Używaj języka polskiego.",
-  "Jesteś doświadczonym inżynierem sprzedaży w KORIX3D. Twoim zadaniem jest pomóc klientowi wybrać najlepsze rozwiązanie dla jego projektu druku 3D. Zadawaj pytania doprecyzujące, doradzaj konkretne materiały i technologie.",
+  "JesteĹ› KORIX AI - inteligentnym asystentem firmy KORIX3D, specjalizujÄ…cej siÄ™ w profesjonalnym druku 3D. Pomagasz klientom w wyborze materiaĹ‚Ăłw, technologii, ustawieĹ„ druku oraz odpowiedziach na pytania dotyczÄ…ce produkcji. Odpowiadaj profesjonalnie, przyjaĹşnie i konkretnie. UĹĽywaj jÄ™zyka polskiego.",
+  "JesteĹ› doĹ›wiadczonym inĹĽynierem sprzedaĹĽy w KORIX3D. Twoim zadaniem jest pomĂłc klientowi wybraÄ‡ najlepsze rozwiÄ…zanie dla jego projektu druku 3D. Zadawaj pytania doprecyzujÄ…ce, doradzaj konkretne materiaĹ‚y i technologie.",
 ];
 
 export default function AdminAIPage() {
@@ -98,8 +85,8 @@ export default function AdminAIPage() {
   useEffect(() => {
     fetchSettings();
     fetchAnalytics();
-    // Funkcje są uruchamiane tylko przy wejściu do modułu; ręczne odświeżanie
-    // korzysta z tych samych procedur przez przyciski poniżej.
+    // Funkcje sÄ… uruchamiane tylko przy wejĹ›ciu do moduĹ‚u; rÄ™czne odĹ›wieĹĽanie
+    // korzysta z tych samych procedur przez przyciski poniĹĽej.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -111,8 +98,8 @@ export default function AdminAIPage() {
       .select('*');
 
     if (error) {
-      setLoadError('Nie udało się pobrać ustawień AI z Supabase.');
-      toast.error('Błąd', { description: 'Nie udało się pobrać ustawień AI' });
+      setLoadError('Nie udaĹ‚o siÄ™ pobraÄ‡ ustawieĹ„ AI z Supabase.');
+      toast.error('BĹ‚Ä…d', { description: 'Nie udaĹ‚o siÄ™ pobraÄ‡ ustawieĹ„ AI' });
     } else if (data) {
       const settingsMap: Record<string, string> = {};
       data.forEach((s: AISettingRecord) => {
@@ -224,7 +211,7 @@ export default function AdminAIPage() {
     }
 
     if (hasError) {
-      toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
+      toast.error('BĹ‚Ä…d', { description: 'Nie udaĹ‚o siÄ™ zapisaÄ‡ niektĂłrych ustawieĹ„' });
     } else {
       toast.success('Ustawienia AI zapisane');
     }
@@ -247,7 +234,7 @@ export default function AdminAIPage() {
 
   if (loading) return <PanelLoading label="Pobieranie konfiguracji AI..." />;
   if (loadError) return <PanelError message={loadError} onRetry={fetchSettings} />;
-  if (Object.keys(settings).length === 0) return <PanelError message="Brak konfiguracji AI. Uzupełnij rekordy w tabeli ai_settings." onRetry={fetchSettings} />;
+  if (Object.keys(settings).length === 0) return <PanelError message="Brak konfiguracji AI. UzupeĹ‚nij rekordy w tabeli ai_settings." onRetry={fetchSettings} />;
 
   return (
     <div className="space-y-6">
@@ -267,7 +254,7 @@ export default function AdminAIPage() {
         <div className="flex gap-2">
           <Button onClick={fetchSettings} variant="outline" size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
-            Odśwież
+            OdĹ›wieĹĽ
           </Button>
           <Button
             onClick={handleSave}
@@ -311,7 +298,7 @@ export default function AdminAIPage() {
                 <div>
                   <Label>Asystent AI aktywny</Label>
                   <p className="text-sm text-muted-foreground">
-                    Gdy wyłączone, przycisk asystenta nie będzie widoczny na stronie
+                    Gdy wyĹ‚Ä…czone, przycisk asystenta nie bÄ™dzie widoczny na stronie
                   </p>
                 </div>
                 <Switch
@@ -321,64 +308,24 @@ export default function AdminAIPage() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Model Configuration */}
+          {/* Free assistant mode */}
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-lg text-foreground flex items-center gap-2">
                 <Bot className="w-5 h-5 text-primary" />
-                Konfiguracja modelu
+                Tryb bezpłatny
               </CardTitle>
               <CardDescription>
-                Ustawienia modelu językowego OpenAI
+                Asystent odpowiada lokalnie na podstawie reguł oraz aktualnych danych z Supabase.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Model GPT</Label>
-                  <Select
-                    value={getValue('model')}
-                    onValueChange={(v) => setValue('model', v)}
-                  >
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEFAULT_MODELS.map(m => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Temperatura</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="2"
-                    value={getValue('temperature')}
-                    onChange={(e) => setValue('temperature', e.target.value)}
-                    className="bg-secondary border-border"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Niższa = bardziej precyzyjne odpowiedzi
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Maks. tokenów</Label>
-                  <Input
-                    type="number"
-                    value={getValue('max_tokens')}
-                    onChange={(e) => setValue('max_tokens', e.target.value)}
-                    className="bg-secondary border-border"
-                  />
-                </div>
+            <CardContent>
+              <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4">
+                <p className="text-sm font-medium text-green-300">Brak kosztów zewnętrznego AI</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Ten moduł nie łączy się z płatnymi modelami. Odpowiedzi bota bazują na stanie sklepu,
+                  magazynie, materiałach, kolejce produkcyjnej i prostych regułach odpowiedzi.
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -403,7 +350,7 @@ export default function AdminAIPage() {
               />
 
               <div className="space-y-2">
-                <Label className="text-sm">Przykładowe prompty:</Label>
+                <Label className="text-sm">PrzykĹ‚adowe prompty:</Label>
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTED_PROMPTS.map((prompt, i) => (
                     <Button
@@ -413,7 +360,7 @@ export default function AdminAIPage() {
                       onClick={() => setValue('system_prompt', prompt)}
                       className="text-xs"
                     >
-                      Użyj przykładu {i + 1}
+                      UĹĽyj przykĹ‚adu {i + 1}
                     </Button>
                   ))}
                 </div>
@@ -425,10 +372,10 @@ export default function AdminAIPage() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-lg text-foreground">
-                Wiadomość powitalna
+                WiadomoĹ›Ä‡ powitalna
               </CardTitle>
               <CardDescription>
-                Pierwsza wiadomość wyświetlana po otwarciu czatu
+                Pierwsza wiadomoĹ›Ä‡ wyĹ›wietlana po otwarciu czatu
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -472,7 +419,7 @@ export default function AdminAIPage() {
                     <p className="text-2xl font-bold text-foreground">
                       {analytics?.totalMessages || 0}
                     </p>
-                    <p className="text-xs text-muted-foreground">Wiadomości</p>
+                    <p className="text-xs text-muted-foreground">WiadomoĹ›ci</p>
                   </div>
                 </div>
               </CardContent>
@@ -488,7 +435,7 @@ export default function AdminAIPage() {
                     <p className="text-2xl font-bold text-foreground">
                       {formatTime(analytics?.avgResponseTime || 0)}
                     </p>
-                    <p className="text-xs text-muted-foreground">Śr. czas odp.</p>
+                    <p className="text-xs text-muted-foreground">Ĺšr. czas odp.</p>
                   </div>
                 </div>
               </CardContent>
@@ -504,7 +451,7 @@ export default function AdminAIPage() {
                     <p className="text-2xl font-bold text-foreground">
                       {analytics?.successRate || 0}%
                     </p>
-                    <p className="text-xs text-muted-foreground">Skuteczność</p>
+                    <p className="text-xs text-muted-foreground">SkutecznoĹ›Ä‡</p>
                   </div>
                 </div>
               </CardContent>
@@ -516,7 +463,7 @@ export default function AdminAIPage() {
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground">
-                  Aktywność (ostatnie 7 dni)
+                  AktywnoĹ›Ä‡ (ostatnie 7 dni)
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -539,7 +486,7 @@ export default function AdminAIPage() {
                         stroke="#FF6A00"
                         fill="#FF6A00"
                         fillOpacity={0.2}
-                        name="Wiadomości"
+                        name="WiadomoĹ›ci"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -550,7 +497,7 @@ export default function AdminAIPage() {
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground">
-                  Najczęstsze pytania
+                  NajczÄ™stsze pytania
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -613,7 +560,7 @@ export default function AdminAIPage() {
                           {formatTime(log.response_time_ms || 0)}
                         </span>
                         {log.tokens_used && (
-                          <span>{log.tokens_used} tokenów</span>
+                          <span>{log.tokens_used} tokenĂłw</span>
                         )}
                       </div>
                     </div>
@@ -621,7 +568,7 @@ export default function AdminAIPage() {
                 ))}
                 {(!analytics?.recentLogs || analytics.recentLogs.length === 0) && (
                   <p className="text-center text-muted-foreground py-8">
-                    Brak historii zapytań
+                    Brak historii zapytaĹ„
                   </p>
                 )}
               </div>

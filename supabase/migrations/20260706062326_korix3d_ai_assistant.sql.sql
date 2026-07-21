@@ -1,4 +1,4 @@
--- AI Conversation History
+﻿-- AI Conversation History
 CREATE TABLE IF NOT EXISTS ai_conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -54,12 +54,9 @@ CREATE TABLE IF NOT EXISTS ai_settings (
 
 -- Insert default AI settings
 INSERT INTO ai_settings (setting_key, setting_value, description) VALUES
-  ('system_prompt', 'Jesteś KORIX AI - inteligentnym asystentem firmy KORIX3D, specjalizującej się w profesjonalnym druku 3D. Pomagasz klientom w wyborze materiałów, technologii, ustawień druku oraz odpowiedziach na pytania dotyczące produkcji. Odpowiadaj profesjonalnie, przyjaźnie i konkretnie. Używaj języka polskiego.', 'System prompt for AI'),
-  ('temperature', '0.7', 'AI temperature'),
-  ('max_tokens', '2048', 'Maximum tokens per response'),
-  ('greeting', 'Witaj! Jestem KORIX AI, Twój asystent druku 3D. Jak mogę Ci pomóc?', 'Greeting message'),
-  ('enabled', 'true', 'Enable/disable AI assistant'),
-  ('model', 'gpt-4.1', 'OpenAI model to use')
+  ('system_prompt', 'JesteĹ› KORIX AI - inteligentnym asystentem firmy KORIX3D, specjalizujÄ…cej siÄ™ w profesjonalnym druku 3D. Pomagasz klientom w wyborze materiaĹ‚Ăłw, technologii, ustawieĹ„ druku oraz odpowiedziach na pytania dotyczÄ…ce produkcji. Odpowiadaj profesjonalnie, przyjaĹşnie i konkretnie. UĹĽywaj jÄ™zyka polskiego.', 'System prompt for AI'),
+  ('greeting', 'Witaj! Jestem KORIX AI, TwĂłj asystent druku 3D. Jak mogÄ™ Ci pomĂłc?', 'Greeting message'),
+  ('enabled', 'true', 'Enable/disable AI assistant')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- File uploads for AI analysis

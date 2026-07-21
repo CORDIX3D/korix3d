@@ -69,6 +69,7 @@ const makeDefaultValue = (field: CrudField) => {
 
 const normalizeValue = (field: CrudField, value: unknown) => {
   if (field.type === 'number') {
+    if (value === null || value === undefined || String(value).trim() === '') return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
   }
@@ -374,6 +375,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                         <Input
                           type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'color' ? 'color' : 'text'}
                           step={field.type === 'number' ? '0.01' : undefined}
+                          min={field.type === 'number' ? '0' : undefined}
                           value={String(formData[field.key] ?? '')}
                           onChange={(event) => setFormData({ ...formData, [field.key]: event.target.value })}
                           placeholder={field.placeholder}

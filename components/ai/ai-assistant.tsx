@@ -12,10 +12,8 @@ import {
   Trash2,
   ThumbsUp,
   ThumbsDown,
-  Sparkles,
-  ChevronDown
+  Sparkles
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface Message {
@@ -35,12 +33,30 @@ interface AISettings {
   system_prompt: string;
 }
 
+const DEFAULT_AI_SETTINGS: AISettings = {
+  greeting: 'Cześć! Jestem bezpłatnym asystentem KORIX3D. Mogę sprawdzić materiały, kolory, stany magazynowe i pomóc w wycenie druku 3D.',
+  enabled: true,
+  system_prompt: ''
+};
+
 const SUGGESTED_QUESTIONS = [
   'Jakie materiały są dostępne?',
   'Ile trwa produkcja?',
   'Jakie są ceny druku 3D?',
   'Czy macie PLA w kolorze czarnym?'
 ];
+
+function buildMessagesPayload(messages: Message[], fullContent: string) {
+  return [
+    ...messages
+      .filter((message) => message.id !== 'greeting')
+      .map((message) => ({
+        role: message.role,
+        content: message.file?.analysis ? `[Plik: ${message.file.name}] ${message.content}` : message.content
+      })),
+    { role: 'user', content: fullContent }
+  ];
+}
 
 export function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -49,7 +65,7 @@ export function AIAssistant() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [settings, setSettings] = useState<AISettings | null>(null);
+  const [settings, setSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [fileAnalysis, setFileAnalysis] = useState<any>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
@@ -58,7 +74,6 @@ export function AIAssistant() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch AI settings
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -67,31 +82,32 @@ export function AIAssistant() {
           .select('setting_key, setting_value')
           .in('setting_key', ['greeting', 'enabled', 'system_prompt']);
 
-        if (data) {
-          const settingsData = data as Array<{ setting_key: string; setting_value: string }>;
-          const settingsMap: AISettings = {
-            greeting: settingsData.find((s) => s.setting_key === 'greeting')?.setting_value || 'Witaj! Jestem KORIX AI.',
-            enabled: settingsData.find((s) => s.setting_key === 'enabled')?.setting_value !== 'false',
-            system_prompt: settingsData.find((s) => s.setting_key === 'system_prompt')?.setting_value || ''
-          };
-          setSettings(settingsMap);
+        if (!data) {
+          setSettings(DEFAULT_AI_SETTINGS);
+          return;
         }
+
+        const settingsData = data as Array<{ setting_key: string; setting_value: string }>;
+        setSettings({
+          greeting: settingsData.find((setting) => setting.setting_key === 'greeting')?.setting_value || DEFAULT_AI_SETTINGS.greeting,
+          enabled: settingsData.find((setting) => setting.setting_key === 'enabled')?.setting_value !== 'false',
+          system_prompt: settingsData.find((setting) => setting.setting_key === 'system_prompt')?.setting_value || ''
+        });
       } catch (error) {
         console.error('Error fetching AI settings:', error);
+        setSettings(DEFAULT_AI_SETTINGS);
       }
     };
 
     fetchSettings();
   }, []);
 
-  // Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Add greeting message when opened first time
   useEffect(() => {
-    if (isOpen && messages.length === 0 && settings?.greeting) {
+    if (isOpen && messages.length === 0 && settings.greeting) {
       setMessages([{
         id: 'greeting',
         role: 'assistant',
@@ -99,7 +115,7 @@ export function AIAssistant() {
         timestamp: new Date()
       }]);
     }
-  }, [isOpen, settings, messages.length]);
+  }, [isOpen, settings.greeting, messages.length]);
 
   const sendMessage = useCallback(async (messageContent: string, fileData?: any) => {
     if (!messageContent.trim() && !fileData) return;
@@ -112,12 +128,11 @@ export function AIAssistant() {
       file: fileData ? { name: fileData.name, analysis: fileData.analysis } : undefined
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((previous) => [...previous, userMessage]);
     setInput('');
     setIsLoading(true);
     setShowSuggestions(false);
 
-    // Build message content
     let fullContent = messageContent;
     if (fileData?.analysis) {
       fullContent = `[Plik STL: ${fileData.name}]
@@ -127,17 +142,14 @@ Zużycie filamentu: ~${fileData.analysis.estimatedFilamentUsage}g
 ${messageContent}`;
     }
 
+    const assistantMessageId = `assistant_${Date.now()}`;
+
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages.filter(m => m.id !== 'greeting').map(m => ({
-            role: m.role,
-            content: m.file?.analysis
-              ? `[Plik: ${m.file.name}] ${m.content}`
-              : m.content
-          })), { role: 'user', content: fullContent }],
+          messages: buildMessagesPayload(messages, fullContent),
           conversationId,
           sessionId
         })
@@ -145,71 +157,81 @@ ${messageContent}`;
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
-        throw new Error(errorBody?.error || 'Błąd komunikacji z botem');
+        throw new Error(errorBody?.error || 'Nie udało się połączyć z asystentem. Spróbuj ponownie za chwilę.');
       }
+
+      setMessages((previous) => [...previous, {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date()
+      }]);
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = '';
       let streamBuffer = '';
-      let newConversationId = conversationId;
 
-      if (reader) {
-        const assistantMessageId = `assistant_${Date.now()}`;
+      if (!reader) {
+        assistantMessage = await response.text();
+        setMessages((previous) => previous.map((message) =>
+          message.id === assistantMessageId
+            ? { ...message, content: assistantMessage || 'Asystent odpowiedział pustą wiadomością. Spróbuj zadać pytanie jeszcze raz.' }
+            : message
+        ));
+        return;
+      }
 
-        // Add empty message first
-        setMessages(prev => [...prev, {
-          id: assistantMessageId,
-          role: 'assistant',
-          content: '',
-          timestamp: new Date()
-        }]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        streamBuffer += decoder.decode(value, { stream: true });
+        const lines = streamBuffer.split('\n');
+        streamBuffer = lines.pop() || '';
 
-          streamBuffer += decoder.decode(value, { stream: true });
-          const lines = streamBuffer.split('\n');
-          streamBuffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
+          try {
+            const data = JSON.parse(line.slice(6));
 
-                if (data.content) {
-                  assistantMessage += data.content;
-                  setMessages(prev => prev.map(m =>
-                    m.id === assistantMessageId
-                      ? { ...m, content: assistantMessage }
-                      : m
-                  ));
-                }
-
-                if (data.conversationId) {
-                  newConversationId = data.conversationId;
-                  setConversationId(data.conversationId);
-                }
-
-                if (data.error) {
-                  setMessages(prev => prev.map(m =>
-                    m.id === assistantMessageId
-                      ? { ...m, content: `Przepraszam, wystąpił błąd: ${data.error}` }
-                      : m
-                  ));
-                }
-              } catch (e) {
-                // Ignore parsing errors
-              }
+            if (data.content) {
+              assistantMessage += data.content;
+              setMessages((previous) => previous.map((message) =>
+                message.id === assistantMessageId
+                  ? { ...message, content: assistantMessage }
+                  : message
+              ));
             }
+
+            if (data.conversationId) {
+              setConversationId(data.conversationId);
+            }
+
+            if (data.error) {
+              setMessages((previous) => previous.map((message) =>
+                message.id === assistantMessageId
+                  ? { ...message, content: `Przepraszam, wystąpił błąd: ${data.error}` }
+                  : message
+              ));
+            }
+          } catch {
+            // Pojedyncza uszkodzona linia streamu nie powinna psuć całej rozmowy.
           }
         }
       }
 
+      if (!assistantMessage.trim()) {
+        setMessages((previous) => previous.map((message) =>
+          message.id === assistantMessageId
+            ? { ...message, content: 'Nie udało mi się odczytać odpowiedzi asystenta. Spróbuj ponownie za chwilę.' }
+            : message
+        ));
+      }
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages(prev => [...prev, {
+      setMessages((previous) => [...previous, {
         id: `error_${Date.now()}`,
         role: 'assistant',
         content: error instanceof Error ? error.message : 'Przepraszam, wystąpił błąd. Spróbuj ponownie.',
@@ -222,8 +244,8 @@ ${messageContent}`;
     }
   }, [messages, conversationId, sessionId]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setUploadedFile(file);
@@ -242,22 +264,28 @@ ${messageContent}`;
       });
 
       if (!response.ok) {
-        throw new Error('Nie udało się przeanalizować pliku');
+        throw new Error('Nie udało się przeanalizować pliku. Na razie analiza w bocie obsługuje pliki STL.');
       }
 
       const analysis = await response.json();
       setFileAnalysis({ name: file.name, analysis });
-
     } catch (error) {
       console.error('File analysis error:', error);
+      setMessages((previous) => [...previous, {
+        id: `file_error_${Date.now()}`,
+        role: 'assistant',
+        content: error instanceof Error ? error.message : 'Nie udało się przeanalizować pliku.',
+        timestamp: new Date()
+      }]);
       setUploadedFile(null);
     } finally {
       setIsLoading(false);
+      event.target.value = '';
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
     if (fileAnalysis) {
       sendMessage(input || 'Przeanalizuj ten model', fileAnalysis);
     } else {
@@ -265,10 +293,10 @@ ${messageContent}`;
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSubmit(event);
     }
   };
 
@@ -276,7 +304,7 @@ ${messageContent}`;
     setMessages([{
       id: 'greeting',
       role: 'assistant',
-      content: settings?.greeting || 'Witaj! Jestem KORIX AI.',
+      content: settings.greeting || DEFAULT_AI_SETTINGS.greeting,
       timestamp: new Date()
     }]);
     setConversationId(null);
@@ -285,13 +313,12 @@ ${messageContent}`;
     setFileAnalysis(null);
   };
 
-  if (settings?.enabled === false) {
+  if (settings.enabled === false) {
     return null;
   }
 
   return (
     <>
-      {/* Floating Button */}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
@@ -313,7 +340,6 @@ ${messageContent}`;
         <span className="absolute inset-0 rounded-full bg-orange-400 animate-ping opacity-20" />
       </button>
 
-      {/* Chat Window */}
       <div
         className={cn(
           'fixed z-50 transition-all duration-500 ease-out',
@@ -333,7 +359,6 @@ ${messageContent}`;
             'flex flex-col'
           )}
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-gradient-to-r from-[#FF6A00]/10 to-transparent">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -344,7 +369,7 @@ ${messageContent}`;
               </div>
               <div>
                 <h3 className="font-semibold text-white">KORIX AI</h3>
-                <p className="text-xs text-white/50">Asystent druku 3D</p>
+                <p className="text-xs text-white/50">Bezpłatny asystent druku 3D</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -368,7 +393,6 @@ ${messageContent}`;
             </div>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10">
             {messages.map((message) => (
               <div
@@ -410,14 +434,14 @@ ${messageContent}`;
               </div>
             ))}
 
-            {/* Suggested Questions */}
             {showSuggestions && messages.length <= 1 && (
               <div className="space-y-2">
                 <p className="text-xs text-white/40 text-center">Sugerowane pytania</p>
                 <div className="flex flex-wrap gap-2 justify-center">
-                  {SUGGESTED_QUESTIONS.map((question, i) => (
+                  {SUGGESTED_QUESTIONS.map((question) => (
                     <button
-                      key={i}
+                      key={question}
+                      type="button"
                       onClick={() => {
                         setShowSuggestions(false);
                         sendMessage(question);
@@ -434,7 +458,6 @@ ${messageContent}`;
             <div ref={messagesEndRef} />
           </div>
 
-          {/* File Upload Preview */}
           {fileAnalysis && (
             <div className="px-4 pb-2">
               <div className="flex items-center gap-3 p-3 rounded-xl bg-[#FF6A00]/10 border border-[#FF6A00]/30">
@@ -458,7 +481,6 @@ ${messageContent}`;
             </div>
           )}
 
-          {/* Input Area */}
           <div className="p-4 border-t border-white/10">
             <form onSubmit={handleSubmit} className="flex items-end gap-2">
               <input
@@ -483,9 +505,9 @@ ${messageContent}`;
                   aria-label="Wiadomość do asystenta KORIX AI"
                   ref={inputRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(event) => setInput(event.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={fileAnalysis ? "Zadaj pytanie o model..." : "Napisz wiadomość..."}
+                  placeholder={fileAnalysis ? 'Zadaj pytanie o model...' : 'Napisz wiadomość...'}
                   rows={1}
                   className={cn(
                     'w-full px-4 py-3 rounded-xl resize-none',

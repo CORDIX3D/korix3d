@@ -68,8 +68,8 @@ interface AnalyticsData {
 
 
 const SUGGESTED_PROMPTS = [
-  "JesteĹ› KORIX AI - inteligentnym asystentem firmy KORIX3D, specjalizujÄ…cej siÄ™ w profesjonalnym druku 3D. Pomagasz klientom w wyborze materiaĹ‚Ăłw, technologii, ustawieĹ„ druku oraz odpowiedziach na pytania dotyczÄ…ce produkcji. Odpowiadaj profesjonalnie, przyjaĹşnie i konkretnie. UĹĽywaj jÄ™zyka polskiego.",
-  "JesteĹ› doĹ›wiadczonym inĹĽynierem sprzedaĹĽy w KORIX3D. Twoim zadaniem jest pomĂłc klientowi wybraÄ‡ najlepsze rozwiÄ…zanie dla jego projektu druku 3D. Zadawaj pytania doprecyzujÄ…ce, doradzaj konkretne materiaĹ‚y i technologie.",
+  "Jesteś KORIX AI - inteligentnym asystentem firmy KORIX3D, specjalizującej się w profesjonalnym druku 3D. Pomagasz klientom w wyborze materiałów, technologii, ustawień druku oraz odpowiedziach na pytania dotyczące produkcji. Odpowiadaj profesjonalnie, przyjaźnie i konkretnie. Używaj języka polskiego.",
+  "Jesteś doświadczonym inżynierem sprzedaży w KORIX3D. Twoim zadaniem jest pomóc klientowi wybrać najlepsze rozwiązanie dla jego projektu druku 3D. Zadawaj pytania doprecyzowujące, doradzaj konkretne materiały i technologie.",
 ];
 
 export default function AdminAIPage() {
@@ -85,8 +85,8 @@ export default function AdminAIPage() {
   useEffect(() => {
     fetchSettings();
     fetchAnalytics();
-    // Funkcje sÄ… uruchamiane tylko przy wejĹ›ciu do moduĹ‚u; rÄ™czne odĹ›wieĹĽanie
-    // korzysta z tych samych procedur przez przyciski poniĹĽej.
+    // Funkcje są uruchamiane tylko przy wejściu do modułu; ręczne odświeżanie
+    // korzysta z tych samych procedur przez przyciski poniżej.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -98,8 +98,8 @@ export default function AdminAIPage() {
       .select('*');
 
     if (error) {
-      setLoadError('Nie udaĹ‚o siÄ™ pobraÄ‡ ustawieĹ„ AI z Supabase.');
-      toast.error('BĹ‚Ä…d', { description: 'Nie udaĹ‚o siÄ™ pobraÄ‡ ustawieĹ„ AI' });
+      setLoadError('Nie udało się pobrać ustawień AI z Supabase.');
+      toast.error('Błąd', { description: 'Nie udało się pobrać ustawień AI' });
     } else if (data) {
       const settingsMap: Record<string, string> = {};
       data.forEach((s: AISettingRecord) => {
@@ -211,7 +211,7 @@ export default function AdminAIPage() {
     }
 
     if (hasError) {
-      toast.error('BĹ‚Ä…d', { description: 'Nie udaĹ‚o siÄ™ zapisaÄ‡ niektĂłrych ustawieĹ„' });
+      toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
     } else {
       toast.success('Ustawienia AI zapisane');
     }
@@ -234,7 +234,7 @@ export default function AdminAIPage() {
 
   if (loading) return <PanelLoading label="Pobieranie konfiguracji AI..." />;
   if (loadError) return <PanelError message={loadError} onRetry={fetchSettings} />;
-  if (Object.keys(settings).length === 0) return <PanelError message="Brak konfiguracji AI. UzupeĹ‚nij rekordy w tabeli ai_settings." onRetry={fetchSettings} />;
+  if (Object.keys(settings).length === 0) return <PanelError message="Brak konfiguracji AI. Uzupełnij rekordy w tabeli ai_settings." onRetry={fetchSettings} />;
 
   return (
     <div className="space-y-6">
@@ -254,7 +254,7 @@ export default function AdminAIPage() {
         <div className="flex gap-2">
           <Button onClick={fetchSettings} variant="outline" size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
-            OdĹ›wieĹĽ
+            Odśwież
           </Button>
           <Button
             onClick={handleSave}
@@ -298,7 +298,7 @@ export default function AdminAIPage() {
                 <div>
                   <Label>Asystent AI aktywny</Label>
                   <p className="text-sm text-muted-foreground">
-                    Gdy wyĹ‚Ä…czone, przycisk asystenta nie bÄ™dzie widoczny na stronie
+                    Gdy wyłączone, przycisk asystenta nie będzie widoczny na stronie
                   </p>
                 </div>
                 <Switch
@@ -350,7 +350,7 @@ export default function AdminAIPage() {
               />
 
               <div className="space-y-2">
-                <Label className="text-sm">PrzykĹ‚adowe prompty:</Label>
+                <Label className="text-sm">Przykładowe prompty:</Label>
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTED_PROMPTS.map((prompt, i) => (
                     <Button
@@ -360,7 +360,7 @@ export default function AdminAIPage() {
                       onClick={() => setValue('system_prompt', prompt)}
                       className="text-xs"
                     >
-                      UĹĽyj przykĹ‚adu {i + 1}
+                      Użyj przykładu {i + 1}
                     </Button>
                   ))}
                 </div>
@@ -372,10 +372,10 @@ export default function AdminAIPage() {
           <Card className="bg-card border-border">
             <CardHeader>
               <CardTitle className="text-lg text-foreground">
-                WiadomoĹ›Ä‡ powitalna
+                Wiadomość powitalna
               </CardTitle>
               <CardDescription>
-                Pierwsza wiadomoĹ›Ä‡ wyĹ›wietlana po otwarciu czatu
+                Pierwsza wiadomość wyświetlana po otwarciu czatu
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -419,7 +419,7 @@ export default function AdminAIPage() {
                     <p className="text-2xl font-bold text-foreground">
                       {analytics?.totalMessages || 0}
                     </p>
-                    <p className="text-xs text-muted-foreground">WiadomoĹ›ci</p>
+                    <p className="text-xs text-muted-foreground">Wiadomości</p>
                   </div>
                 </div>
               </CardContent>
@@ -435,7 +435,7 @@ export default function AdminAIPage() {
                     <p className="text-2xl font-bold text-foreground">
                       {formatTime(analytics?.avgResponseTime || 0)}
                     </p>
-                    <p className="text-xs text-muted-foreground">Ĺšr. czas odp.</p>
+                    <p className="text-xs text-muted-foreground">Śr. czas odp.</p>
                   </div>
                 </div>
               </CardContent>
@@ -451,7 +451,7 @@ export default function AdminAIPage() {
                     <p className="text-2xl font-bold text-foreground">
                       {analytics?.successRate || 0}%
                     </p>
-                    <p className="text-xs text-muted-foreground">SkutecznoĹ›Ä‡</p>
+                    <p className="text-xs text-muted-foreground">Skuteczność</p>
                   </div>
                 </div>
               </CardContent>
@@ -463,7 +463,7 @@ export default function AdminAIPage() {
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground">
-                  AktywnoĹ›Ä‡ (ostatnie 7 dni)
+                  Aktywność (ostatnie 7 dni)
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -486,7 +486,7 @@ export default function AdminAIPage() {
                         stroke="#FF6A00"
                         fill="#FF6A00"
                         fillOpacity={0.2}
-                        name="WiadomoĹ›ci"
+                        name="Wiadomości"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -497,7 +497,7 @@ export default function AdminAIPage() {
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground">
-                  NajczÄ™stsze pytania
+                  Najczęstsze pytania
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -560,7 +560,7 @@ export default function AdminAIPage() {
                           {formatTime(log.response_time_ms || 0)}
                         </span>
                         {log.tokens_used && (
-                          <span>{log.tokens_used} tokenĂłw</span>
+                          <span>{log.tokens_used} tokenów</span>
                         )}
                       </div>
                     </div>
@@ -568,7 +568,7 @@ export default function AdminAIPage() {
                 ))}
                 {(!analytics?.recentLogs || analytics.recentLogs.length === 0) && (
                   <p className="text-center text-muted-foreground py-8">
-                    Brak historii zapytaĹ„
+                    Brak historii zapytań
                   </p>
                 )}
               </div>

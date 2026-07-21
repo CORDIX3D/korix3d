@@ -11,7 +11,7 @@ import { CheckCircle2, Edit, ImagePlus, Plus, RefreshCw, Search, Trash2 } from '
 import { toast } from 'sonner';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
-type FieldType = 'text' | 'email' | 'number' | 'textarea' | 'boolean' | 'date' | 'color' | 'image';
+type FieldType = 'text' | 'email' | 'tel' | 'url' | 'number' | 'textarea' | 'boolean' | 'date' | 'color' | 'image';
 
 export type CrudField = {
   key: string;
@@ -375,7 +375,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                         </div>
                       ) : (
                         <Input
-                          type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'color' ? 'color' : field.type === 'email' ? 'email' : 'text'}
+                          type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'color' ? 'color' : field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : field.type === 'url' ? 'url' : 'text'}
                           step={field.type === 'number' ? '0.01' : undefined}
                           min={field.type === 'number' ? '0' : undefined}
                           value={String(formData[field.key] ?? '')}

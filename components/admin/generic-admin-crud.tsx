@@ -89,6 +89,7 @@ const renderValue = (row: DbRow, column: CrudColumn) => {
 export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const [rows, setRows] = useState<DbRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<DbRow | null>(null);
@@ -118,6 +119,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
 
   const fetchRows = async () => {
     setLoading(true);
+    setLoadError(null);
     let query = (supabase as any).from(config.table).select('*');
     for (const filter of config.filters || []) {
       query = filter.operator === 'in'
@@ -128,6 +130,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     const { data, error } = await query;
     if (error) {
       toast.error(`Nie udało się pobrać danych: ${config.title}`, { description: error.message });
+      setLoadError(error.message);
       setRows([]);
     } else {
       setRows((data || []) as DbRow[]);
@@ -390,7 +393,27 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((row) => (
+                {loading && (
+                  <tr>
+                    <td className="py-10 text-center text-muted-foreground" colSpan={config.columns.length + 1}>
+                      Pobieram dane...
+                    </td>
+                  </tr>
+                )}
+                {!loading && loadError && (
+                  <tr>
+                    <td className="py-10 text-center" colSpan={config.columns.length + 1}>
+                      <div className="mx-auto max-w-md space-y-3">
+                        <p className="font-medium text-destructive">Nie udało się pobrać danych.</p>
+                        <p className="text-sm text-muted-foreground">{loadError}</p>
+                        <Button variant="outline" size="sm" onClick={fetchRows}>
+                          Spróbuj ponownie
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {!loading && !loadError && visibleRows.map((row) => (
                   <tr key={row.id} className="border-b border-border/60">
                     {config.columns.map((column) => <td key={column.key} className="py-3 pr-4 align-top max-w-[280px] truncate">{renderValue(row, column)}</td>)}
                     <td className="py-3 pr-4 text-right whitespace-nowrap">
@@ -411,7 +434,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                     </td>
                   </tr>
                 ))}
-                {!loading && visibleRows.length === 0 && (
+                {!loading && !loadError && visibleRows.length === 0 && (
                   <tr><td className="py-10 text-center text-muted-foreground" colSpan={config.columns.length + 1}>Brak danych do wyświetlenia.</td></tr>
                 )}
               </tbody>

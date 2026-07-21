@@ -109,24 +109,41 @@ export default function AdminWarehousePage() {
   const fetchProducts = async () => {
     setLoading(true);
     setError('');
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      setError('Nie udało się pobrać produktów z Supabase.');
-      toast.error('Błąd', { description: 'Nie udało się pobrać produktów' });
-    } else {
-      setProducts((data || []) as Product[]);
+      if (error) {
+        setError('Nie udało się pobrać produktów z Supabase.');
+        setProducts([]);
+        toast.error('Błąd', { description: 'Nie udało się pobrać produktów' });
+      } else {
+        setProducts((data || []) as Product[]);
+      }
+    } catch {
+      setError('Nie udało się połączyć z Supabase podczas pobierania produktów.');
+      setProducts([]);
+      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase' });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const fetchCategories = async () => {
-    const { data } = await supabase.from('categories').select('*').order('name');
-    setCategories((data || []) as Category[]);
+    try {
+      const { data, error } = await supabase.from('categories').select('*').order('name');
+      if (error) {
+        toast.error('Błąd', { description: 'Nie udało się pobrać kategorii produktów' });
+        setCategories([]);
+      } else {
+        setCategories((data || []) as Category[]);
+      }
+    } catch {
+      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas pobierania kategorii' });
+      setCategories([]);
+    }
   };
 
   const resetForm = () => {
@@ -183,11 +200,13 @@ export default function AdminWarehousePage() {
       toast.error('Zdjęcie jest za duże', { description: 'Maksymalny rozmiar pliku to 5 MB.' });
       return;
     }
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
   };
 
   const removeImage = () => {
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setImageFile(null);
     setImagePreview('');
     setFormData((current) => ({ ...current, image_url: '' }));
@@ -214,6 +233,8 @@ export default function AdminWarehousePage() {
   };
 
   const handleSubmit = async () => {
+    if (saving) return;
+
     if (!formData.sku || !formData.name || !formData.price) {
       toast.error('Uzupełnij wymagane pola', {
         description: 'SKU, nazwa i cena są wymagane.',
@@ -248,52 +269,50 @@ export default function AdminWarehousePage() {
       return;
     }
 
-    setSaving(true);
-    let imageUrl = formData.image_url;
     try {
+      setSaving(true);
+      let imageUrl = formData.image_url;
       if (imageFile) imageUrl = await uploadImage(imageFile);
+
+      const payload = {
+        sku: formData.sku.trim(),
+        name: formData.name.trim(),
+        slug: formData.slug.trim() || createSlug(formData.name),
+        short_description: formData.short_description || null,
+        description: formData.description || null,
+        category_id: formData.category_id || null,
+        price,
+        compare_price: comparePrice,
+        cost_price: costPrice,
+        stock_quantity: stockQuantity,
+        min_stock_quantity: minStockQuantity,
+        weight_grams: weightGrams,
+        images: imageUrl ? [imageUrl] : [],
+        active: formData.active,
+        featured: formData.featured,
+        updated_at: new Date().toISOString(),
+      };
+
+      const result = editingProduct
+        ? await supabase.from('products').update(payload).eq('id', editingProduct.id)
+        : await supabase.from('products').insert([payload]);
+
+      if (result.error) {
+        toast.error('Błąd zapisu', { description: result.error.message });
+        return;
+      }
+
+      toast.success(editingProduct ? 'Produkt zaktualizowany' : 'Produkt dodany');
+      setDialogOpen(false);
+      resetForm();
+      fetchProducts();
     } catch (error) {
-      toast.error('Błąd przesyłania zdjęcia', {
-        description: error instanceof Error ? error.message : 'Nie udało się przesłać zdjęcia.',
+      toast.error('Błąd zapisu', {
+        description: error instanceof Error ? error.message : 'Nie udało się zapisać produktu.',
       });
+    } finally {
       setSaving(false);
-      return;
     }
-
-    const payload = {
-      sku: formData.sku.trim(),
-      name: formData.name.trim(),
-      slug: formData.slug.trim() || createSlug(formData.name),
-      short_description: formData.short_description || null,
-      description: formData.description || null,
-      category_id: formData.category_id || null,
-      price,
-      compare_price: comparePrice,
-      cost_price: costPrice,
-      stock_quantity: stockQuantity,
-      min_stock_quantity: minStockQuantity,
-      weight_grams: weightGrams,
-      images: imageUrl ? [imageUrl] : [],
-      active: formData.active,
-      featured: formData.featured,
-      updated_at: new Date().toISOString(),
-    };
-
-    const result = editingProduct
-      ? await supabase.from('products').update(payload).eq('id', editingProduct.id)
-      : await supabase.from('products').insert([payload]);
-
-    if (result.error) {
-      setSaving(false);
-      toast.error('Błąd zapisu', { description: result.error.message });
-      return;
-    }
-
-    toast.success(editingProduct ? 'Produkt zaktualizowany' : 'Produkt dodany');
-    setDialogOpen(false);
-    resetForm();
-    fetchProducts();
-    setSaving(false);
   };
 
   const getStockBadge = (product: Product) => {
@@ -517,7 +536,7 @@ export default function AdminWarehousePage() {
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>
                 Anuluj
               </Button>
               <Button onClick={handleSubmit} disabled={saving}>
@@ -574,7 +593,7 @@ export default function AdminWarehousePage() {
                 className="pl-9"
               />
             </div>
-            <Button variant="outline" onClick={fetchProducts}>
+            <Button variant="outline" disabled={loading} onClick={fetchProducts}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Odśwież
             </Button>

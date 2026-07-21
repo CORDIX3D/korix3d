@@ -40,7 +40,8 @@ export default function CheckoutPage() {
         !Number.isFinite(item.price) ||
         item.price < 0 ||
         !Number.isInteger(item.quantity) ||
-        item.quantity < 1
+        item.quantity < 1 ||
+        item.quantity > item.stockQuantity
     );
     if (hasInvalidCartItem) {
       setError('Koszyk zawiera nieprawidłową pozycję. Wróć do koszyka, usuń ją i dodaj produkt ponownie.');

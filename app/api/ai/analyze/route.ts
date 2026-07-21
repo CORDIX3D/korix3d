@@ -203,6 +203,10 @@ function identifyPossibleIssues(boundingBox: { min: number[]; max: number[] }, v
   return issues;
 }
 
+function hasValidBoundingBox(boundingBox: { min: number[]; max: number[] }) {
+  return [...boundingBox.min, ...boundingBox.max].every(Number.isFinite);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -241,6 +245,13 @@ export async function POST(request: NextRequest) {
 
     // Parse STL
     const { triangles, boundingBox } = parseSTL(buffer);
+
+    if (!hasValidBoundingBox(boundingBox)) {
+      return new Response(JSON.stringify({ error: 'Plik STL nie zawiera poprawnej geometrii do analizy.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // Calculate volume
     const volume = calculateVolume(triangles);

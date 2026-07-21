@@ -258,9 +258,18 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       payload.updated_at = new Date().toISOString();
     }
 
-    const result = editingRow
-      ? await (supabase as any).from(config.table).update(payload).eq('id', editingRow.id)
-      : await (supabase as any).from(config.table).insert([payload]);
+    let result;
+    try {
+      result = editingRow
+        ? await (supabase as any).from(config.table).update(payload).eq('id', editingRow.id)
+        : await (supabase as any).from(config.table).insert([payload]);
+    } catch (error) {
+      setSaving(false);
+      toast.error('Nie udało się zapisać pozycji', {
+        description: error instanceof Error ? error.message : 'Nieoczekiwany błąd zapisu.',
+      });
+      return;
+    }
 
     if (result.error) {
       setSaving(false);
@@ -291,6 +300,10 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
         toast.success(config.softDeleteField ? 'Pozycja ukryta/dezaktywowana' : 'Pozycja usunięta');
         fetchRows();
       }
+    } catch (error) {
+      toast.error('Nie udało się usunąć pozycji', {
+        description: error instanceof Error ? error.message : 'Nieoczekiwany błąd usuwania.',
+      });
     } finally {
       setDeletingRowId(null);
     }

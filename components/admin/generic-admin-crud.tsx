@@ -21,6 +21,7 @@ export type CrudField = {
   placeholder?: string;
   defaultValue?: string | number | boolean | null;
   options?: Array<{ label: string; value: string }>;
+  readOnlyOnEdit?: boolean;
 };
 
 export type CrudColumn = {
@@ -224,6 +225,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
 
     try {
       for (const field of config.fields) {
+        if (editingRow && field.readOnlyOnEdit) continue;
         if (field.type === 'image' && imageFiles[field.key]) {
           payload[field.key] = await uploadImage(imageFiles[field.key] as File);
         } else {
@@ -316,6 +318,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                           onChange={(event) => setFormData({ ...formData, [field.key]: event.target.value })}
                           placeholder={field.placeholder}
                           required={field.required}
+                          disabled={Boolean(editingRow && field.readOnlyOnEdit)}
                           className="w-full h-28 bg-secondary border border-border rounded-lg p-3 text-foreground"
                         />
                       ) : field.type === 'boolean' ? (
@@ -332,6 +335,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                           value={String(formData[field.key] ?? '')}
                           onChange={(event) => setFormData({ ...formData, [field.key]: event.target.value })}
                           required={field.required}
+                          disabled={Boolean(editingRow && field.readOnlyOnEdit)}
                           className="h-11 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
                         >
                           {field.options.map((option) => (
@@ -382,6 +386,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                           onChange={(event) => setFormData({ ...formData, [field.key]: event.target.value })}
                           placeholder={field.placeholder}
                           required={field.required}
+                          disabled={Boolean(editingRow && field.readOnlyOnEdit)}
                           className="h-11 bg-secondary border-border"
                         />
                       )}

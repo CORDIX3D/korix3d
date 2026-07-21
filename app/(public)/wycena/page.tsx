@@ -94,6 +94,7 @@ export default function QuotePage() {
     formState: { errors },
     setValue,
     watch,
+    reset,
   } = useForm<QuoteFormValues>({
     resolver: zodResolver(quoteSchema),
     defaultValues: {
@@ -326,6 +327,11 @@ export default function QuotePage() {
       });
 
       setSubmittedOrderNumber(createdOrder?.order_number || orderId.slice(0, 8).toUpperCase());
+      reset();
+      setUploadedFiles([]);
+      setColors([]);
+      setSelectedMaterial(null);
+      setStep(1);
       setSubmitted(true);
     } catch (error) {
       if (uploadedPaths.length > 0) {

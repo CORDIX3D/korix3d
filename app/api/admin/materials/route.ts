@@ -6,8 +6,18 @@ export const dynamic = 'force-dynamic';
 
 function optionalNumber(value: FormDataEntryValue | null) {
   if (!value || !String(value).trim()) return null;
-  const number = Number(value);
+  const number = Number(String(value).replace(',', '.'));
   return Number.isFinite(number) ? number : null;
+}
+
+function requiredPositiveNumber(value: FormDataEntryValue | null) {
+  const number = optionalNumber(value);
+  return number && number > 0 ? number : null;
+}
+
+function normalizeHex(value: string) {
+  const hex = value.trim();
+  return /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#ffffff';
 }
 
 function slugify(value: string) {
@@ -31,9 +41,9 @@ export async function POST(request: NextRequest) {
     const id = String(form.get('id') || '').trim();
     const name = String(form.get('name') || '').trim();
     const colorName = String(form.get('color_name') || '').trim();
-    const colorHex = String(form.get('color_hex') || '#ffffff').trim();
-    const price = Number(form.get('price_per_kg'));
-    if (!name || !colorName || !Number.isFinite(price) || price <= 0) {
+    const colorHex = normalizeHex(String(form.get('color_hex') || '#ffffff'));
+    const price = requiredPositiveNumber(form.get('price_per_kg'));
+    if (!name || !colorName || !price) {
       return NextResponse.json({ error: 'Uzupełnij rodzaj materiału, kolor i prawidłową cenę.' }, { status: 400 });
     }
 

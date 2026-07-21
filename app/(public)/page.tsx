@@ -100,6 +100,13 @@ const steps = [
   },
 ];
 
+const particles = Array.from({ length: 20 }, (_, index) => ({
+  id: index,
+  left: `${(index * 37) % 100}%`,
+  animationDelay: `${(index * 0.7) % 15}s`,
+  animationDuration: `${15 + (index % 6) * 1.5}s`,
+}));
+
 export default function HomePage() {
   const [portfolio, setPortfolio] = useState<any[]>([]);
 
@@ -128,14 +135,14 @@ export default function HomePage() {
 
       {/* Particles */}
       <div className="particles">
-        {[...Array(20)].map((_, i) => (
+        {particles.map((particle) => (
           <div
-            key={i}
+            key={particle.id}
             className="particle"
             style={{
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 15}s`,
-              animationDuration: `${15 + Math.random() * 10}s`,
+              left: particle.left,
+              animationDelay: particle.animationDelay,
+              animationDuration: particle.animationDuration,
             }}
           />
         ))}
@@ -408,8 +415,9 @@ export default function HomePage() {
           </div>
 
           {/* Portfolio Grid */}
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {portfolio.length > 0 ? portfolio.map((item) => (
+          {portfolio.length > 0 ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {portfolio.map((item) => (
               <Link
                 key={item.id}
                 href={`/portfolio/${item.id}`}
@@ -431,24 +439,21 @@ export default function HomePage() {
                   <p className="text-sm text-muted-foreground">{item.description}</p>
                 </div>
               </Link>
-            )) : (
-              // Placeholder items
-              [...Array(6)].map((_, index) => (
-                <div
-                  key={index}
-                  className="bg-card border border-border rounded-2xl overflow-hidden"
-                >
-                  <div className="aspect-[4/3] bg-gradient-to-br from-primary/5 to-orange-600/5 flex items-center justify-center">
-                    <Box className="w-16 h-16 text-primary/30" />
-                  </div>
-                  <div className="p-4">
-                    <div className="h-4 bg-secondary rounded mb-2"></div>
-                    <div className="h-3 bg-secondary/50 rounded w-2/3"></div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mx-auto max-w-2xl rounded-2xl border border-dashed bg-card p-8 text-center">
+              <Box className="mx-auto mb-4 h-14 w-14 text-primary/60" />
+              <h3 className="mb-2 text-xl font-semibold text-foreground">Portfolio jest uzupełniane</h3>
+              <p className="mb-6 text-sm text-muted-foreground">
+                Nie ma jeszcze wyróżnionych realizacji do pokazania na stronie głównej. W międzyczasie możesz wysłać
+                swój projekt do bezpłatnej wyceny.
+              </p>
+              <Button asChild className="bg-gradient-primary hover:shadow-glow">
+                <Link href="/wycena">Wyceń swój projekt</Link>
+              </Button>
+            </div>
+          )}
 
           {/* View All Button */}
           <div className="text-center mt-8">

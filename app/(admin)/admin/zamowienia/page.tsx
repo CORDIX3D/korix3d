@@ -59,6 +59,7 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submittingQuote, setSubmittingQuote] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order3D | null>(null);
@@ -79,36 +80,55 @@ export default function AdminOrdersPage() {
   const fetchOrders = async () => {
     setLoading(true);
     setError('');
-    let query = supabase
-      .from('orders_3d')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      let query = supabase
+        .from('orders_3d')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter);
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+
+      if (search) {
+        query = query.or(`order_number.ilike.%${search}%`);
+      }
+
+      const { data, error: queryError } = await query.limit(50);
+      if (queryError) {
+        setError('Nie udało się pobrać zamówień z Supabase.');
+        setOrders([]);
+      } else {
+        setOrders((data || []) as Order3D[]);
+      }
+    } catch {
+      setError('Nie udało się połączyć z Supabase podczas pobierania zamówień.');
+      setOrders([]);
+    } finally {
+      setLoading(false);
     }
-
-    if (search) {
-      query = query.or(`order_number.ilike.%${search}%`);
-    }
-
-    const { data, error: queryError } = await query.limit(50);
-    if (queryError) setError('Nie udało się pobrać zamówień z Supabase.');
-    else setOrders((data || []) as Order3D[]);
-    setLoading(false);
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from('orders_3d')
-      .update({ status: newStatus })
-      .eq('id', orderId);
+    if (updatingOrderId) return;
 
-    if (error) {
-      toast.error('Błąd', { description: 'Nie udało się zaktualizować statusu' });
-    } else {
-      toast.success('Status zaktualizowany');
-      fetchOrders();
+    setUpdatingOrderId(orderId);
+    try {
+      const { error } = await supabase
+        .from('orders_3d')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+      if (error) {
+        toast.error('Błąd', { description: 'Nie udało się zaktualizować statusu' });
+      } else {
+        toast.success('Status zaktualizowany');
+        fetchOrders();
+      }
+    } catch {
+      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas aktualizacji statusu' });
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -125,25 +145,30 @@ export default function AdminOrdersPage() {
 
     setSubmittingQuote(true);
 
-    const { error } = await supabase
-      .from('orders_3d')
-      .update({
-        status: 'quoted',
-        printing_time_hours: printingTime,
-        filament_used_grams: filamentWeight,
-        final_price: finalPrice,
-        admin_notes: quoteForm.admin_notes.trim() || null,
-      })
-      .eq('id', selectedOrder.id);
+    try {
+      const { error } = await supabase
+        .from('orders_3d')
+        .update({
+          status: 'quoted',
+          printing_time_hours: printingTime,
+          filament_used_grams: filamentWeight,
+          final_price: finalPrice,
+          admin_notes: quoteForm.admin_notes.trim() || null,
+        })
+        .eq('id', selectedOrder.id);
 
-    if (error) {
-      toast.error('Błąd', { description: 'Nie udało się zapisać wyceny' });
-    } else {
-      toast.success('Wycena wysłana');
-      setQuoteDialog(false);
-      fetchOrders();
+      if (error) {
+        toast.error('Błąd', { description: 'Nie udało się zapisać wyceny' });
+      } else {
+        toast.success('Wycena wysłana');
+        setQuoteDialog(false);
+        fetchOrders();
+      }
+    } catch {
+      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas zapisywania wyceny' });
+    } finally {
+      setSubmittingQuote(false);
     }
-    setSubmittingQuote(false);
   };
 
   const getStatusConfig = (status: string) => {
@@ -283,6 +308,7 @@ export default function AdminOrdersPage() {
                             <Select
                               value={order.status}
                               onValueChange={(value) => updateOrderStatus(order.id, value)}
+                              disabled={updatingOrderId === order.id}
                             >
                               <SelectTrigger className="w-8 h-8 p-0 bg-transparent border-0">
                                 <MoreHorizontal className="w-4 h-4 text-muted-foreground" />

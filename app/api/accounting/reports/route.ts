@@ -41,14 +41,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const year = searchParams.get('year');
     const status = searchParams.get('status');
+    const parsedYear = year ? Number(year) : undefined;
+
+    if (parsedYear !== undefined && (!Number.isInteger(parsedYear) || parsedYear < 2020 || parsedYear > new Date().getFullYear() + 1)) {
+      return NextResponse.json({ error: 'Nieprawidłowy rok raportu' }, { status: 400 });
+    }
 
     let query = supabaseAdmin
       .from('accounting_reports')
       .select('*')
       .order('report_month', { ascending: false });
 
-    if (year) {
-      query = query.eq('report_year', parseInt(year));
+    if (parsedYear !== undefined) {
+      query = query.eq('report_year', parsedYear);
     }
 
     if (status) {

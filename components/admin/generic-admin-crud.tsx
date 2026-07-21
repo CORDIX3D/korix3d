@@ -315,6 +315,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                           value={String(formData[field.key] ?? '')}
                           onChange={(event) => setFormData({ ...formData, [field.key]: event.target.value })}
                           placeholder={field.placeholder}
+                          required={field.required}
                           className="w-full h-28 bg-secondary border border-border rounded-lg p-3 text-foreground"
                         />
                       ) : field.type === 'boolean' ? (
@@ -330,6 +331,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                         <select
                           value={String(formData[field.key] ?? '')}
                           onChange={(event) => setFormData({ ...formData, [field.key]: event.target.value })}
+                          required={field.required}
                           className="h-11 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
                         >
                           {field.options.map((option) => (
@@ -353,7 +355,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                                   <label className="cursor-pointer">
                                     <ImagePlus className="mr-2 h-4 w-4" />
                                     Zmień zdjęcie
-                                    <input type="file" accept="image/*" className="sr-only" onChange={(event) => handleImageChange(field.key, event)} />
+                                    <input type="file" accept="image/*" required={field.required && !formData[field.key]} className="sr-only" onChange={(event) => handleImageChange(field.key, event)} />
                                   </label>
                                 </Button>
                                 <Button type="button" variant="outline" onClick={() => removeImage(field.key)}>
@@ -367,7 +369,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                               <ImagePlus className="h-7 w-7 text-muted-foreground" />
                               <span className="font-medium">Wybierz zdjęcie z urządzenia</span>
                               <span className="text-xs text-muted-foreground">JPG, PNG lub WebP do 5 MB</span>
-                              <input type="file" accept="image/*" className="sr-only" onChange={(event) => handleImageChange(field.key, event)} />
+                              <input type="file" accept="image/*" required={field.required} className="sr-only" onChange={(event) => handleImageChange(field.key, event)} />
                             </label>
                           )}
                         </div>
@@ -379,6 +381,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                           value={String(formData[field.key] ?? '')}
                           onChange={(event) => setFormData({ ...formData, [field.key]: event.target.value })}
                           placeholder={field.placeholder}
+                          required={field.required}
                           className="h-11 bg-secondary border-border"
                         />
                       )}

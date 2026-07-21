@@ -40,6 +40,7 @@ export type AdminCrudConfig = {
   defaultInsert?: Record<string, unknown>;
   softDeleteField?: string;
   readOnly?: boolean;
+  allowCreate?: boolean;
   filters?: Array<{
     field: string;
     operator?: 'eq' | 'in';
@@ -295,9 +296,11 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
           </Button>
           {!config.readOnly && (
             <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open && saving) return; setDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button className="bg-gradient-primary hover:shadow-glow"><Plus className="w-4 h-4 mr-2" />{config.addLabel || 'Dodaj'}</Button>
-              </DialogTrigger>
+              {config.allowCreate !== false && (
+                <DialogTrigger asChild>
+                  <Button className="bg-gradient-primary hover:shadow-glow"><Plus className="w-4 h-4 mr-2" />{config.addLabel || 'Dodaj'}</Button>
+                </DialogTrigger>
+              )}
               <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>{editingRow ? 'Edytuj pozycję' : config.addLabel || 'Dodaj pozycję'}</DialogTitle></DialogHeader>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">

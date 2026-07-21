@@ -4,6 +4,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { Product } from '@/lib/types/database';
 
 const STORAGE_KEY = 'korix3d_cart';
+const MAX_CART_QUANTITY = 99;
 
 export interface CartItem {
   id: string;
@@ -34,9 +35,30 @@ function readCart(): CartItem[] {
     const value = window.localStorage.getItem(STORAGE_KEY);
     if (!value) return [];
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed)
-      ? parsed.filter((item) => item && typeof item.id === 'string' && Number(item.quantity) > 0)
-      : [];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.reduce<CartItem[]>((validItems, item) => {
+      if (!item || typeof item.id !== 'string' || typeof item.name !== 'string') return validItems;
+
+      const price = Number(item.price);
+      const stockQuantity = Math.floor(Number(item.stockQuantity));
+      const quantity = Math.floor(Number(item.quantity));
+      if (!Number.isFinite(price) || price < 0 || !Number.isFinite(stockQuantity) || stockQuantity < 1 || !Number.isFinite(quantity) || quantity < 1) {
+        return validItems;
+      }
+
+      validItems.push({
+        id: item.id,
+        slug: typeof item.slug === 'string' && item.slug.trim() ? item.slug : item.id,
+        sku: typeof item.sku === 'string' ? item.sku : '',
+        name: item.name,
+        price,
+        image: typeof item.image === 'string' && item.image ? item.image : null,
+        quantity: Math.min(quantity, stockQuantity, MAX_CART_QUANTITY),
+        stockQuantity: Math.min(stockQuantity, MAX_CART_QUANTITY),
+      });
+      return validItems;
+    }, []);
   } catch {
     return [];
   }
@@ -57,17 +79,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (hydrated) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch {
+      // localStorage can fail in private mode or when storage quota is exceeded.
+    }
   }, [hydrated, items]);
 
   const addToCart = useCallback((product: Product, quantity = 1) => {
-    if (product.stock_quantity <= 0) return;
+    const stockQuantity = Math.min(Math.floor(Number(product.stock_quantity)), MAX_CART_QUANTITY);
+    const price = Number(product.price);
+    if (!Number.isFinite(stockQuantity) || stockQuantity <= 0 || !Number.isFinite(price) || price < 0) return;
+
+    const safeQuantity = Math.min(Math.max(1, Math.floor(Number(quantity) || 1)), stockQuantity);
     const images = Array.isArray(product.images) ? product.images as string[] : [];
     setItems((current) => {
       const existing = current.find((item) => item.id === product.id);
       if (existing) {
         return current.map((item) => item.id === product.id
-          ? { ...item, quantity: Math.min(item.quantity + Math.max(1, quantity), product.stock_quantity) }
+          ? { ...item, quantity: Math.min(item.quantity + safeQuantity, stockQuantity), stockQuantity }
           : item);
       }
       return [...current, {
@@ -75,10 +106,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         slug: product.slug,
         sku: product.sku,
         name: product.name,
-        price: Number(product.price),
+        price,
         image: images[0] || null,
-        quantity: Math.min(Math.max(1, quantity), product.stock_quantity),
-        stockQuantity: product.stock_quantity,
+        quantity: safeQuantity,
+        stockQuantity,
       }];
     });
   }, []);
@@ -90,7 +121,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateQuantity = useCallback((productId: string, quantity: number) => {
     setItems((current) => current
       .map((item) => item.id === productId
-        ? { ...item, quantity: Math.min(Math.max(0, quantity), item.stockQuantity) }
+        ? { ...item, quantity: Math.min(Math.max(0, Math.floor(Number(quantity) || 0)), item.stockQuantity, MAX_CART_QUANTITY) }
         : item)
       .filter((item) => item.quantity > 0));
   }, []);

@@ -220,7 +220,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     }
 
     setSaving(true);
-    const payload: DbRow = { ...(config.defaultInsert || {}) };
+    const payload: DbRow = editingRow ? {} : { ...(config.defaultInsert || {}) };
 
     try {
       for (const field of config.fields) {

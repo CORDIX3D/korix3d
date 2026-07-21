@@ -20,6 +20,7 @@ export type CrudField = {
   required?: boolean;
   placeholder?: string;
   defaultValue?: string | number | boolean | null;
+  options?: Array<{ label: string; value: string }>;
 };
 
 export type CrudColumn = {
@@ -323,6 +324,18 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                           />
                           <span className="text-sm text-muted-foreground">Włączone</span>
                         </label>
+                      ) : field.options?.length ? (
+                        <select
+                          value={String(formData[field.key] ?? '')}
+                          onChange={(event) => setFormData({ ...formData, [field.key]: event.target.value })}
+                          className="h-11 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
+                        >
+                          {field.options.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
                       ) : field.type === 'image' ? (
                         <div className="space-y-3">
                           {imagePreviews[field.key] ? (

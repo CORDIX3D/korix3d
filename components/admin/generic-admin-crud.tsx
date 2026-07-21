@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase/client';
-import { CheckCircle2, Edit, Eye, ImagePlus, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { CheckCircle2, Edit, ImagePlus, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
@@ -109,6 +109,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     const keys = config.searchKeys || config.columns.map((column) => column.key);
     return rows.filter((row) => keys.some((key) => String(row[key] ?? '').toLowerCase().includes(term)));
   }, [config.columns, config.searchKeys, rows, search]);
+  const tableColSpan = config.columns.length + (config.readOnly ? 0 : 1);
 
   const resetForm = () => {
     Object.values(imagePreviews).forEach((preview) => {
@@ -414,20 +415,20 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
                   {config.columns.map((column) => <th key={column.key} className="py-3 pr-4 font-medium">{column.label}</th>)}
-                  <th className="py-3 pr-4 font-medium text-right">Akcje</th>
+                  {!config.readOnly && <th className="py-3 pr-4 font-medium text-right">Akcje</th>}
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td className="py-10 text-center text-muted-foreground" colSpan={config.columns.length + 1}>
+                    <td className="py-10 text-center text-muted-foreground" colSpan={tableColSpan}>
                       Pobieram dane...
                     </td>
                   </tr>
                 )}
                 {!loading && loadError && (
                   <tr>
-                    <td className="py-10 text-center" colSpan={config.columns.length + 1}>
+                    <td className="py-10 text-center" colSpan={tableColSpan}>
                       <div className="mx-auto max-w-md space-y-3">
                         <p className="font-medium text-destructive">Nie udało się pobrać danych.</p>
                         <p className="text-sm text-muted-foreground">{loadError}</p>
@@ -441,8 +442,8 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                 {!loading && !loadError && visibleRows.map((row) => (
                   <tr key={row.id} className="border-b border-border/60">
                     {config.columns.map((column) => <td key={column.key} className="py-3 pr-4 align-top max-w-[280px] truncate">{renderValue(row, column)}</td>)}
+                    {!config.readOnly && (
                     <td className="py-3 pr-4 text-right whitespace-nowrap">
-                      {config.readOnly ? <Eye className="w-4 h-4 inline text-muted-foreground" /> : (
                         <div className="inline-flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => openEdit(row)}><Edit className="w-4 h-4" /></Button>
                           <Button
@@ -455,12 +456,12 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
-                      )}
                     </td>
+                    )}
                   </tr>
                 ))}
                 {!loading && !loadError && visibleRows.length === 0 && (
-                  <tr><td className="py-10 text-center text-muted-foreground" colSpan={config.columns.length + 1}>Brak danych do wyświetlenia.</td></tr>
+                  <tr><td className="py-10 text-center text-muted-foreground" colSpan={tableColSpan}>Brak danych do wyświetlenia.</td></tr>
                 )}
               </tbody>
             </table>

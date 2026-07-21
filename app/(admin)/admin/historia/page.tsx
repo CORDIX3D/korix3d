@@ -1,14 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { AlertCircle, Eye, History, RefreshCw, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase/client';
-import { AlertCircle, Eye, History, RefreshCw, Search } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
 
 type AuditRow = {
   id: string;
@@ -85,34 +85,40 @@ export default function AdminHistoryPage() {
     setLoading(true);
     setError('');
 
-    const { data, error: historyError } = await (supabase as any)
-      .from('admin_audit_log')
-      .select('*')
-      .order('changed_at', { ascending: false })
-      .limit(300);
+    try {
+      const { data, error: historyError } = await (supabase as any)
+        .from('admin_audit_log')
+        .select('*')
+        .order('changed_at', { ascending: false })
+        .limit(300);
 
-    if (historyError) {
-      setError('Nie udało się pobrać historii zmian. Sprawdź, czy migracja bazy została zastosowana.');
+      if (historyError) {
+        setError('Nie udało się pobrać historii zmian. Sprawdź, czy migracja bazy została zastosowana.');
+        setRows([]);
+        setActors({});
+        return;
+      }
+
+      const auditRows = (data || []) as AuditRow[];
+      setRows(auditRows);
+
+      const actorIds = [...new Set(auditRows.map((row) => row.changed_by).filter(Boolean))] as string[];
+      if (actorIds.length > 0) {
+        const { data: profiles } = await (supabase as any)
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', actorIds);
+        setActors(Object.fromEntries((profiles || []).map((profile: Actor & { id: string }) => [profile.id, profile])));
+      } else {
+        setActors({});
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Nie udało się pobrać historii zmian.');
       setRows([]);
-      setLoading(false);
-      return;
-    }
-
-    const auditRows = (data || []) as AuditRow[];
-    setRows(auditRows);
-
-    const actorIds = [...new Set(auditRows.map((row) => row.changed_by).filter(Boolean))] as string[];
-    if (actorIds.length > 0) {
-      const { data: profiles } = await (supabase as any)
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', actorIds);
-      setActors(Object.fromEntries((profiles || []).map((profile: Actor & { id: string }) => [profile.id, profile])));
-    } else {
       setActors({});
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -133,14 +139,24 @@ export default function AdminHistoryPage() {
     });
   }, [actors, moduleFilter, rows, search]);
 
+  const selectedFields = selected ? changedFields(selected) : [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-3 text-2xl font-bold sm:text-3xl"><History className="h-7 w-7 text-primary" />Historia zmian</h1>
-          <p className="mt-1 text-muted-foreground">Edycje magazynu i pozostałych modułów wraz z informacją, kto je wykonał.</p>
+          <h1 className="flex items-center gap-3 text-2xl font-bold sm:text-3xl">
+            <History className="h-7 w-7 text-primary" />
+            Historia zmian
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Edycje magazynu i pozostałych modułów wraz z informacją, kto je wykonał.
+          </p>
         </div>
-        <Button variant="outline" onClick={loadHistory} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Odśwież</Button>
+        <Button variant="outline" onClick={loadHistory} disabled={loading}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Odśwież
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -153,7 +169,10 @@ export default function AdminHistoryPage() {
         <CardHeader>
           <CardTitle>Rejestr operacji</CardTitle>
           <div className="grid gap-3 pt-2 sm:grid-cols-[1fr_240px]">
-            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Szukaj osoby, modułu lub rekordu..." className="pl-9" /></div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Szukaj osoby, modułu lub rekordu..." className="pl-9" />
+            </div>
             <select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)} className="h-10 rounded-md border border-border bg-secondary px-3 text-sm">
               <option value="all">Wszystkie moduły</option>
               {modules.map((module) => <option key={module} value={module}>{moduleNames[module] || module}</option>)}
@@ -162,16 +181,42 @@ export default function AdminHistoryPage() {
         </CardHeader>
         <CardContent>
           {error ? (
-            <div className="flex flex-col items-center py-10 text-center"><AlertCircle className="mb-3 h-9 w-9 text-destructive" /><p className="max-w-xl text-muted-foreground">{error}</p><Button className="mt-4" variant="outline" onClick={loadHistory}>Spróbuj ponownie</Button></div>
+            <div className="flex flex-col items-center py-10 text-center">
+              <AlertCircle className="mb-3 h-9 w-9 text-destructive" />
+              <p className="max-w-xl text-muted-foreground">{error}</p>
+              <Button className="mt-4" variant="outline" onClick={loadHistory}>Spróbuj ponownie</Button>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b text-left text-muted-foreground"><th className="py-3 pr-4">Data</th><th className="py-3 pr-4">Kto</th><th className="py-3 pr-4">Moduł</th><th className="py-3 pr-4">Operacja</th><th className="py-3 pr-4">Rekord</th><th className="py-3 text-right">Szczegóły</th></tr></thead>
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="py-3 pr-4">Data</th>
+                    <th className="py-3 pr-4">Kto</th>
+                    <th className="py-3 pr-4">Moduł</th>
+                    <th className="py-3 pr-4">Operacja</th>
+                    <th className="py-3 pr-4">Rekord</th>
+                    <th className="py-3 text-right">Szczegóły</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {visibleRows.map((row) => {
+                  {loading && <tr><td colSpan={6} className="py-10 text-center text-muted-foreground">Pobieram historię zmian...</td></tr>}
+                  {!loading && visibleRows.map((row) => {
                     const actor = row.changed_by ? actors[row.changed_by] : null;
                     const action = actionLabels[row.action];
-                    return <tr key={row.id} className="border-b border-border/60"><td className="whitespace-nowrap py-3 pr-4">{new Date(row.changed_at).toLocaleString('pl-PL')}</td><td className="py-3 pr-4"><p className="font-medium">{actor?.full_name || actor?.email || 'System'}</p>{actor?.full_name && actor.email && <p className="text-xs text-muted-foreground">{actor.email}</p>}</td><td className="py-3 pr-4">{moduleNames[row.table_name] || row.table_name}</td><td className="py-3 pr-4"><Badge variant="outline" className={action.className}>{action.label}</Badge></td><td className="max-w-[240px] truncate py-3 pr-4">{recordLabel(row)}</td><td className="py-3 text-right"><Button size="sm" variant="outline" onClick={() => setSelected(row)}><Eye className="h-4 w-4" /></Button></td></tr>;
+                    return (
+                      <tr key={row.id} className="border-b border-border/60">
+                        <td className="whitespace-nowrap py-3 pr-4">{new Date(row.changed_at).toLocaleString('pl-PL')}</td>
+                        <td className="py-3 pr-4">
+                          <p className="font-medium">{actor?.full_name || actor?.email || 'System'}</p>
+                          {actor?.full_name && actor.email && <p className="text-xs text-muted-foreground">{actor.email}</p>}
+                        </td>
+                        <td className="py-3 pr-4">{moduleNames[row.table_name] || row.table_name}</td>
+                        <td className="py-3 pr-4"><Badge variant="outline" className={action.className}>{action.label}</Badge></td>
+                        <td className="max-w-[240px] truncate py-3 pr-4">{recordLabel(row)}</td>
+                        <td className="py-3 text-right"><Button size="sm" variant="outline" onClick={() => setSelected(row)}><Eye className="h-4 w-4" /></Button></td>
+                      </tr>
+                    );
                   })}
                   {!loading && visibleRows.length === 0 && <tr><td colSpan={6} className="py-10 text-center text-muted-foreground">Brak zapisanych zmian.</td></tr>}
                 </tbody>
@@ -184,7 +229,21 @@ export default function AdminHistoryPage() {
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader><DialogTitle>Szczegóły zmiany</DialogTitle></DialogHeader>
-          {selected && <div className="space-y-4">{changedFields(selected).map((field) => <div key={field} className="rounded-lg border p-4"><p className="mb-2 text-sm font-semibold">{field}</p><div className="grid gap-3 sm:grid-cols-2"><div><p className="mb-1 text-xs text-muted-foreground">Przed</p><pre className="whitespace-pre-wrap break-words rounded bg-secondary p-3 text-xs">{formatValue(selected.old_data?.[field])}</pre></div><div><p className="mb-1 text-xs text-muted-foreground">Po</p><pre className="whitespace-pre-wrap break-words rounded bg-secondary p-3 text-xs">{formatValue(selected.new_data?.[field])}</pre></div></div></div>)}</div>}
+          {selected && (
+            <div className="space-y-4">
+              {selectedFields.length === 0 ? (
+                <p className="rounded-lg border p-4 text-sm text-muted-foreground">Brak szczegółowych różnic do pokazania.</p>
+              ) : selectedFields.map((field) => (
+                <div key={field} className="rounded-lg border p-4">
+                  <p className="mb-2 text-sm font-semibold">{field}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div><p className="mb-1 text-xs text-muted-foreground">Przed</p><pre className="whitespace-pre-wrap break-words rounded bg-secondary p-3 text-xs">{formatValue(selected.old_data?.[field])}</pre></div>
+                    <div><p className="mb-1 text-xs text-muted-foreground">Po</p><pre className="whitespace-pre-wrap break-words rounded bg-secondary p-3 text-xs">{formatValue(selected.new_data?.[field])}</pre></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

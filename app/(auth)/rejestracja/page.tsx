@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -27,7 +26,6 @@ const registerSchema = z.object({
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
-  const router = useRouter();
   const { signUp } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -46,6 +44,8 @@ export default function RegisterPage() {
   });
 
   const onSubmit = async (data: RegisterFormValues) => {
+    if (isLoading) return;
+
     setIsLoading(true);
     setError(null);
 
@@ -66,10 +66,10 @@ export default function RegisterPage() {
         setRegisteredEmail(data.email);
         toast.success('Konto utworzone pomyślnie');
       }
-    } catch (err) {
-      setError('Wystąpił nieoczekiwany błąd');
+    } catch {
+      setError('Nie udało się połączyć z usługą rejestracji. Spróbuj ponownie za chwilę.');
       toast.error('Błąd', {
-        description: 'Wystąpił nieoczekiwany błąd',
+        description: 'Nie udało się połączyć z usługą rejestracji',
       });
     } finally {
       setIsLoading(false);
@@ -249,6 +249,7 @@ export default function RegisterPage() {
                 <input
                   type="checkbox"
                   {...register('terms')}
+                  disabled={isLoading}
                   className="w-4 h-4 mt-1 rounded border-border bg-secondary accent-primary"
                 />
                 <span className="text-sm text-muted-foreground">

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/lib/providers';
-import { Eye, Mail, Loader2, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Mail, Loader2, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const forgotPasswordSchema = z.object({
@@ -34,6 +34,8 @@ export default function ForgotPasswordPage() {
   });
 
   const onSubmit = async (data: ForgotPasswordFormValues) => {
+    if (isLoading) return;
+
     setIsLoading(true);
     setError(null);
 
@@ -52,10 +54,10 @@ export default function ForgotPasswordPage() {
           description: 'Sprawdź swoją skrzynkę email',
         });
       }
-    } catch (err) {
-      setError('Wystąpił nieoczekiwany błąd');
+    } catch {
+      setError('Nie udało się połączyć z usługą odzyskiwania hasła. Spróbuj ponownie za chwilę.');
       toast.error('Błąd', {
-        description: 'Wystąpił nieoczekiwany błąd',
+        description: 'Nie udało się połączyć z usługą odzyskiwania hasła',
       });
     } finally {
       setIsLoading(false);

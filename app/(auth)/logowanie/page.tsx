@@ -39,6 +39,8 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: LoginFormValues) => {
+    if (isLoading) return;
+
     setIsLoading(true);
     setError(null);
 
@@ -58,10 +60,10 @@ export default function LoginPage() {
         toast.success('Zalogowano pomyślnie');
         router.push(redirect);
       }
-    } catch (err) {
-      setError('Wystąpił nieoczekiwany błąd');
+    } catch {
+      setError('Nie udało się połączyć z usługą logowania. Spróbuj ponownie za chwilę.');
       toast.error('Błąd', {
-        description: 'Wystąpił nieoczekiwany błąd',
+        description: 'Nie udało się połączyć z usługą logowania',
       });
     } finally {
       setIsLoading(false);

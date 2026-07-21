@@ -53,47 +53,62 @@ export default function AdminSettingsPage() {
   const fetchSettings = async () => {
     setLoading(true);
     setLoadError('');
-    const { data, error } = await supabase
-      .from('settings')
-      .select('*')
-      .order('category')
-      .order('key');
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .order('category')
+        .order('key');
 
-    if (error) {
+      if (error) {
+        setSettings([]);
+        setFormData({});
+        setLoadError('Nie udało się pobrać ustawień z Supabase.');
+      } else if (data) {
+        setSettings(data as SettingItem[]);
+        const formValues: Record<string, string> = {};
+        (data as SettingItem[]).forEach((s) => {
+          formValues[s.key] = s.value || '';
+        });
+        setFormData(formValues);
+      }
+    } catch {
+      setSettings([]);
+      setFormData({});
       setLoadError('Nie udało się pobrać ustawień z Supabase.');
-    } else if (data) {
-      setSettings(data as SettingItem[]);
-      const formValues: Record<string, string> = {};
-      (data as SettingItem[]).forEach((s) => {
-        formValues[s.key] = s.value || '';
-      });
-      setFormData(formValues);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSave = async () => {
+    if (saving) return;
+
     setSaving(true);
     let hasError = false;
 
-    for (const [key, value] of Object.entries(formData)) {
-      const { error } = await supabase
-        .from('settings')
-        .update({ value })
-        .eq('key', key);
+    try {
+      for (const [key, value] of Object.entries(formData)) {
+        const { error } = await supabase
+          .from('settings')
+          .update({ value })
+          .eq('key', key);
 
-      if (error) {
-        console.error(`Error updating ${key}:`, error);
-        hasError = true;
+        if (error) {
+          hasError = true;
+        }
       }
-    }
 
-    if (hasError) {
-      toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
-    } else {
-      toast.success('Ustawienia zapisane');
+      if (hasError) {
+        toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
+      } else {
+        toast.success('Ustawienia zapisane');
+      }
+    } catch {
+      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas zapisywania ustawień' });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const getSetting = (key: string): SettingItem | undefined => {
@@ -131,7 +146,7 @@ export default function AdminSettingsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={fetchSettings} variant="outline" size="sm">
+          <Button onClick={fetchSettings} disabled={saving} variant="outline" size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
             Odśwież
           </Button>

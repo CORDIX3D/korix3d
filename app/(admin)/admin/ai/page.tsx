@@ -79,6 +79,7 @@ export default function AdminAIPage() {
   const [saving, setSaving] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
 
   const supabase = createClient();
 
@@ -93,25 +94,34 @@ export default function AdminAIPage() {
   const fetchSettings = async () => {
     setLoading(true);
     setLoadError('');
-    const { data, error } = await supabase
-      .from('ai_settings')
-      .select('*');
+    try {
+      const { data, error } = await supabase
+        .from('ai_settings')
+        .select('*');
 
-    if (error) {
+      if (error) {
+        setSettings({});
+        setLoadError('Nie udało się pobrać ustawień AI z Supabase.');
+        toast.error('Błąd', { description: 'Nie udało się pobrać ustawień AI' });
+      } else if (data) {
+        const settingsMap: Record<string, string> = {};
+        data.forEach((s: AISettingRecord) => {
+          settingsMap[s.setting_key] = s.setting_value;
+        });
+        setSettings(settingsMap);
+      }
+    } catch {
+      setSettings({});
       setLoadError('Nie udało się pobrać ustawień AI z Supabase.');
       toast.error('Błąd', { description: 'Nie udało się pobrać ustawień AI' });
-    } else if (data) {
-      const settingsMap: Record<string, string> = {};
-      data.forEach((s: AISettingRecord) => {
-        settingsMap[s.setting_key] = s.setting_value;
-      });
-      setSettings(settingsMap);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchAnalytics = async () => {
     setLoadingAnalytics(true);
+    setAnalyticsError('');
     try {
       // Fetch log counts
       const { count: totalLogs } = await supabase
@@ -186,37 +196,54 @@ export default function AdminAIPage() {
           dailyStats,
           recentLogs: recentLogs || []
         });
+      } else {
+        setAnalytics({
+          totalConversations: totalConversations || 0,
+          totalMessages: totalMessages || 0,
+          avgResponseTime: 0,
+          successRate: 0,
+          topQuestions: [],
+          dailyStats: [],
+          recentLogs: []
+        });
       }
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
+    } catch {
+      setAnalytics(null);
+      setAnalyticsError('Nie udało się pobrać analityki AI z Supabase.');
+    } finally {
+      setLoadingAnalytics(false);
     }
-    setLoadingAnalytics(false);
   };
 
   const handleSave = async () => {
+    if (saving) return;
+
     setSaving(true);
 
     let hasError = false;
 
-    for (const [key, value] of Object.entries(settings)) {
-      const { error } = await supabase
-        .from('ai_settings')
-        .update({ setting_value: value })
-        .eq('setting_key', key);
+    try {
+      for (const [key, value] of Object.entries(settings)) {
+        const { error } = await supabase
+          .from('ai_settings')
+          .update({ setting_value: value })
+          .eq('setting_key', key);
 
-      if (error) {
-        console.error(`Error updating ${key}:`, error);
-        hasError = true;
+        if (error) {
+          hasError = true;
+        }
       }
-    }
 
-    if (hasError) {
-      toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
-    } else {
-      toast.success('Ustawienia AI zapisane');
+      if (hasError) {
+        toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
+      } else {
+        toast.success('Ustawienia AI zapisane');
+      }
+    } catch {
+      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas zapisywania ustawień AI' });
+    } finally {
+      setSaving(false);
     }
-
-    setSaving(false);
   };
 
   const getValue = (key: string): string => {
@@ -252,7 +279,7 @@ export default function AdminAIPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={fetchSettings} variant="outline" size="sm">
+          <Button onClick={fetchSettings} disabled={saving} variant="outline" size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
             Odśwież
           </Button>
@@ -391,8 +418,10 @@ export default function AdminAIPage() {
 
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="space-y-6">
+          {loadingAnalytics && <PanelLoading label="Pobieranie analityki AI..." />}
+          {analyticsError && <PanelError message={analyticsError} onRetry={fetchAnalytics} />}
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          {!loadingAnalytics && !analyticsError && <div className="grid gap-4 md:grid-cols-4">
             <Card className="bg-card border-border">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
@@ -456,10 +485,10 @@ export default function AdminAIPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </div>}
 
           {/* Charts */}
-          <div className="grid gap-6 md:grid-cols-2">
+          {!loadingAnalytics && !analyticsError && <div className="grid gap-6 md:grid-cols-2">
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground">
@@ -523,7 +552,7 @@ export default function AdminAIPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </div>}
         </TabsContent>
 
         {/* History Tab */}

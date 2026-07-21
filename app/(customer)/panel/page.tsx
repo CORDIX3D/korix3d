@@ -18,6 +18,7 @@ import {
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import { PanelError, PanelLoading } from '@/components/customer/panel-state';
+import type { Order3D } from '@/lib/types/database';
 
 interface StatCard {
   title: string;
@@ -30,8 +31,8 @@ interface StatCard {
 export default function CustomerDashboardPage() {
   const { user, profile } = useAuth();
   const [stats, setStats] = useState<StatCard[]>([]);
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [recentQuotes, setRecentQuotes] = useState<any[]>([]);
+  const [recentOrders, setRecentOrders] = useState<Order3D[]>([]);
+  const [recentQuotes, setRecentQuotes] = useState<Order3D[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -99,10 +100,11 @@ export default function CustomerDashboardPage() {
         },
       ]);
 
-      setRecentOrders((orders || []).slice(0, 5));
-      setRecentQuotes(quotes || []);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      setRecentOrders(((orders || []) as Order3D[]).slice(0, 5));
+      setRecentQuotes((quotes || []) as Order3D[]);
+    } catch {
+      setRecentOrders([]);
+      setRecentQuotes([]);
       setError('Nie udało się pobrać podsumowania konta. Sprawdź połączenie i spróbuj ponownie.');
     } finally {
       setLoading(false);
@@ -281,7 +283,7 @@ export default function CustomerDashboardPage() {
                     <div>
                       <p className="font-medium text-foreground">{order.order_number}</p>
                       <p className="text-sm text-muted-foreground">
-                        {order.material_name} • {order.quantity} szt.
+                        {order.material_name || 'Materiał do ustalenia'} • {order.quantity} szt.
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Złożono {new Date(order.created_at).toLocaleDateString('pl-PL')}
@@ -331,7 +333,7 @@ export default function CustomerDashboardPage() {
                       {quote.status === 'quoted' ? (
                         <>
                           <span className="text-sm font-medium text-foreground">
-                            {quote.final_price?.toFixed(2)} zł
+                            {Number(quote.final_price || 0).toFixed(2)} zł
                           </span>
                           <Button asChild size="sm" className="bg-primary hover:bg-primary/90">
                             <Link href={`/panel/zamowienia/${quote.id}`}>Zobacz wycenę</Link>

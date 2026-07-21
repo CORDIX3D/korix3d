@@ -19,10 +19,20 @@ export default function OrdersPage() {
   const loadOrders = useCallback(async () => {
     if (!user) return;
     setLoading(true); setError('');
-    const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-    if (queryError) setError('Sprawdź połączenie i spróbuj ponownie.');
-    else setOrders((data ?? []) as Order3D[]);
-    setLoading(false);
+    try {
+      const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+      if (queryError) {
+        setError('Sprawdź połączenie i spróbuj ponownie.');
+        setOrders([]);
+      } else {
+        setOrders((data ?? []) as Order3D[]);
+      }
+    } catch {
+      setError('Nie udało się połączyć z Supabase podczas pobierania zamówień.');
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => { void loadOrders(); }, [loadOrders]);

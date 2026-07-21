@@ -32,8 +32,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+    const paidAiEnabled = Deno.env.get("ENABLE_OPENAI_REPORTS") === "true";
 
-    if (!openaiApiKey) {
+    if (!paidAiEnabled || !openaiApiKey) {
       // Return a fallback analysis
       const fallbackAnalysis = generateFallbackAnalysis(reportData);
       return new Response(JSON.stringify({ analysis: fallbackAnalysis }), {

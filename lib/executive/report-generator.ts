@@ -961,7 +961,7 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
 async function generateAIAnalysis(data: ExecutiveData, scores: CompanyScores): Promise<string> {
   const openaiApiKey = process.env.OPENAI_API_KEY;
 
-  if (!openaiApiKey) {
+  if (process.env.ENABLE_OPENAI_REPORTS !== 'true' || !openaiApiKey) {
     return generateFallbackAnalysis(data, scores);
   }
 

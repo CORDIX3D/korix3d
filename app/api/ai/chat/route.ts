@@ -6,12 +6,16 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 export const dynamic = 'force-dynamic';
 
 function getOpenAI() {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('Brak zmiennej OPENAI_API_KEY');
+  if (process.env.ENABLE_OPENAI_ASSISTANT !== 'true' || !process.env.OPENAI_API_KEY) {
+    throw new Error('Asystent OpenAI jest wyłączony');
   }
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
+}
+
+function isPaidAIEnabled() {
+  return process.env.ENABLE_OPENAI_ASSISTANT === 'true' && Boolean(process.env.OPENAI_API_KEY);
 }
 
 function getSupabaseAdmin() {
@@ -162,6 +166,14 @@ ZASADY ODPOWIADANIA:
 function buildFallbackResponse(question: string, context: DatabaseContext): string {
   const normalized = question.toLowerCase();
 
+  if (normalized.includes('kontakt') || normalized.includes('telefon') || normalized.includes('mail') || normalized.includes('email')) {
+    return 'Możesz skontaktować się z KORIX3D mailowo: kontakt@korix3d.pl. Jeśli chcesz wycenić wydruk, najlepiej użyć formularza „Wycena” i dołączyć plik modelu 3D.';
+  }
+
+  if (normalized.includes('plik') || normalized.includes('stl') || normalized.includes('obj') || normalized.includes('3mf') || normalized.includes('step')) {
+    return 'Do wyceny możesz przesłać pliki STL, OBJ, 3MF oraz STEP. Po przesłaniu modelu zespół sprawdzi geometrię, dobierze materiał i potwierdzi ostateczną cenę oraz termin.';
+  }
+
   if (normalized.includes('materiał') || normalized.includes('filament') || normalized.includes('pla')) {
     const materials = context.materials.filter((material) => material.available).map((material) => material.name);
     if (materials.length) {
@@ -294,6 +306,42 @@ export async function POST(request: NextRequest) {
     const model = dbContext.settings.model || 'gpt-4o-mini';
     const maxTokens = parseInt(dbContext.settings.max_tokens || '2048');
     const temperature = parseFloat(dbContext.settings.temperature || '0.7');
+
+    if (!isPaidAIEnabled()) {
+      const fallback = buildFallbackResponse(userMessage?.content || '', dbContext);
+      if (supabaseAdmin && convId) {
+        await supabaseAdmin
+          .from('ai_messages')
+          .insert({
+            conversation_id: convId,
+            role: 'assistant',
+            content: fallback
+          });
+
+        await supabaseAdmin
+          .from('ai_logs')
+          .insert({
+            user_id: user?.id || null,
+            conversation_id: convId,
+            query: userMessage?.content || '',
+            response_time_ms: Date.now() - startTime,
+            tokens_used: 0,
+            model: 'local-fallback',
+            success: true
+          });
+      }
+
+      return new Response(
+        `data: ${JSON.stringify({ content: fallback })}\n\ndata: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`,
+        {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        }
+      );
+    }
 
     let stream: AsyncIterable<{
       choices: Array<{ delta: { content?: string | null } }>;

@@ -92,6 +92,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<DbRow | null>(null);
+  const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
   const [imageFiles, setImageFiles] = useState<Record<string, File | null>>({});
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<Record<string, unknown>>(() =>
@@ -249,14 +250,23 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   };
 
   const deleteRow = async (row: DbRow) => {
-    const result = config.softDeleteField
-      ? await (supabase as any).from(config.table).update({ [config.softDeleteField]: false, updated_at: new Date().toISOString() }).eq('id', row.id)
-      : await (supabase as any).from(config.table).delete().eq('id', row.id);
+    const rowLabel = row.name || row.title || row.order_number || row.email || row.code || row.id;
+    const actionLabel = config.softDeleteField ? 'ukryć/dezaktywować' : 'trwale usunąć';
+    if (!window.confirm(`Czy na pewno chcesz ${actionLabel} pozycję „${rowLabel}”?`)) return;
 
-    if (result.error) toast.error('Nie udało się usunąć pozycji', { description: result.error.message });
-    else {
-      toast.success(config.softDeleteField ? 'Pozycja ukryta/dezaktywowana' : 'Pozycja usunięta');
-      fetchRows();
+    setDeletingRowId(String(row.id));
+    try {
+      const result = config.softDeleteField
+        ? await (supabase as any).from(config.table).update({ [config.softDeleteField]: false, updated_at: new Date().toISOString() }).eq('id', row.id)
+        : await (supabase as any).from(config.table).delete().eq('id', row.id);
+
+      if (result.error) toast.error('Nie udało się usunąć pozycji', { description: result.error.message });
+      else {
+        toast.success(config.softDeleteField ? 'Pozycja ukryta/dezaktywowana' : 'Pozycja usunięta');
+        fetchRows();
+      }
+    } finally {
+      setDeletingRowId(null);
     }
   };
 
@@ -387,7 +397,15 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                       {config.readOnly ? <Eye className="w-4 h-4 inline text-muted-foreground" /> : (
                         <div className="inline-flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => openEdit(row)}><Edit className="w-4 h-4" /></Button>
-                          <Button size="sm" variant="outline" onClick={() => deleteRow(row)}><Trash2 className="w-4 h-4" /></Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={deletingRowId === String(row.id)}
+                            onClick={() => deleteRow(row)}
+                            aria-label={config.softDeleteField ? 'Ukryj pozycję' : 'Usuń pozycję'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       )}
                     </td>

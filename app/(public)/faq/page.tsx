@@ -28,22 +28,29 @@ export default function FAQPage() {
   }, []);
 
   const fetchFAQs = async () => {
-    const { data, error: queryError } = await supabase
-      .from('faq_items')
-      .select('*')
-      .eq('active', true)
-      .order('sort_order');
+    setLoading(true);
+    setError(false);
+    try {
+      const { data, error: queryError } = await supabase
+        .from('faq_items')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order');
 
-    if (data) {
-      const faqItems = data as FAQItem[];
+      if (queryError) throw queryError;
+      const faqItems = (data || []) as FAQItem[];
       setFaqs(faqItems);
       const uniqueCategories = Array.from(
         new Set(faqItems.map((f) => f.category).filter(Boolean))
       ) as string[];
       setCategories(uniqueCategories);
+    } catch {
+      setFaqs([]);
+      setCategories([]);
+      setError(true);
+    } finally {
+      setLoading(false);
     }
-    setError(Boolean(queryError));
-    setLoading(false);
   };
 
   const filteredFAQs = faqs.filter((faq) => {
@@ -125,7 +132,8 @@ export default function FAQPage() {
             <div className="text-center py-12">
               <HelpCircle className="mx-auto mb-4 h-14 w-14 text-destructive" />
               <p className="font-medium text-foreground">Nie udało się pobrać odpowiedzi</p>
-              <p className="mt-2 text-sm text-muted-foreground">Odśwież stronę i spróbuj ponownie.</p>
+              <p className="mt-2 text-sm text-muted-foreground">Sprawdź połączenie i spróbuj ponownie.</p>
+              <Button className="mt-5" variant="outline" onClick={fetchFAQs}>Spróbuj ponownie</Button>
             </div>
           ) : filteredFAQs.length === 0 ? (
             <div className="text-center py-12">

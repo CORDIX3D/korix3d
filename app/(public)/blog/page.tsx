@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { PenTool, Calendar, ArrowRight, User } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { BlogPost } from '@/lib/types/database';
@@ -18,17 +19,25 @@ export default function BlogPage() {
   }, []);
 
   const fetchPosts = async () => {
-    const { data, error: queryError } = await supabase
-      .from('blog_posts')
-      .select('*')
-      .eq('published', true)
-      .not('published_at', 'is', null)
-      .order('published_at', { ascending: false })
-      .limit(20);
+    setLoading(true);
+    setError(false);
+    try {
+      const { data, error: queryError } = await supabase
+        .from('blog_posts')
+        .select('*')
+        .eq('published', true)
+        .not('published_at', 'is', null)
+        .order('published_at', { ascending: false })
+        .limit(20);
 
-    if (data) setPosts(data as BlogPost[]);
-    setError(Boolean(queryError));
-    setLoading(false);
+      if (queryError) throw queryError;
+      setPosts((data || []) as BlogPost[]);
+    } catch {
+      setPosts([]);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -58,7 +67,7 @@ export default function BlogPage() {
 
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {error && <div className="py-16 text-center"><PenTool className="mx-auto mb-4 h-16 w-16 text-destructive" /><h2 className="text-xl font-semibold">Nie udało się pobrać artykułów</h2><p className="mt-2 text-muted-foreground">Odśwież stronę i spróbuj ponownie.</p></div>}
+          {error && <div className="py-16 text-center"><PenTool className="mx-auto mb-4 h-16 w-16 text-destructive" /><h2 className="text-xl font-semibold">Nie udało się pobrać artykułów</h2><p className="mt-2 text-muted-foreground">Sprawdź połączenie i spróbuj ponownie.</p><Button className="mt-5" variant="outline" onClick={fetchPosts}>Spróbuj ponownie</Button></div>}
 
           {/* Featured Post */}
           {!error && posts.length > 0 && (

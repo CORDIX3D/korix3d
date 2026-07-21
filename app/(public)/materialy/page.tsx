@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import {
   Thermometer,
   Layers,
@@ -38,6 +39,8 @@ export default function MaterialsPage() {
   }, []);
 
   const fetchMaterials = async () => {
+    setLoading(true);
+    setError(false);
     try {
       const { data: materialsData, error: queryError } = await supabase
         .from('materials')
@@ -46,23 +49,24 @@ export default function MaterialsPage() {
         .order('name');
 
       if (queryError) throw queryError;
-      if (materialsData) {
-        setMaterials(materialsData);
+      const availableMaterials = (materialsData || []) as Material[];
+      setMaterials(availableMaterials);
 
-        // Fetch colors for each material
-        const colorsData: Record<string, any[]> = {};
-        for (const material of materialsData) {
-          const { data: materialColors } = await supabase
+      const colorResults = await Promise.all(
+        availableMaterials.map(async (material) => {
+          const { data: materialColors, error: colorsError } = await supabase
             .from('material_colors')
             .select('*')
             .eq('material_id', material.id)
             .eq('available', true);
-          colorsData[material.id] = materialColors || [];
-        }
-        setColors(colorsData);
-      }
-    } catch (error) {
-      console.error('Error fetching materials:', error);
+          return [material.id, colorsError ? [] : materialColors || []] as const;
+        })
+      );
+
+      setColors(Object.fromEntries(colorResults));
+    } catch {
+      setMaterials([]);
+      setColors({});
       setError(true);
     } finally {
       setLoading(false);
@@ -77,7 +81,7 @@ export default function MaterialsPage() {
     );
   }
 
-  if (error) return <div className="min-h-[60vh] flex items-center justify-center px-4 text-center"><div><Layers className="mx-auto mb-4 h-14 w-14 text-destructive" /><h1 className="text-2xl font-bold">Nie udało się pobrać materiałów</h1><p className="mt-2 text-muted-foreground">Odśwież stronę i spróbuj ponownie.</p></div></div>;
+  if (error) return <div className="min-h-[60vh] flex items-center justify-center px-4 text-center"><div><Layers className="mx-auto mb-4 h-14 w-14 text-destructive" /><h1 className="text-2xl font-bold">Nie udało się pobrać materiałów</h1><p className="mt-2 text-muted-foreground">Sprawdź połączenie i spróbuj ponownie.</p><Button className="mt-5" variant="outline" onClick={fetchMaterials}>Spróbuj ponownie</Button></div></div>;
 
   return (
     <div className="min-h-screen bg-background">

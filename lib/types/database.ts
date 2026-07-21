@@ -524,6 +524,79 @@ export interface Database {
           updated_at?: string;
         };
       };
+      store_order_items: {
+        Row: {
+          id: string;
+          order_id: string;
+          product_id: string | null;
+          sku: string;
+          name: string;
+          quantity: number;
+          unit_price: number;
+          total: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          product_id?: string | null;
+          sku: string;
+          name: string;
+          quantity: number;
+          unit_price: number;
+          total: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          product_id?: string | null;
+          sku?: string;
+          name?: string;
+          quantity?: number;
+          unit_price?: number;
+          total?: number;
+          created_at?: string;
+        };
+      };
+      stock_movements: {
+        Row: {
+          id: string;
+          product_id: string | null;
+          order_id: string | null;
+          previous_quantity: number;
+          new_quantity: number;
+          quantity_delta: number;
+          operation_type: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled';
+          note: string | null;
+          changed_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_id?: string | null;
+          order_id?: string | null;
+          previous_quantity: number;
+          new_quantity: number;
+          quantity_delta: number;
+          operation_type: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled';
+          note?: string | null;
+          changed_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          product_id?: string | null;
+          order_id?: string | null;
+          previous_quantity?: number;
+          new_quantity?: number;
+          quantity_delta?: number;
+          operation_type?: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled';
+          note?: string | null;
+          changed_by?: string | null;
+          created_at?: string;
+        };
+      };
       cart_items: {
         Row: {
           id: string;

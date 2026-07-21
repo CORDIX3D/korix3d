@@ -41,6 +41,8 @@ export default function AdminFilamentsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingFilamentId, setDeletingFilamentId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFilament, setEditingFilament] = useState<Filament | null>(null);
@@ -68,32 +70,49 @@ export default function AdminFilamentsPage() {
   const fetchFilaments = async () => {
     setLoading(true);
     setError('');
-    let query = supabase
-      .from('filaments')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      let query = supabase
+        .from('filaments')
+        .select('*')
+        .eq('active', true)
+        .order('created_at', { ascending: false });
 
-    if (search) {
-      query = query.or(`brand.ilike.%${search}%,material_name.ilike.%${search}%,color.ilike.%${search}%`);
+      if (search) {
+        query = query.or(`brand.ilike.%${search}%,material_name.ilike.%${search}%,color.ilike.%${search}%`);
+      }
+
+      const { data, error: queryError } = await query;
+      if (queryError) {
+        setError('Nie udało się pobrać filamentów z Supabase.');
+        setFilaments([]);
+      } else {
+        setFilaments((data || []) as Filament[]);
+      }
+    } catch {
+      setError('Nie udało się połączyć z Supabase podczas pobierania filamentów.');
+      setFilaments([]);
+    } finally {
+      setLoading(false);
     }
-
-    const { data, error: queryError } = await query;
-    if (queryError) setError('Nie udało się pobrać filamentów z Supabase.');
-    else setFilaments((data || []) as Filament[]);
-    setLoading(false);
   };
 
   const fetchMaterials = async () => {
-    const { data } = await supabase
-      .from('materials')
-      .select('*')
-      .eq('available', true)
-      .order('name');
+    try {
+      const { data } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('available', true)
+        .order('name');
 
-    if (data) setMaterials(data as Material[]);
+      if (data) setMaterials(data as Material[]);
+    } catch {
+      toast.error('Błąd', { description: 'Nie udało się pobrać listy materiałów' });
+    }
   };
 
   const handleSubmit = async () => {
+    if (saving) return;
+
     const originalWeight = Number(formData.original_weight_grams);
     const remainingWeight = Number(formData.remaining_weight_grams);
     const minimumWeight = Number(formData.min_weight_grams);
@@ -120,25 +139,32 @@ export default function AdminFilamentsPage() {
       active: true,
     };
 
-    let error;
-    if (editingFilament) {
-      const result = await supabase
-        .from('filaments')
-        .update(data)
-        .eq('id', editingFilament.id);
-      error = result.error;
-    } else {
-      const result = await supabase.from('filaments').insert([data]);
-      error = result.error;
-    }
+    setSaving(true);
+    try {
+      let error;
+      if (editingFilament) {
+        const result = await supabase
+          .from('filaments')
+          .update(data)
+          .eq('id', editingFilament.id);
+        error = result.error;
+      } else {
+        const result = await supabase.from('filaments').insert([data]);
+        error = result.error;
+      }
 
-    if (error) {
-      toast.error('Błąd', { description: 'Nie udało się zapisać filamentu' });
-    } else {
-      toast.success(editingFilament ? 'Zaktualizowano' : 'Dodano filament');
-      setDialogOpen(false);
-      resetForm();
-      fetchFilaments();
+      if (error) {
+        toast.error('Błąd', { description: 'Nie udało się zapisać filamentu' });
+      } else {
+        toast.success(editingFilament ? 'Zaktualizowano' : 'Dodano filament');
+        setDialogOpen(false);
+        resetForm();
+        fetchFilaments();
+      }
+    } catch {
+      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas zapisywania filamentu' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -178,17 +204,26 @@ export default function AdminFilamentsPage() {
   };
 
   const deleteFilament = async (id: string) => {
+    if (deletingFilamentId) return;
     if (!window.confirm('Czy na pewno chcesz usunąć ten filament z aktywnego magazynu?')) return;
-    const { error } = await supabase
-      .from('filaments')
-      .update({ active: false })
-      .eq('id', id);
 
-    if (error) {
-      toast.error('Błąd', { description: 'Nie udało się usunąć filamentu' });
-    } else {
-      toast.success('Usunięto filament');
-      fetchFilaments();
+    setDeletingFilamentId(id);
+    try {
+      const { error } = await supabase
+        .from('filaments')
+        .update({ active: false })
+        .eq('id', id);
+
+      if (error) {
+        toast.error('Błąd', { description: 'Nie udało się usunąć filamentu' });
+      } else {
+        toast.success('Usunięto filament');
+        fetchFilaments();
+      }
+    } catch {
+      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas usuwania filamentu' });
+    } finally {
+      setDeletingFilamentId(null);
     }
   };
 
@@ -363,11 +398,12 @@ export default function AdminFilamentsPage() {
                 <div className="flex gap-3">
                   <Button
                     onClick={handleSubmit}
+                    disabled={saving}
                     className="flex-1 bg-gradient-primary hover:shadow-glow"
                   >
-                    {editingFilament ? 'Zapisz zmiany' : 'Dodaj filament'}
+                    {saving ? 'Zapisywanie...' : editingFilament ? 'Zapisz zmiany' : 'Dodaj filament'}
                   </Button>
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  <Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>
                     Anuluj
                   </Button>
                 </div>
@@ -554,6 +590,7 @@ export default function AdminFilamentsPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => deleteFilament(filament.id)}
+                      disabled={deletingFilamentId === filament.id}
                       className="text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="w-4 h-4" />

@@ -85,6 +85,7 @@ export default function AccountingPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
@@ -171,8 +172,10 @@ export default function AccountingPage() {
   };
 
   const deleteReport = async (reportId: string) => {
+    if (deletingReportId) return;
     if (!confirm('Czy na pewno chcesz usunąć ten raport?')) return;
 
+    setDeletingReportId(reportId);
     try {
       const response = await fetch('/api/accounting/reports', {
         method: 'DELETE',
@@ -190,6 +193,8 @@ export default function AccountingPage() {
       }
     } catch (error) {
       toast.error('Błąd', { description: 'Nie udało się usunąć raportu' });
+    } finally {
+      setDeletingReportId(null);
     }
   };
 
@@ -478,6 +483,7 @@ export default function AccountingPage() {
                           size="sm"
                           variant="ghost"
                           onClick={() => deleteReport(report.id)}
+                          disabled={deletingReportId === report.id}
                           className="text-red-500 hover:text-red-500 hover:bg-red-500/10"
                           title="Usuń"
                         >

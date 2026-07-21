@@ -1,16 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase/client';
-import { CheckCircle2, Edit, Eye, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { CheckCircle2, Edit, Eye, ImagePlus, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 
-type FieldType = 'text' | 'number' | 'textarea' | 'boolean' | 'date' | 'color';
+type FieldType = 'text' | 'number' | 'textarea' | 'boolean' | 'date' | 'color' | 'image';
 
 export type CrudField = {
   key: string;
@@ -91,6 +92,8 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<DbRow | null>(null);
+  const [imageFiles, setImageFiles] = useState<Record<string, File | null>>({});
+  const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<Record<string, unknown>>(() =>
     Object.fromEntries(config.fields.map((field) => [field.key, makeDefaultValue(field)]))
   );
@@ -103,7 +106,12 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   }, [config.columns, config.searchKeys, rows, search]);
 
   const resetForm = () => {
+    Object.values(imagePreviews).forEach((preview) => {
+      if (preview.startsWith('blob:')) URL.revokeObjectURL(preview);
+    });
     setEditingRow(null);
+    setImageFiles({});
+    setImagePreviews({});
     setFormData(Object.fromEntries(config.fields.map((field) => [field.key, makeDefaultValue(field)])));
   };
 
@@ -134,7 +142,61 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const openEdit = (row: DbRow) => {
     setEditingRow(row);
     setFormData(Object.fromEntries(config.fields.map((field) => [field.key, row[field.key] ?? makeDefaultValue(field)])));
+    setImageFiles({});
+    setImagePreviews(Object.fromEntries(
+      config.fields
+        .filter((field) => field.type === 'image' && row[field.key])
+        .map((field) => [field.key, String(row[field.key])])
+    ));
     setDialogOpen(true);
+  };
+
+  const handleImageChange = (fieldKey: string, event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Wybierz plik graficzny');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Zdjęcie jest za duże', { description: 'Maksymalny rozmiar pliku to 5 MB.' });
+      return;
+    }
+
+    const previousPreview = imagePreviews[fieldKey];
+    if (previousPreview?.startsWith('blob:')) URL.revokeObjectURL(previousPreview);
+
+    setImageFiles((current) => ({ ...current, [fieldKey]: file }));
+    setImagePreviews((current) => ({ ...current, [fieldKey]: URL.createObjectURL(file) }));
+    setFormData((current) => ({ ...current, [fieldKey]: current[fieldKey] || '' }));
+  };
+
+  const removeImage = (fieldKey: string) => {
+    const previousPreview = imagePreviews[fieldKey];
+    if (previousPreview?.startsWith('blob:')) URL.revokeObjectURL(previousPreview);
+
+    setImageFiles((current) => ({ ...current, [fieldKey]: null }));
+    setImagePreviews((current) => {
+      const next = { ...current };
+      delete next[fieldKey];
+      return next;
+    });
+    setFormData((current) => ({ ...current, [fieldKey]: '' }));
+  };
+
+  const uploadImage = async (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const fileName = `admin-${config.table}/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from('product-images').upload(fileName, file, {
+      cacheControl: '3600',
+      contentType: file.type,
+      upsert: false,
+    });
+    if (error) throw error;
+    return supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl;
   };
 
   const handleSubmit = async () => {
@@ -145,9 +207,21 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     }
 
     const payload: DbRow = { ...(config.defaultInsert || {}) };
-    config.fields.forEach((field) => {
-      payload[field.key] = normalizeValue(field, formData[field.key]);
-    });
+
+    try {
+      for (const field of config.fields) {
+        if (field.type === 'image' && imageFiles[field.key]) {
+          payload[field.key] = await uploadImage(imageFiles[field.key] as File);
+        } else {
+          payload[field.key] = normalizeValue(field, formData[field.key]);
+        }
+      }
+    } catch (error) {
+      toast.error('Błąd przesyłania zdjęcia', {
+        description: error instanceof Error ? error.message : 'Nie udało się przesłać zdjęcia.',
+      });
+      return;
+    }
 
     if ('name' in payload && !payload.slug && config.table !== 'profiles') payload.slug = slugify(String(payload.name));
     if ('title' in payload && !payload.slug) payload.slug = slugify(String(payload.title));
@@ -206,7 +280,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                 <DialogHeader><DialogTitle>{editingRow ? 'Edytuj pozycję' : config.addLabel || 'Dodaj pozycję'}</DialogTitle></DialogHeader>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                   {config.fields.map((field) => (
-                    <div key={field.key} className={field.type === 'textarea' ? 'sm:col-span-2 space-y-2' : 'space-y-2'}>
+                    <div key={field.key} className={['textarea', 'image'].includes(field.type || '') ? 'sm:col-span-2 space-y-2' : 'space-y-2'}>
                       <label className="form-label">{field.label}{field.required ? ' *' : ''}</label>
                       {field.type === 'textarea' ? (
                         <textarea
@@ -224,6 +298,39 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                           />
                           <span className="text-sm text-muted-foreground">Włączone</span>
                         </label>
+                      ) : field.type === 'image' ? (
+                        <div className="space-y-3">
+                          {imagePreviews[field.key] ? (
+                            <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
+                              <OptimizedImage
+                                src={imagePreviews[field.key]}
+                                alt={`Podgląd: ${field.label}`}
+                                className="h-24 w-24 rounded-md border object-cover"
+                                sizes="96px"
+                              />
+                              <div className="flex flex-wrap gap-2">
+                                <Button type="button" variant="outline" asChild>
+                                  <label className="cursor-pointer">
+                                    <ImagePlus className="mr-2 h-4 w-4" />
+                                    Zmień zdjęcie
+                                    <input type="file" accept="image/*" className="sr-only" onChange={(event) => handleImageChange(field.key, event)} />
+                                  </label>
+                                </Button>
+                                <Button type="button" variant="outline" onClick={() => removeImage(field.key)}>
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Usuń
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-5 text-center transition-colors hover:bg-muted/50">
+                              <ImagePlus className="h-7 w-7 text-muted-foreground" />
+                              <span className="font-medium">Wybierz zdjęcie z urządzenia</span>
+                              <span className="text-xs text-muted-foreground">JPG, PNG lub WebP do 5 MB</span>
+                              <input type="file" accept="image/*" className="sr-only" onChange={(event) => handleImageChange(field.key, event)} />
+                            </label>
+                          )}
+                        </div>
                       ) : (
                         <Input
                           type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'color' ? 'color' : 'text'}

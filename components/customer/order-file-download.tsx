@@ -21,13 +21,18 @@ export function OrderFileDownload({ file }: { file: StoredOrderFile }) {
 
   const download = async () => {
     setLoading(true);
-    const { data, error } = await supabase.storage
-      .from(file.bucket || 'quote-files')
-      .createSignedUrl(file.storage_path!, 60, { download: file.name || true });
+    try {
+      const { data, error } = await supabase.storage
+        .from(file.bucket || 'quote-files')
+        .createSignedUrl(file.storage_path, 60, { download: file.name || true });
 
-    if (error || !data?.signedUrl) {
-      toast.error('Nie udało się pobrać pliku', { description: 'Link do pliku nie mógł zostać utworzony.' });
-    } else {
+      if (error || !data?.signedUrl) {
+        toast.error('Nie udało się pobrać pliku', {
+          description: 'Link do pliku nie mógł zostać utworzony.',
+        });
+        return;
+      }
+
       const anchor = document.createElement('a');
       anchor.href = data.signedUrl;
       anchor.download = file.name || 'model-3d';
@@ -35,12 +40,24 @@ export function OrderFileDownload({ file }: { file: StoredOrderFile }) {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
+    } catch {
+      toast.error('Nie udało się pobrać pliku', {
+        description: 'Sprawdź połączenie i spróbuj ponownie.',
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <Button type="button" size="sm" variant="ghost" onClick={download} disabled={loading} aria-label={`Pobierz ${file.name || 'plik'}`}>
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      onClick={download}
+      disabled={loading}
+      aria-label={`Pobierz ${file.name || 'plik'}`}
+    >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
     </Button>
   );

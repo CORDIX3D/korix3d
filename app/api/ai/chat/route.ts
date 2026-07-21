@@ -6,7 +6,23 @@ export const dynamic = 'force-dynamic';
 
 type DatabaseContext = {
   materials: Array<{ name: string; price_per_kg: number; available: boolean }>;
-  products: Array<{ name: string; price: number; stock_quantity: number; active: boolean }>;
+  products: Array<{
+    id?: string;
+    sku: string | null;
+    name: string;
+    slug: string | null;
+    price: number;
+    stock_quantity: number;
+    min_stock_quantity: number | null;
+    active: boolean;
+  }>;
+  warehouseItems: Array<{
+    sku: string | null;
+    name: string;
+    quantity: number;
+    min_quantity: number | null;
+    warehouse_location: string | null;
+  }>;
   productionQueue: number;
   estimatedProductionDays: number | null;
 };
@@ -15,6 +31,7 @@ function createEmptyContext(): DatabaseContext {
   return {
     materials: [],
     products: [],
+    warehouseItems: [],
     productionQueue: 0,
     estimatedProductionDays: null,
   };
@@ -33,7 +50,7 @@ function getSupabaseAdmin() {
 
 async function getDatabaseContext(): Promise<DatabaseContext> {
   const supabaseAdmin = getSupabaseAdmin();
-  const [materialsResult, productsResult, ordersResult] = await Promise.all([
+  const [materialsResult, productsResult, warehouseResult, ordersResult] = await Promise.all([
     supabaseAdmin
       .from('materials')
       .select('name, price_per_kg, available')
@@ -41,10 +58,13 @@ async function getDatabaseContext(): Promise<DatabaseContext> {
       .order('name'),
     supabaseAdmin
       .from('products')
-      .select('name, price, stock_quantity, active')
+      .select('id, sku, name, slug, price, stock_quantity, min_stock_quantity, active')
       .eq('active', true)
-      .order('name')
-      .limit(20),
+      .order('name'),
+    supabaseAdmin
+      .from('warehouse_items')
+      .select('sku, name, quantity, min_quantity, warehouse_location')
+      .order('name'),
     supabaseAdmin
       .from('orders_3d')
       .select('status, printing_time_hours')
@@ -57,6 +77,7 @@ async function getDatabaseContext(): Promise<DatabaseContext> {
   return {
     materials: materialsResult.data || [],
     products: productsResult.data || [],
+    warehouseItems: warehouseResult.data || [],
     productionQueue: orders.length,
     estimatedProductionDays: totalHours > 0 ? Math.ceil(totalHours / 8) : null,
   };
@@ -66,8 +87,134 @@ function includesAny(text: string, words: string[]) {
   return words.some((word) => text.includes(word));
 }
 
+function normalizeText(value: string | null | undefined) {
+  return (value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ł/g, 'l')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function scoreProductMatch(question: string, product: DatabaseContext['products'][number]) {
+  const normalizedQuestion = normalizeText(question);
+  const name = normalizeText(product.name);
+  const sku = normalizeText(product.sku);
+  const slug = normalizeText(product.slug);
+  const tokens = name.split(' ').filter((token) => token.length >= 3);
+
+  let score = 0;
+  if (sku && normalizedQuestion.includes(sku)) score += 12;
+  if (slug && normalizedQuestion.includes(slug)) score += 8;
+  if (name && normalizedQuestion.includes(name)) score += 10;
+  score += tokens.filter((token) => normalizedQuestion.includes(token)).length;
+
+  return score;
+}
+
+function findMatchingProducts(question: string, context: DatabaseContext) {
+  return context.products
+    .map((product) => ({ product, score: scoreProductMatch(question, product) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.product);
+}
+
+function findWarehouseItemForProduct(product: DatabaseContext['products'][number], context: DatabaseContext) {
+  const productSku = normalizeText(product.sku);
+  const productName = normalizeText(product.name);
+
+  return context.warehouseItems.find((item) => {
+    const itemSku = normalizeText(item.sku);
+    const itemName = normalizeText(item.name);
+    return Boolean(
+      (productSku && itemSku && productSku === itemSku) ||
+      (productName && itemName && (itemName.includes(productName) || productName.includes(itemName)))
+    );
+  });
+}
+
+function stockStatusLabel(quantity: number, minimum: number | null | undefined) {
+  if (quantity <= 0) return 'niedostępny';
+  if (minimum && quantity <= minimum) return 'dostępny, ale stan jest niski';
+  return 'dostępny';
+}
+
+function formatProductStock(product: DatabaseContext['products'][number], context: DatabaseContext) {
+  const warehouseItem = findWarehouseItemForProduct(product, context);
+  const quantity = Number(product.stock_quantity || 0);
+  const minimum = product.min_stock_quantity ?? warehouseItem?.min_quantity ?? null;
+  const status = stockStatusLabel(quantity, minimum);
+  const warehouseDetails = warehouseItem
+    ? ` Magazyn pokazuje ${warehouseItem.quantity} szt.${warehouseItem.warehouse_location ? `, lokalizacja: ${warehouseItem.warehouse_location}.` : '.'}`
+    : '';
+
+  return `${product.name}${product.sku ? ` (${product.sku})` : ''}: ${status}, stan sklepu: ${quantity} szt., cena: ${Number(product.price).toFixed(2)} zł.${warehouseDetails}`;
+}
+
+function findMatchingMaterials(question: string, context: DatabaseContext) {
+  const normalizedQuestion = normalizeText(question);
+  return context.materials.filter((material) => {
+    const materialName = normalizeText(material.name);
+    const tokens = materialName.split(' ').filter((token) => token.length >= 3);
+    return normalizedQuestion.includes(materialName) || tokens.some((token) => normalizedQuestion.includes(token));
+  });
+}
+
 function buildFreeResponse(question: string, context: DatabaseContext): string {
   const normalized = question.toLowerCase();
+  const asksAboutStock = includesAny(normalized, [
+    'stan',
+    'stanie',
+    'magazyn',
+    'magazynie',
+    'dostęp',
+    'dostep',
+    'dostępny',
+    'dostepny',
+    'ile jest',
+    'ile macie',
+    'czy macie',
+    'czy jest',
+    'produkt',
+    'sklep',
+    'kup',
+    'koszyk',
+  ]);
+  const matchingProducts = findMatchingProducts(question, context);
+
+  if (asksAboutStock && matchingProducts.length > 0) {
+    return matchingProducts
+      .slice(0, 5)
+      .map((product) => formatProductStock(product, context))
+      .join('\n');
+  }
+
+  if (asksAboutStock && context.products.length > 0) {
+    const availableProducts = context.products
+      .filter((product) => product.stock_quantity > 0)
+      .sort((a, b) => b.stock_quantity - a.stock_quantity)
+      .slice(0, 8)
+      .map((product) => `${product.name}: ${product.stock_quantity} szt., ${Number(product.price).toFixed(2)} zł`);
+
+    const unavailableCount = context.products.filter((product) => product.stock_quantity <= 0).length;
+    return [
+      availableProducts.length
+        ? `Największe dostępne stany w sklepie:\n${availableProducts.join('\n')}`
+        : 'Aktualnie nie widzę produktów z dodatnim stanem sklepowym.',
+      unavailableCount > 0 ? `Produkty bez stanu: ${unavailableCount}.` : '',
+      'Jeśli pytasz o konkretny produkt, podaj nazwę albo SKU — sprawdzę dokładny stan.',
+    ].filter(Boolean).join('\n\n');
+  }
+
+  const matchingMaterials = findMatchingMaterials(question, context);
+  if (matchingMaterials.length > 0) {
+    return matchingMaterials
+      .slice(0, 5)
+      .map((material) => `${material.name}: ${material.available ? 'dostępny' : 'niedostępny'}${material.price_per_kg ? `, cena bazowa: ${Number(material.price_per_kg).toFixed(0)} zł/kg` : ''}.`)
+      .join('\n');
+  }
 
   if (includesAny(normalized, ['kontakt', 'telefon', 'mail', 'email'])) {
     return 'Możesz skontaktować się z KORIX3D mailowo: kontakt@korix3d.pl. Jeśli chcesz wycenić wydruk, użyj formularza „Wycena” i dołącz plik modelu 3D.';

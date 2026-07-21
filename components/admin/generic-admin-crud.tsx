@@ -396,7 +396,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="bg-card border-border"><CardContent className="p-4"><p className="text-sm text-muted-foreground">Wszystkie pozycje</p><p className="text-3xl font-bold mt-1">{rows.length}</p></CardContent></Card>
         <Card className="bg-card border-border"><CardContent className="p-4"><p className="text-sm text-muted-foreground">Widoczne po filtrze</p><p className="text-3xl font-bold mt-1">{visibleRows.length}</p></CardContent></Card>
-        <Card className="bg-card border-border"><CardContent className="p-4"><p className="text-sm text-muted-foreground">Status</p><p className="text-lg font-semibold mt-2">{loading ? 'Ładowanie...' : 'Gotowe'}</p></CardContent></Card>
+        <Card className="bg-card border-border"><CardContent className="p-4"><p className="text-sm text-muted-foreground">Status</p><p className="text-lg font-semibold mt-2">{loading ? 'Ładowanie...' : loadError ? 'Błąd pobierania' : 'Gotowe'}</p></CardContent></Card>
       </div>
 
       <Card className="bg-card border-border">

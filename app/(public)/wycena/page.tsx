@@ -115,20 +115,25 @@ export default function QuotePage() {
     setMaterialsLoading(true);
     setMaterialsError('');
 
-    const { data, error } = await supabase
-      .from('materials')
-      .select('*')
-      .eq('available', true)
-      .order('name');
+    try {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('available', true)
+        .order('name');
 
-    if (error) {
+      if (error) {
+        setMaterials([]);
+        setMaterialsError('Nie udało się pobrać listy materiałów. Spróbuj odświeżyć stronę albo skontaktuj się z nami.');
+      } else {
+        setMaterials(data || []);
+      }
+    } catch {
       setMaterials([]);
       setMaterialsError('Nie udało się pobrać listy materiałów. Spróbuj odświeżyć stronę albo skontaktuj się z nami.');
-    } else {
-      setMaterials(data || []);
+    } finally {
+      setMaterialsLoading(false);
     }
-
-    setMaterialsLoading(false);
   }, []);
 
   const fetchColors = useCallback(async (materialId: string) => {
@@ -137,20 +142,25 @@ export default function QuotePage() {
     setColorsLoading(true);
     setColorsError('');
 
-    const { data, error } = await supabase
-      .from('material_colors')
-      .select('*')
-      .eq('material_id', materialId)
-      .eq('available', true);
+    try {
+      const { data, error } = await supabase
+        .from('material_colors')
+        .select('*')
+        .eq('material_id', materialId)
+        .eq('available', true);
 
-    if (error) {
+      if (error) {
+        setColors([]);
+        setColorsError('Nie udało się pobrać kolorów dla wybranego materiału.');
+      } else {
+        setColors(data || []);
+      }
+    } catch {
       setColors([]);
       setColorsError('Nie udało się pobrać kolorów dla wybranego materiału.');
-    } else {
-      setColors(data || []);
+    } finally {
+      setColorsLoading(false);
     }
-
-    setColorsLoading(false);
   }, [setValue]);
 
   useEffect(() => {
@@ -211,10 +221,13 @@ export default function QuotePage() {
   };
 
   const removeFile = (index: number) => {
+    if (submitting) return;
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const onSubmit = async (data: QuoteFormValues) => {
+    if (submitting) return;
+
     if (!user) {
       toast.error('Zaloguj się', { description: 'Konto jest wymagane do wysłania i śledzenia wyceny.' });
       return;
@@ -233,6 +246,8 @@ export default function QuotePage() {
 
     try {
       const deliveryLabel = deliveryOptions.find((option) => option.value === data.delivery_type)?.label;
+      const materialName = selectedMaterial?.name || materials.find((material) => material.id === data.material_id)?.name || 'Do ustalenia';
+      const selectedColor = colors.find((color) => color.id === data.color);
       const configurationNotes = [
         `Wypełnienie: ${data.infill}%`,
         `Jakość: ${data.quality}`,
@@ -246,9 +261,9 @@ export default function QuotePage() {
         id: orderId,
         user_id: user.id,
         material_id: data.material_id,
-        material_name: selectedMaterial?.name,
-        color: colors.find((c) => c.id === data.color)?.name,
-        color_hex: colors.find((c) => c.id === data.color)?.hex,
+        material_name: materialName,
+        color: selectedColor?.name || 'Do ustalenia',
+        color_hex: selectedColor?.hex,
         layer_height: parseFloat(data.layer_height),
         quantity: data.quantity,
         priority: data.priority,
@@ -313,13 +328,18 @@ export default function QuotePage() {
       setSubmittedOrderNumber(createdOrder?.order_number || orderId.slice(0, 8).toUpperCase());
       setSubmitted(true);
     } catch (error) {
-      console.error('Error submitting quote:', error);
       if (uploadedPaths.length > 0) {
-        const { error: cleanupError } = await supabase.storage.from('quote-files').remove(uploadedPaths);
-        if (cleanupError) console.error('Error cleaning up quote files:', cleanupError);
+        try {
+          await supabase.storage.from('quote-files').remove(uploadedPaths);
+        } catch {
+          // Cleanup failure should not hide the original submission error.
+        }
       }
-      const { error: discardError } = await supabase.rpc('discard_incomplete_quote', { p_order_id: orderId });
-      if (discardError) console.error('Error discarding incomplete quote:', discardError);
+      try {
+        await supabase.rpc('discard_incomplete_quote', { p_order_id: orderId });
+      } catch {
+        // Cleanup failure should not hide the original submission error.
+      }
       toast.error('Błąd', {
         description: error instanceof Error ? error.message : 'Wystąpił błąd podczas wysyłania zlecenia',
       });
@@ -386,7 +406,7 @@ export default function QuotePage() {
             <div key={item.num} className="flex items-center">
               <button
                 onClick={() => item.num <= step + 1 && setStep(item.num)}
-                disabled={item.num > step + 1}
+                disabled={submitting || item.num > step + 1}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full transition-colors ${
                   step === item.num
                     ? 'bg-primary text-white'
@@ -431,6 +451,7 @@ export default function QuotePage() {
                     multiple
                     accept=".stl,.step,.stp,.obj,.3mf"
                     className="hidden"
+                    disabled={submitting}
                     onChange={handleFileUpload}
                   />
                   <label htmlFor="file-upload" className="cursor-pointer">
@@ -469,6 +490,7 @@ export default function QuotePage() {
                         <button
                           type="button"
                           onClick={() => removeFile(index)}
+                          disabled={submitting}
                           className="p-2 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-colors"
                         >
                           <X className="w-5 h-5" />
@@ -494,7 +516,7 @@ export default function QuotePage() {
                   <Button
                     type="button"
                     onClick={() => setStep(2)}
-                    disabled={uploadedFiles.length === 0}
+                    disabled={submitting || uploadedFiles.length === 0}
                     className="bg-gradient-primary hover:shadow-glow"
                   >
                     Dalej
@@ -645,13 +667,13 @@ export default function QuotePage() {
                 )}
 
                 <div className="flex justify-between">
-                  <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                  <Button type="button" variant="outline" disabled={submitting} onClick={() => setStep(1)}>
                     Wstecz
                   </Button>
                   <Button
                     type="button"
                     onClick={() => setStep(3)}
-                    disabled={!watchMaterial || !watch('color') || materialsLoading || colorsLoading || Boolean(materialsError) || Boolean(colorsError)}
+                    disabled={submitting || !watchMaterial || !watch('color') || materialsLoading || colorsLoading || Boolean(materialsError) || Boolean(colorsError)}
                     className="bg-gradient-primary hover:shadow-glow"
                   >
                     Dalej
@@ -778,12 +800,13 @@ export default function QuotePage() {
                 </div>
 
                 <div className="flex justify-between">
-                  <Button type="button" variant="outline" onClick={() => setStep(2)}>
+                  <Button type="button" variant="outline" disabled={submitting} onClick={() => setStep(2)}>
                     Wstecz
                   </Button>
                   <Button
                     type="button"
                     onClick={() => setStep(4)}
+                    disabled={submitting}
                     className="bg-gradient-primary hover:shadow-glow"
                   >
                     Dalej
@@ -935,7 +958,7 @@ export default function QuotePage() {
                 )}
 
                 <div className="flex justify-between">
-                  <Button type="button" variant="outline" onClick={() => setStep(3)}>
+                  <Button type="button" variant="outline" disabled={submitting} onClick={() => setStep(3)}>
                     Wstecz
                   </Button>
                   <Button

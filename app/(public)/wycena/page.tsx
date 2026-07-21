@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -77,6 +77,10 @@ export default function QuotePage() {
   const [materials, setMaterials] = useState<any[]>([]);
   const [colors, setColors] = useState<any[]>([]);
   const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
+  const [materialsError, setMaterialsError] = useState('');
+  const [colorsLoading, setColorsLoading] = useState(false);
+  const [colorsError, setColorsError] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -107,9 +111,51 @@ export default function QuotePage() {
   const watchDelivery = watch('delivery_type');
   const watchQuantity = watch('quantity');
 
+  const fetchMaterials = useCallback(async () => {
+    setMaterialsLoading(true);
+    setMaterialsError('');
+
+    const { data, error } = await supabase
+      .from('materials')
+      .select('*')
+      .eq('available', true)
+      .order('name');
+
+    if (error) {
+      setMaterials([]);
+      setMaterialsError('Nie udało się pobrać listy materiałów. Spróbuj odświeżyć stronę albo skontaktuj się z nami.');
+    } else {
+      setMaterials(data || []);
+    }
+
+    setMaterialsLoading(false);
+  }, []);
+
+  const fetchColors = useCallback(async (materialId: string) => {
+    setColors([]);
+    setValue('color', '' as any);
+    setColorsLoading(true);
+    setColorsError('');
+
+    const { data, error } = await supabase
+      .from('material_colors')
+      .select('*')
+      .eq('material_id', materialId)
+      .eq('available', true);
+
+    if (error) {
+      setColors([]);
+      setColorsError('Nie udało się pobrać kolorów dla wybranego materiału.');
+    } else {
+      setColors(data || []);
+    }
+
+    setColorsLoading(false);
+  }, [setValue]);
+
   useEffect(() => {
     fetchMaterials();
-  }, []);
+  }, [fetchMaterials]);
 
   useEffect(() => {
     if (watchMaterial) {
@@ -117,27 +163,7 @@ export default function QuotePage() {
       const mat = materials.find((m) => m.id === watchMaterial);
       setSelectedMaterial(mat);
     }
-  }, [watchMaterial, materials]);
-
-  const fetchMaterials = async () => {
-    const { data } = await supabase
-      .from('materials')
-      .select('*')
-      .eq('available', true)
-      .order('name');
-
-    if (data) setMaterials(data);
-  };
-
-  const fetchColors = async (materialId: string) => {
-    const { data } = await supabase
-      .from('material_colors')
-      .select('*')
-      .eq('material_id', materialId)
-      .eq('available', true);
-
-    if (data) setColors(data);
-  };
+  }, [fetchColors, watchMaterial, materials]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -495,61 +521,105 @@ export default function QuotePage() {
                 {/* Material Selection */}
                 <div className="space-y-2">
                   <label className="form-label">Materiał</label>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {materials.map((material) => (
-                      <button
-                        key={material.id}
-                        type="button"
-                        onClick={() => setValue('material_id', material.id)}
-                        className={`p-4 rounded-xl border text-left transition-all ${
-                          watchMaterial === material.id
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-semibold text-foreground">
-                            {material.name}
-                          </span>
-                          <span className="text-sm text-primary font-medium">
-                            {material.price_per_kg.toFixed(0)} zł/kg
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {material.description}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
+                  {materialsLoading ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-border bg-secondary p-4 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      Ładowanie dostępnych materiałów...
+                    </div>
+                  ) : materialsError ? (
+                    <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-4">
+                      <p className="font-medium text-destructive">Nie można pobrać materiałów</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{materialsError}</p>
+                      <Button type="button" variant="outline" size="sm" onClick={fetchMaterials} className="mt-3">
+                        Spróbuj ponownie
+                      </Button>
+                    </div>
+                  ) : materials.length === 0 ? (
+                    <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-4">
+                      <p className="font-medium text-foreground">Brak dostępnych materiałów</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Aktualnie nie ma aktywnych materiałów do wyceny. Napisz do nas przez kontakt, a dobierzemy materiał ręcznie.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {materials.map((material) => (
+                        <button
+                          key={material.id}
+                          type="button"
+                          onClick={() => setValue('material_id', material.id)}
+                          className={`p-4 rounded-xl border text-left transition-all ${
+                            watchMaterial === material.id
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-foreground">
+                              {material.name}
+                            </span>
+                            <span className="text-sm text-primary font-medium">
+                              {material.price_per_kg.toFixed(0)} zł/kg
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {material.description}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {errors.material_id && (
                     <p className="text-sm text-destructive">{errors.material_id.message}</p>
                   )}
                 </div>
 
                 {/* Color Selection */}
-                {watchMaterial && colors.length > 0 && (
+                {watchMaterial && (
                   <div className="space-y-2">
                     <label className="form-label">Kolor</label>
-                    <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
-                      {colors.map((color) => (
-                        <button
-                          key={color.id}
-                          type="button"
-                          onClick={() => setValue('color', color.id)}
-                          className={`p-2 rounded-xl border transition-all flex flex-col items-center ${
-                            watch('color') === color.id
-                              ? 'border-primary bg-primary/10'
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                        >
-                          <div
-                            className="w-10 h-10 rounded-lg mb-2 border border-border"
-                            style={{ backgroundColor: color.hex }}
-                          />
-                          <span className="text-xs text-foreground">{color.name}</span>
-                        </button>
-                      ))}
-                    </div>
+                    {colorsLoading ? (
+                      <div className="flex items-center gap-3 rounded-xl border border-border bg-secondary p-4 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        Ładowanie kolorów...
+                      </div>
+                    ) : colorsError ? (
+                      <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-4">
+                        <p className="font-medium text-destructive">Nie można pobrać kolorów</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{colorsError}</p>
+                        <Button type="button" variant="outline" size="sm" onClick={() => fetchColors(watchMaterial)} className="mt-3">
+                          Spróbuj ponownie
+                        </Button>
+                      </div>
+                    ) : colors.length === 0 ? (
+                      <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-4">
+                        <p className="font-medium text-foreground">Brak kolorów dla tego materiału</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Wybierz inny materiał albo skontaktuj się z nami — sprawdzimy dostępność koloru ręcznie.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+                        {colors.map((color) => (
+                          <button
+                            key={color.id}
+                            type="button"
+                            onClick={() => setValue('color', color.id)}
+                            className={`p-2 rounded-xl border transition-all flex flex-col items-center ${
+                              watch('color') === color.id
+                                ? 'border-primary bg-primary/10'
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                          >
+                            <div
+                              className="w-10 h-10 rounded-lg mb-2 border border-border"
+                              style={{ backgroundColor: color.hex }}
+                            />
+                            <span className="text-xs text-foreground">{color.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {errors.color && (
                       <p className="text-sm text-destructive">{errors.color.message}</p>
                     )}
@@ -581,7 +651,7 @@ export default function QuotePage() {
                   <Button
                     type="button"
                     onClick={() => setStep(3)}
-                    disabled={!watchMaterial || !watch('color')}
+                    disabled={!watchMaterial || !watch('color') || materialsLoading || colorsLoading || Boolean(materialsError) || Boolean(colorsError)}
                     className="bg-gradient-primary hover:shadow-glow"
                   >
                     Dalej

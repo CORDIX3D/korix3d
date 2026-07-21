@@ -4,6 +4,10 @@ import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -24,11 +28,26 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { year, month } = body;
+    const year = Number(body.year);
+    const month = Number(body.month);
 
-    if (!year || !month) {
+    if (!Number.isInteger(year) || !Number.isInteger(month)) {
       return NextResponse.json(
         { error: 'Year and month required' },
+        { status: 400 }
+      );
+    }
+
+    if (year < 2020 || year > new Date().getFullYear() + 1) {
+      return NextResponse.json(
+        { error: 'Invalid report year' },
+        { status: 400 }
+      );
+    }
+
+    if (month < 1 || month > 12) {
+      return NextResponse.json(
+        { error: 'Invalid report month' },
         { status: 400 }
       );
     }
@@ -39,10 +58,10 @@ export async function POST(request: Request) {
       success: true,
       report: result
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Executive report generation error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to generate report' },
+      { error: getErrorMessage(error, 'Failed to generate report') },
       { status: 500 }
     );
   }

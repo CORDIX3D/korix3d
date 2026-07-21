@@ -3,6 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -41,9 +45,9 @@ export async function GET(
     }
 
     return NextResponse.json({ data: report });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch report' },
+      { error: getErrorMessage(error, 'Failed to fetch report') },
       { status: 500 }
     );
   }

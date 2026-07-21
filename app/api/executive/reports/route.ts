@@ -3,12 +3,26 @@ import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const year = searchParams.get('year');
-  const limit = searchParams.get('limit') || '12';
+  const yearParam = searchParams.get('year');
+  const limitParam = searchParams.get('limit') || '12';
+  const year = yearParam ? Number(yearParam) : undefined;
+  const limit = Number(limitParam);
 
   try {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+      return NextResponse.json({ error: 'Invalid limit' }, { status: 400 });
+    }
+
+    if (year !== undefined && (!Number.isInteger(year) || year < 2020 || year > new Date().getFullYear() + 1)) {
+      return NextResponse.json({ error: 'Invalid report year' }, { status: 400 });
+    }
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -30,10 +44,10 @@ export async function GET(request: Request) {
       .from('executive_reports')
       .select('*')
       .order('report_month', { ascending: false })
-      .limit(parseInt(limit));
+      .limit(limit);
 
-    if (year) {
-      query = query.eq('report_year', parseInt(year));
+    if (year !== undefined) {
+      query = query.eq('report_year', year);
     }
 
     const { data, error } = await query;
@@ -43,9 +57,9 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ data });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch reports' },
+      { error: getErrorMessage(error, 'Failed to fetch reports') },
       { status: 500 }
     );
   }
@@ -92,9 +106,9 @@ export async function DELETE(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || 'Failed to delete report' },
+      { error: getErrorMessage(error, 'Failed to delete report') },
       { status: 500 }
     );
   }

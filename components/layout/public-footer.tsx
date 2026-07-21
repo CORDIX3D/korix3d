@@ -39,23 +39,30 @@ export function PublicFooter() {
 
   const subscribeNewsletter = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (newsletterLoading) return;
+
     const email = newsletterEmail.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       toast.error('Podaj poprawny adres email');
       return;
     }
     setNewsletterLoading(true);
-    const { error } = await supabase.from('newsletter_subscribers').insert([{
-      email,
-      source: 'footer',
-    }]);
-    setNewsletterLoading(false);
-    if (error && error.code !== '23505') {
-      toast.error('Nie udało się zapisać', { description: 'Spróbuj ponownie za chwilę.' });
-      return;
+    try {
+      const { error } = await supabase.from('newsletter_subscribers').insert([{
+        email,
+        source: 'footer',
+      }]);
+      if (error && error.code !== '23505') {
+        toast.error('Nie udało się zapisać', { description: 'Spróbuj ponownie za chwilę.' });
+        return;
+      }
+      setNewsletterEmail('');
+      toast.success(error?.code === '23505' ? 'Ten adres jest już zapisany' : 'Zapisano do newslettera');
+    } catch {
+      toast.error('Nie udało się zapisać', { description: 'Sprawdź połączenie i spróbuj ponownie.' });
+    } finally {
+      setNewsletterLoading(false);
     }
-    setNewsletterEmail('');
-    toast.success(error?.code === '23505' ? 'Ten adres jest już zapisany' : 'Zapisano do newslettera');
   };
 
   return (

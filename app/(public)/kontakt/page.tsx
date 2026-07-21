@@ -56,6 +56,8 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
   });
 
   const onSubmit = async (data: ContactFormValues) => {
+    if (submitting) return;
+
     setSubmitting(true);
 
     try {
@@ -75,10 +77,9 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
         description: 'Odpowiemy najszybciej jak to możliwe',
       });
       setSubmitted(true);
-    } catch (error) {
-      console.error('Error submitting contact form:', error);
+    } catch {
       toast.error('Błąd', {
-        description: 'Wystąpił błąd podczas wysyłania wiadomości',
+        description: 'Wystąpił błąd podczas wysyłania wiadomości. Spróbuj ponownie za chwilę.',
       });
     } finally {
       setSubmitting(false);
@@ -176,6 +177,9 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
                       placeholder="+48 123 456 789"
                       className="h-12 bg-secondary border-border"
                     />
+                    {errors.phone && (
+                      <p className="text-sm text-destructive">{errors.phone.message}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">

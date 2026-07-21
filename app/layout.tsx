@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     description: 'Profesjonalny druk 3D, szybkie prototypowanie, części inżynieryjne. Od pomysłu do rzeczywistości.',
     images: [
       {
-        url: '/og-image.png',
+        url: '/branding/korix3d-logo-1200x630.png',
         width: 1200,
         height: 630,
         alt: 'KORIX3D - Profesjonalny Druk 3D',
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'KORIX3D - Profesjonalny Druk 3D',
     description: 'Profesjonalny druk 3D, szybkie prototypowanie, części inżynieryjne.',
-    images: ['/og-image.png'],
+    images: ['/branding/korix3d-logo-1200x630.png'],
   },
   robots: {
     index: true,
@@ -54,11 +54,26 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-48x48.png', sizes: '48x48', type: 'image/png' },
+    ],
     shortcut: '/favicon-16x16.png',
     apple: '/apple-touch-icon.png',
   },
   manifest: '/site.webmanifest',
+};
+
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'KORIX3D',
+  url: 'https://korix3d.pl/',
+  logo: 'https://korix3d.pl/branding/korix3d-logo-512.png',
+  email: 'kontakt@korix3d.pl',
+  telephone: '+48512354965',
 };
 
 export default function RootLayout({
@@ -69,6 +84,12 @@ export default function RootLayout({
   return (
     <html lang="pl" className="dark">
       <body className="font-sans antialiased">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(organizationJsonLd),
+          }}
+        />
         <AuthProvider>
           <CartProvider>
             {children}

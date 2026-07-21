@@ -93,6 +93,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<DbRow | null>(null);
+  const [saving, setSaving] = useState(false);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
   const [imageFiles, setImageFiles] = useState<Record<string, File | null>>({});
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
@@ -162,11 +163,13 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
 
     if (!file.type.startsWith('image/')) {
       toast.error('Wybierz plik graficzny');
+      setSaving(false);
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Zdjęcie jest za duże', { description: 'Maksymalny rozmiar pliku to 5 MB.' });
+      setSaving(false);
       return;
     }
 
@@ -204,12 +207,15 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   };
 
   const handleSubmit = async () => {
+    if (saving) return;
+
     const missing = config.fields.find((field) => field.required && !String(formData[field.key] ?? '').trim());
     if (missing) {
       toast.error('Uzupełnij wymagane pole', { description: missing.label });
       return;
     }
 
+    setSaving(true);
     const payload: DbRow = { ...(config.defaultInsert || {}) };
 
     try {
@@ -221,6 +227,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
         }
       }
     } catch (error) {
+      setSaving(false);
       toast.error('Błąd przesyłania zdjęcia', {
         description: error instanceof Error ? error.message : 'Nie udało się przesłać zdjęcia.',
       });
@@ -242,6 +249,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       : await (supabase as any).from(config.table).insert([payload]);
 
     if (result.error) {
+      setSaving(false);
       toast.error('Błąd zapisu', { description: result.error.message });
       return;
     }
@@ -249,6 +257,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     toast.success(editingRow ? 'Zapisano zmiany' : 'Dodano pozycję');
     setDialogOpen(false);
     resetForm();
+    setSaving(false);
     fetchRows();
   };
 
@@ -285,7 +294,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
             <RefreshCw className="w-4 h-4 mr-2" /> Odśwież
           </Button>
           {!config.readOnly && (
-            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+            <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open && saving) return; setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
                 <Button className="bg-gradient-primary hover:shadow-glow"><Plus className="w-4 h-4 mr-2" />{config.addLabel || 'Dodaj'}</Button>
               </DialogTrigger>
@@ -358,8 +367,8 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                   ))}
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <Button onClick={handleSubmit} className="flex-1 bg-gradient-primary hover:shadow-glow"><CheckCircle2 className="w-4 h-4 mr-2" />Zapisz</Button>
-                  <Button variant="outline" onClick={() => setDialogOpen(false)}>Anuluj</Button>
+                  <Button onClick={handleSubmit} disabled={saving} className="flex-1 bg-gradient-primary hover:shadow-glow"><CheckCircle2 className="w-4 h-4 mr-2" />{saving ? 'Zapisywanie...' : 'Zapisz'}</Button>
+                  <Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>Anuluj</Button>
                 </div>
               </DialogContent>
             </Dialog>

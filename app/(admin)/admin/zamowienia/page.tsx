@@ -342,15 +342,16 @@ export default function AdminOrdersPage() {
 
       {/* Quote Dialog */}
       <Dialog open={quoteDialog} onOpenChange={setQuoteDialog}>
-        <DialogContent className="bg-card border-border max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-hidden border-border bg-card p-0">
+          <DialogHeader className="border-b border-border px-6 pb-4 pt-6">
             <DialogTitle className="text-foreground">
               {selectedOrder?.status === 'new' ? 'Wycena' : 'Szczegóły zamówienia'}
             </DialogTitle>
           </DialogHeader>
 
           {selectedOrder && (
-            <div className="space-y-6">
+            <>
+            <div className="max-h-[calc(100dvh-10rem)] space-y-6 overflow-y-auto px-6 py-4">
               {/* Order Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 bg-secondary rounded-lg">
@@ -474,27 +475,27 @@ export default function AdminOrdersPage() {
                 </div>
               )}
 
-              {/* Actions */}
-              <div className="flex gap-3">
-                {selectedOrder.status === 'new' && (
-                  <Button
-                    onClick={submitQuote}
-                    disabled={submittingQuote}
-                    className="flex-1 bg-gradient-primary hover:shadow-glow"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    {submittingQuote ? 'Zapisywanie...' : 'Wyślij wycenę'}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={() => setQuoteDialog(false)}
-                  className="flex-1"
-                >
-                  Zamknij
-                </Button>
-              </div>
             </div>
+            <div className="flex flex-col-reverse gap-3 border-t border-border bg-card px-6 py-4 sm:flex-row">
+              <Button
+                variant="outline"
+                onClick={() => setQuoteDialog(false)}
+                className="flex-1"
+              >
+                Zamknij
+              </Button>
+              {selectedOrder.status === 'new' && (
+                <Button
+                  onClick={submitQuote}
+                  disabled={submittingQuote}
+                  className="flex-1 bg-gradient-primary hover:shadow-glow"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {submittingQuote ? 'Zapisywanie...' : 'Wyślij wycenę'}
+                </Button>
+              )}
+            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

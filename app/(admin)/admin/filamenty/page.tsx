@@ -263,13 +263,13 @@ export default function AdminFilamentsPage() {
                 Dodaj filament
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border max-w-lg">
-              <DialogHeader>
+            <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-hidden border-border bg-card p-0">
+              <DialogHeader className="border-b border-border px-6 pb-4 pt-6">
                 <DialogTitle className="text-foreground">
                   {editingFilament ? 'Edytuj filament' : 'Dodaj nowy filament'}
                 </DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 mt-4">
+              <div className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto px-6 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="form-label">Marka</label>
@@ -395,18 +395,18 @@ export default function AdminFilamentsPage() {
                   />
                 </div>
 
-                <div className="flex gap-3">
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={saving}
-                    className="flex-1 bg-gradient-primary hover:shadow-glow"
-                  >
-                    {saving ? 'Zapisywanie...' : editingFilament ? 'Zapisz zmiany' : 'Dodaj filament'}
-                  </Button>
-                  <Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>
-                    Anuluj
-                  </Button>
-                </div>
+              </div>
+              <div className="flex flex-col-reverse gap-3 border-t border-border bg-card px-6 py-4 sm:flex-row">
+                <Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)} className="sm:w-auto">
+                  Anuluj
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={saving}
+                  className="flex-1 bg-gradient-primary hover:shadow-glow"
+                >
+                  {saving ? 'Zapisywanie...' : editingFilament ? 'Zapisz zmiany' : 'Dodaj filament'}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>

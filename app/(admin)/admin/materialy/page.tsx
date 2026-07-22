@@ -249,9 +249,9 @@ export default function AdminMaterialsPage() {
           <Button onClick={fetchMaterials} disabled={loading} variant="outline" size="sm"><RefreshCw className="w-4 h-4 mr-2" />Odśwież</Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild><Button className="bg-gradient-primary hover:shadow-glow"><Plus className="w-4 h-4 mr-2" />Dodaj materiał</Button></DialogTrigger>
-            <DialogContent className="bg-card border-border max-w-xl">
-              <DialogHeader><DialogTitle>{editingMaterial ? 'Edytuj materiał' : 'Dodaj materiał do wyceny'}</DialogTitle></DialogHeader>
-              <div className="space-y-4 mt-4">
+            <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-xl overflow-hidden border-border bg-card p-0">
+              <DialogHeader className="border-b border-border px-6 pb-4 pt-6"><DialogTitle>{editingMaterial ? 'Edytuj materiał' : 'Dodaj materiał do wyceny'}</DialogTitle></DialogHeader>
+              <div className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto px-6 py-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><label className="form-label">Rodzaj materiału *</label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="PLA, PETG, ABS..." className="h-11 bg-secondary border-border" /></div>
                   <div className="space-y-2"><label className="form-label">Cena z kilograma (zł/kg) *</label><Input type="number" step="0.01" min="0" value={formData.price_per_kg} onChange={(e) => setFormData({ ...formData, price_per_kg: e.target.value })} className="h-11 bg-secondary border-border" /></div>
@@ -282,8 +282,8 @@ export default function AdminMaterialsPage() {
                   <div className="space-y-2"><label className="form-label">Stół min °C</label><Input type="number" value={formData.bed_temp_min} onChange={(e) => setFormData({ ...formData, bed_temp_min: e.target.value })} className="h-11 bg-secondary border-border" /></div>
                   <div className="space-y-2"><label className="form-label">Stół max °C</label><Input type="number" value={formData.bed_temp_max} onChange={(e) => setFormData({ ...formData, bed_temp_max: e.target.value })} className="h-11 bg-secondary border-border" /></div>
                 </div>
-                <div className="flex gap-3"><Button onClick={handleSubmit} disabled={saving} className="flex-1 bg-gradient-primary hover:shadow-glow">{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{saving ? 'Zapisywanie...' : editingMaterial ? 'Zapisz zmiany' : 'Dodaj materiał'}</Button><Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>Anuluj</Button></div>
               </div>
+              <div className="flex flex-col-reverse gap-3 border-t border-border bg-card px-6 py-4 sm:flex-row"><Button variant="outline" disabled={saving} onClick={() => setDialogOpen(false)} className="sm:w-auto">Anuluj</Button><Button onClick={handleSubmit} disabled={saving} className="flex-1 bg-gradient-primary hover:shadow-glow">{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{saving ? 'Zapisywanie...' : editingMaterial ? 'Zapisz zmiany' : 'Dodaj materiał'}</Button></div>
             </DialogContent>
           </Dialog>
         </div>

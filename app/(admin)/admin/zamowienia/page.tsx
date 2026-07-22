@@ -54,6 +54,11 @@ const statusOptions = [
   { value: 'cancelled', label: 'Anulowane' },
 ];
 
+function parseDecimal(value: string) {
+  const number = Number(value.replace(',', '.'));
+  return Number.isFinite(number) ? number : NaN;
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order3D[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,9 +140,9 @@ export default function AdminOrdersPage() {
   const submitQuote = async () => {
     if (!selectedOrder) return;
 
-    const printingTime = Number(quoteForm.printing_time_hours);
-    const filamentWeight = Number(quoteForm.filament_used_grams);
-    const finalPrice = Number(quoteForm.final_price);
+    const printingTime = parseDecimal(quoteForm.printing_time_hours);
+    const filamentWeight = parseDecimal(quoteForm.filament_used_grams);
+    const finalPrice = parseDecimal(quoteForm.final_price);
     if (!Number.isFinite(printingTime) || printingTime <= 0 || !Number.isFinite(filamentWeight) || filamentWeight <= 0 || !Number.isFinite(finalPrice) || finalPrice <= 0) {
       toast.error('Uzupełnij wycenę', { description: 'Czas druku, ilość filamentu i cena muszą być większe od zera.' });
       return;

@@ -427,7 +427,7 @@ function ProductCard({
   viewMode: 'grid' | 'list';
 }) {
   const { addToCart } = useCart();
-  const images = product.images as string[] || [];
+  const images = Array.isArray(product.images) ? product.images as string[] : [];
   const mainImage = images[0] || null;
   const canAddToCart = canAddProductToCart(product);
   const addProductToCart = (event: MouseEvent) => {

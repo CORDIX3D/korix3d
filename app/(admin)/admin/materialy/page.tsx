@@ -23,6 +23,11 @@ function parseDecimal(value: string) {
   return Number.isFinite(number) ? number : NaN;
 }
 
+function parseOptionalDecimal(value: string) {
+  if (!value.trim()) return null;
+  return parseDecimal(value);
+}
+
 export default function AdminMaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [colors, setColors] = useState<MaterialColor[]>([]);
@@ -157,6 +162,27 @@ export default function AdminMaterialsPage() {
     const pricePerKg = parseDecimal(formData.price_per_kg);
     if (!name || !colorName || !Number.isFinite(pricePerKg) || pricePerKg <= 0) {
       toast.error('Uzupełnij rodzaj materiału, kolor i cenę z kilograma');
+      return;
+    }
+
+    const printTempMin = parseOptionalDecimal(formData.print_temp_min);
+    const printTempMax = parseOptionalDecimal(formData.print_temp_max);
+    const bedTempMin = parseOptionalDecimal(formData.bed_temp_min);
+    const bedTempMax = parseOptionalDecimal(formData.bed_temp_max);
+    if (
+      [printTempMin, printTempMax, bedTempMin, bedTempMax].some(
+        (value) => value !== null && !Number.isFinite(value)
+      )
+    ) {
+      toast.error('Sprawdź temperatury', { description: 'Pola temperatur muszą być liczbami albo pozostać puste.' });
+      return;
+    }
+
+    if (
+      (printTempMin !== null && printTempMax !== null && printTempMin > printTempMax) ||
+      (bedTempMin !== null && bedTempMax !== null && bedTempMin > bedTempMax)
+    ) {
+      toast.error('Sprawdź zakres temperatur', { description: 'Temperatura minimalna nie może być większa od maksymalnej.' });
       return;
     }
 

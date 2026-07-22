@@ -20,6 +20,14 @@ function normalizeHex(value: string) {
   return /^#[0-9a-f]{6}$/i.test(hex) ? hex : '#ffffff';
 }
 
+function validateTemperatureRange(min: number | null, max: number | null, label: string) {
+  if (min !== null && max !== null && min > max) {
+    return `${label}: temperatura minimalna nie może być większa od maksymalnej.`;
+  }
+
+  return null;
+}
+
 function slugify(value: string) {
   return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
@@ -45,6 +53,17 @@ export async function POST(request: NextRequest) {
     const price = requiredPositiveNumber(form.get('price_per_kg'));
     if (!name || !colorName || !price) {
       return NextResponse.json({ error: 'Uzupełnij rodzaj materiału, kolor i prawidłową cenę.' }, { status: 400 });
+    }
+
+    const printTempMin = optionalNumber(form.get('print_temp_min'));
+    const printTempMax = optionalNumber(form.get('print_temp_max'));
+    const bedTempMin = optionalNumber(form.get('bed_temp_min'));
+    const bedTempMax = optionalNumber(form.get('bed_temp_max'));
+    const temperatureError =
+      validateTemperatureRange(printTempMin, printTempMax, 'Dysza') ||
+      validateTemperatureRange(bedTempMin, bedTempMax, 'Stół');
+    if (temperatureError) {
+      return NextResponse.json({ error: temperatureError }, { status: 400 });
     }
 
     let imageUrl = String(form.get('existing_image_url') || '').trim() || null;
@@ -80,10 +99,10 @@ export async function POST(request: NextRequest) {
       description: String(form.get('description') || '').trim() || null,
       price_per_kg: price,
       image_url: imageUrl,
-      print_temp_min: optionalNumber(form.get('print_temp_min')),
-      print_temp_max: optionalNumber(form.get('print_temp_max')),
-      bed_temp_min: optionalNumber(form.get('bed_temp_min')),
-      bed_temp_max: optionalNumber(form.get('bed_temp_max')),
+      print_temp_min: printTempMin,
+      print_temp_max: printTempMax,
+      bed_temp_min: bedTempMin,
+      bed_temp_max: bedTempMax,
       available: true,
       updated_at: new Date().toISOString(),
     };

@@ -4,6 +4,10 @@ import { generateAccountingReport } from '@/lib/accounting/report-generator';
 
 export const dynamic = 'force-dynamic';
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : '';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -25,9 +29,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { year, month } = body;
+    const year = Number(body.year);
+    const month = Number(body.month);
 
-    if (!year || !month) {
+    if (!Number.isInteger(year) || !Number.isInteger(month)) {
       return NextResponse.json(
         { error: 'Brak roku lub miesiąca' },
         { status: 400 }
@@ -58,12 +63,14 @@ export async function POST(request: NextRequest) {
       report: result
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error generating report:', error);
 
-    if (error.message?.includes('już istnieje')) {
+    const message = getErrorMessage(error);
+
+    if (message.includes('już istnieje')) {
       return NextResponse.json(
-        { error: error.message },
+        { error: message },
         { status: 409 }
       );
     }

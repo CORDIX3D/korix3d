@@ -4,6 +4,16 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function sanitizeDownloadFileName(fileName: unknown) {
+  if (typeof fileName !== 'string') {
+    return 'raport-ksiegowy.xlsx';
+  }
+
+  return fileName.replace(/["\\/\r\n]/g, '').trim() || 'raport-ksiegowy.xlsx';
+}
+
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,7 +48,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const reportId = searchParams.get('id');
 
-    if (!reportId) {
+    if (!reportId || !UUID_REGEX.test(reportId)) {
       return NextResponse.json({ error: 'Brak ID raportu' }, { status: 400 });
     }
 
@@ -71,7 +81,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${report.file_name}"`,
+        'Content-Disposition': `attachment; filename="${sanitizeDownloadFileName(report.file_name)}"`,
         'Content-Length': arrayBuffer.byteLength.toString()
       }
     });

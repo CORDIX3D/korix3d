@@ -18,6 +18,11 @@ import { Material, MaterialColor } from '@/lib/types/database';
 import { toast } from 'sonner';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
+function parseDecimal(value: string) {
+  const number = Number(value.replace(',', '.'));
+  return Number.isFinite(number) ? number : NaN;
+}
+
 export default function AdminMaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [colors, setColors] = useState<MaterialColor[]>([]);
@@ -149,7 +154,7 @@ export default function AdminMaterialsPage() {
 
     const name = formData.name.trim();
     const colorName = formData.color_name.trim();
-    const pricePerKg = Number(formData.price_per_kg);
+    const pricePerKg = parseDecimal(formData.price_per_kg);
     if (!name || !colorName || !Number.isFinite(pricePerKg) || pricePerKg <= 0) {
       toast.error('Uzupełnij rodzaj materiału, kolor i cenę z kilograma');
       return;

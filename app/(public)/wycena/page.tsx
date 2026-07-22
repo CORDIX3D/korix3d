@@ -34,9 +34,7 @@ import { toast } from 'sonner';
 const quoteSchema = z.object({
   material_id: z.string().min(1, 'Wybierz materiał'),
   color: z.string().min(1, 'Wybierz kolor'),
-  layer_height: z.enum(['0.1', '0.2', '0.3']),
   infill: z.enum(['10', '20', '30', '50', '80', '100']),
-  quality: z.enum(['standard', 'high', 'ultra']),
   quantity: z.number({ invalid_type_error: 'Podaj liczbę sztuk' }).int('Ilość musi być liczbą całkowitą').min(1, 'Minimalna ilość to 1').max(1000, 'Maksymalna ilość to 1000'),
   priority: z.enum(['standard', 'express', 'urgent']),
   notes: z.string().trim().max(2000, 'Uwagi mogą mieć maksymalnie 2000 znaków').optional(),
@@ -44,12 +42,6 @@ const quoteSchema = z.object({
 });
 
 type QuoteFormValues = z.infer<typeof quoteSchema>;
-
-const layerHeightOptions = [
-  { value: '0.3', label: '0.3mm - Szybki', description: 'Mniej szczegółów, niższa cena' },
-  { value: '0.2', label: '0.2mm - Standard', description: 'Zbalansowana jakość i czas' },
-  { value: '0.1', label: '0.1mm - Wysoka jakość', description: 'Maksymalne detale' },
-];
 
 const infillOptions = [
   { value: '10', label: '10%', description: 'Bardzo lekki, niska wytrzymałość' },
@@ -98,9 +90,7 @@ export default function QuotePage() {
   } = useForm<QuoteFormValues>({
     resolver: zodResolver(quoteSchema),
     defaultValues: {
-      layer_height: '0.2',
       infill: '20',
-      quality: 'standard',
       quantity: 1,
       priority: 'standard',
       delivery_type: 'courier',
@@ -266,7 +256,6 @@ export default function QuotePage() {
       const selectedColor = colors.find((color) => color.id === data.color);
       const configurationNotes = [
         `Wypełnienie: ${data.infill}%`,
-        `Jakość: ${data.quality}`,
         `Dostawa: ${deliveryLabel ?? data.delivery_type}`,
         data.notes,
       ].filter(Boolean).join('\n');
@@ -280,7 +269,7 @@ export default function QuotePage() {
         material_name: materialName,
         color: selectedColor?.name || 'Do ustalenia',
         color_hex: selectedColor?.hex,
-        layer_height: parseFloat(data.layer_height),
+        layer_height: 0.2,
         quantity: data.quantity,
         priority: data.priority,
         notes: configurationNotes,
@@ -718,28 +707,6 @@ export default function QuotePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Layer Height */}
-                <div className="space-y-2">
-                  <label className="form-label">Wysokość warstwy</label>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {layerHeightOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setValue('layer_height', option.value as any)}
-                        className={`p-4 rounded-xl border text-left transition-all ${
-                          watch('layer_height') === option.value
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <p className="font-semibold text-foreground">{option.label}</p>
-                        <p className="text-sm text-muted-foreground">{option.description}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Infill */}
                 <div className="space-y-2">
                   <label className="form-label">Wypełnienie (Infill)</label>
@@ -882,9 +849,7 @@ export default function QuotePage() {
                       <h4 className="text-sm font-medium text-muted-foreground mb-2">
                         Parametry
                       </h4>
-                      <p className="text-foreground">
-                        Warstwa: {watch('layer_height')}mm • Wypełnienie: {watch('infill')}%
-                      </p>
+                      <p className="text-foreground">Wypełnienie: {watch('infill')}%</p>
                       <p className="text-foreground">Ilość: {watchQuantity} szt.</p>
                     </div>
                   </div>

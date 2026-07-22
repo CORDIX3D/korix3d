@@ -145,16 +145,31 @@ export default function QuotePage() {
 
     try {
       const { data, error } = await supabase
-        .from('material_colors')
-        .select('*')
+        .from('filaments')
+        .select('id, brand, color, color_hex, price_per_kg, remaining_weight_grams')
         .eq('material_id', materialId)
-        .eq('available', true);
+        .eq('active', true)
+        .gt('remaining_weight_grams', 0)
+        .order('color');
 
       if (error) {
         setColors([]);
         setColorsError('Nie udało się pobrać kolorów dla wybranego materiału.');
       } else {
-        setColors(data || []);
+        setColors((data || []).map((filament: {
+          id: string;
+          brand: string | null;
+          color: string;
+          color_hex: string | null;
+          price_per_kg: number | null;
+          remaining_weight_grams: number;
+        }) => ({
+          id: filament.id,
+          name: `${filament.color}${filament.brand ? ` (${filament.brand})` : ''}`,
+          hex: filament.color_hex || '#ffffff',
+          price_per_kg: filament.price_per_kg,
+          remaining_weight_grams: filament.remaining_weight_grams,
+        })));
       }
     } catch {
       setColors([]);

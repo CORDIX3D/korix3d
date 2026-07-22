@@ -346,6 +346,8 @@ export interface Database {
           material_name: string;
           color: string;
           color_hex: string | null;
+          image_url: string | null;
+          price_per_kg: number | null;
           remaining_weight_grams: number;
           original_weight_grams: number | null;
           price_paid: number | null;
@@ -365,6 +367,8 @@ export interface Database {
           material_name: string;
           color: string;
           color_hex?: string | null;
+          image_url?: string | null;
+          price_per_kg?: number | null;
           remaining_weight_grams?: number;
           original_weight_grams?: number | null;
           price_paid?: number | null;
@@ -384,6 +388,8 @@ export interface Database {
           material_name?: string;
           color?: string;
           color_hex?: string | null;
+          image_url?: string | null;
+          price_per_kg?: number | null;
           remaining_weight_grams?: number;
           original_weight_grams?: number | null;
           price_paid?: number | null;

@@ -64,7 +64,7 @@ const adminNav = [
     items: [
       { name: 'Produkty', href: '/admin/produkty', icon: Package },
       { name: 'Kategorie', href: '/admin/produkty/kategorie', icon: Tag },
-      { name: 'Materiały i kolory', href: '/admin/materialy', icon: Box },
+      { name: 'Materiały', href: '/admin/materialy', icon: Box },
     ],
   },
   {

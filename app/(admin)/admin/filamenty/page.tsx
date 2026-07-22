@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,11 +30,13 @@ import {
   Weight,
   MapPin,
   RefreshCw,
+  ImagePlus,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { Filament, Material } from '@/lib/types/database';
 import { toast } from 'sonner';
 import { PanelError } from '@/components/customer/panel-state';
+import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export default function AdminFilamentsPage() {
   const [filaments, setFilaments] = useState<Filament[]>([]);
@@ -46,12 +48,16 @@ export default function AdminFilamentsPage() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFilament, setEditingFilament] = useState<Filament | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [formData, setFormData] = useState({
     brand: '',
     material_id: '',
     material_name: '',
     color: '',
     color_hex: '#FFFFFF',
+    image_url: '',
+    price_per_kg: '',
     original_weight_grams: '1000',
     remaining_weight_grams: '1000',
     price_paid: '',
@@ -66,6 +72,48 @@ export default function AdminFilamentsPage() {
     // Wyszukiwanie jest zatwierdzane przyciskiem, a nie przy każdym znaku.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Wybierz plik graficzny');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Zdjęcie jest za duże', { description: 'Maksymalny rozmiar pliku to 5 MB.' });
+      return;
+    }
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImageFile(null);
+    setImagePreview('');
+    setFormData((current) => ({ ...current, image_url: '' }));
+  };
+
+  const uploadImage = async (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const fileName = `filaments/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from('product-images').upload(fileName, file, {
+      cacheControl: '3600',
+      contentType: file.type,
+      upsert: false,
+    });
+    if (error) throw error;
+    return supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl;
+  };
 
   const fetchFilaments = async () => {
     setLoading(true);
@@ -116,6 +164,7 @@ export default function AdminFilamentsPage() {
     const originalWeight = Number(formData.original_weight_grams);
     const remainingWeight = Number(formData.remaining_weight_grams);
     const minimumWeight = Number(formData.min_weight_grams);
+    const pricePerKg = formData.price_per_kg ? Number(formData.price_per_kg.replace(',', '.')) : null;
     if (!formData.brand.trim() || !formData.material_name.trim() || !formData.color.trim()) {
       toast.error('Uzupełnij wymagane pola', { description: 'Marka, materiał i kolor są wymagane.' });
       return;
@@ -124,23 +173,29 @@ export default function AdminFilamentsPage() {
       toast.error('Nieprawidłowa waga', { description: 'Sprawdź wagę początkową, pozostałą oraz próg minimalny.' });
       return;
     }
-    const data = {
-      brand: formData.brand.trim(),
-      material_id: formData.material_id || null,
-      material_name: formData.material_name,
-      color: formData.color,
-      color_hex: formData.color_hex,
-      original_weight_grams: originalWeight,
-      remaining_weight_grams: remainingWeight,
-      price_paid: formData.price_paid ? parseFloat(formData.price_paid) : null,
-      min_weight_grams: minimumWeight,
-      location: formData.location || null,
-      notes: formData.notes || null,
-      active: true,
-    };
-
+    if (pricePerKg !== null && (!Number.isFinite(pricePerKg) || pricePerKg < 0)) {
+      toast.error('Nieprawidłowa cena', { description: 'Cena z kilograma musi być liczbą większą lub równą 0 albo pozostać pusta.' });
+      return;
+    }
     setSaving(true);
     try {
+      const imageUrl = imageFile ? await uploadImage(imageFile) : formData.image_url || null;
+      const data = {
+        brand: formData.brand.trim(),
+        material_id: formData.material_id || null,
+        material_name: formData.material_name,
+        color: formData.color,
+        color_hex: formData.color_hex,
+        image_url: imageUrl,
+        price_per_kg: pricePerKg,
+        original_weight_grams: originalWeight,
+        remaining_weight_grams: remainingWeight,
+        price_paid: formData.price_paid ? parseFloat(formData.price_paid) : null,
+        min_weight_grams: minimumWeight,
+        location: formData.location || null,
+        notes: formData.notes || null,
+        active: true,
+      };
       let error;
       if (editingFilament) {
         const result = await supabase
@@ -175,6 +230,8 @@ export default function AdminFilamentsPage() {
       material_name: '',
       color: '',
       color_hex: '#FFFFFF',
+      image_url: '',
+      price_per_kg: '',
       original_weight_grams: '1000',
       remaining_weight_grams: '1000',
       price_paid: '',
@@ -182,6 +239,8 @@ export default function AdminFilamentsPage() {
       location: '',
       notes: '',
     });
+    setImageFile(null);
+    setImagePreview('');
     setEditingFilament(null);
   };
 
@@ -193,6 +252,8 @@ export default function AdminFilamentsPage() {
       material_name: filament.material_name,
       color: filament.color,
       color_hex: filament.color_hex || '#FFFFFF',
+      image_url: filament.image_url || '',
+      price_per_kg: filament.price_per_kg?.toString() || '',
       original_weight_grams: filament.original_weight_grams?.toString() || '1000',
       remaining_weight_grams: filament.remaining_weight_grams.toString(),
       price_paid: filament.price_paid?.toString() || '',
@@ -200,6 +261,8 @@ export default function AdminFilamentsPage() {
       location: filament.location || '',
       notes: filament.notes || '',
     });
+    setImageFile(null);
+    setImagePreview(filament.image_url || '');
     setDialogOpen(true);
   };
 
@@ -366,6 +429,19 @@ export default function AdminFilamentsPage() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <label className="form-label">Cena z kilograma (zł/kg)</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.price_per_kg}
+                      onChange={(e) => setFormData({ ...formData, price_per_kg: e.target.value })}
+                      className="h-11 bg-secondary border-border"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <label className="form-label">Alarm przy (g)</label>
                     <Input
                       type="number"
@@ -374,6 +450,35 @@ export default function AdminFilamentsPage() {
                       className="h-11 bg-secondary border-border"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="form-label">Fotografia filamentu</label>
+                  {imagePreview ? (
+                    <div className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center">
+                      <OptimizedImage src={imagePreview} alt="Podgląd filamentu" className="h-24 w-24 rounded-md border object-cover" sizes="96px" />
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" asChild>
+                          <label className="cursor-pointer">
+                            <ImagePlus className="mr-2 h-4 w-4" />
+                            Zmień zdjęcie
+                            <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                          </label>
+                        </Button>
+                        <Button type="button" variant="outline" onClick={removeImage}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Usuń
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-5 text-center transition-colors hover:bg-muted/50">
+                      <ImagePlus className="h-8 w-8 text-muted-foreground" />
+                      <span className="font-medium">Wybierz zdjęcie z urządzenia</span>
+                      <span className="text-xs text-muted-foreground">JPG, PNG lub WebP do 5 MB</span>
+                      <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                    </label>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -528,10 +633,14 @@ export default function AdminFilamentsPage() {
                 <CardContent className="p-4">
                   {/* Color indicator */}
                   <div className="flex items-start justify-between mb-4">
-                    <div
-                      className="w-12 h-12 rounded-xl border border-border"
-                      style={{ backgroundColor: filament.color_hex || '#FFFFFF' }}
-                    />
+                    {filament.image_url ? (
+                      <OptimizedImage src={filament.image_url} alt={`${filament.brand} ${filament.color}`} className="h-12 w-12 rounded-xl border object-cover" sizes="48px" />
+                    ) : (
+                      <div
+                        className="w-12 h-12 rounded-xl border border-border"
+                        style={{ backgroundColor: filament.color_hex || '#FFFFFF' }}
+                      />
+                    )}
                     {isLow && (
                       <AlertTriangle className="w-5 h-5 text-red-400" />
                     )}
@@ -543,6 +652,9 @@ export default function AdminFilamentsPage() {
                       {filament.brand} - {filament.color}
                     </h3>
                     <p className="text-sm text-muted-foreground">{filament.material_name}</p>
+                    {filament.price_per_kg !== null && filament.price_per_kg !== undefined && (
+                      <p className="mt-1 text-sm font-medium text-primary">{Number(filament.price_per_kg).toFixed(2)} zł/kg</p>
+                    )}
                   </div>
 
                   {/* Weight progress */}

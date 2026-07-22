@@ -4,6 +4,9 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+const ACCOUNTING_REPORT_STATUSES = ['generating', 'generated', 'sent', 'failed'] as const;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,6 +48,10 @@ export async function GET(request: NextRequest) {
 
     if (parsedYear !== undefined && (!Number.isInteger(parsedYear) || parsedYear < 2020 || parsedYear > new Date().getFullYear() + 1)) {
       return NextResponse.json({ error: 'Nieprawidłowy rok raportu' }, { status: 400 });
+    }
+
+    if (status && !ACCOUNTING_REPORT_STATUSES.includes(status as typeof ACCOUNTING_REPORT_STATUSES[number])) {
+      return NextResponse.json({ error: 'Nieprawidłowy status raportu' }, { status: 400 });
     }
 
     let query = supabaseAdmin
@@ -98,7 +105,7 @@ export async function DELETE(request: NextRequest) {
 
     const { reportId } = await request.json();
 
-    if (!reportId) {
+    if (typeof reportId !== 'string' || !UUID_REGEX.test(reportId)) {
       return NextResponse.json({ error: 'Brak ID raportu' }, { status: 400 });
     }
 

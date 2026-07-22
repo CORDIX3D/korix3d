@@ -276,7 +276,7 @@ export default function AdminFilamentsPage() {
                     <Input
                       value={formData.brand}
                       onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                      placeholder="e.g. eSUN, Polymaker"
+                      placeholder="np. eSUN, Polymaker"
                       className="h-11 bg-secondary border-border"
                     />
                   </div>
@@ -313,7 +313,7 @@ export default function AdminFilamentsPage() {
                     <Input
                       value={formData.color}
                       onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                      placeholder="e.g. Czerwony"
+                      placeholder="np. Czerwony"
                       className="h-11 bg-secondary border-border"
                     />
                   </div>
@@ -381,7 +381,7 @@ export default function AdminFilamentsPage() {
                   <Input
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="e.g. Półka A1"
+                    placeholder="np. Półka A1"
                     className="h-11 bg-secondary border-border"
                   />
                 </div>

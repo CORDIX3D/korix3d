@@ -10,7 +10,10 @@ export default function Page() {
         orderBy: 'created_at',
         addLabel: 'Dodaj metodę dostawy',
         searchKeys: ['key', 'label', 'value'],
-        filters: [{ field: 'category', operator: 'eq', value: 'shipping' }],
+        filters: [
+          { field: 'category', operator: 'eq', value: 'shipping' },
+          { field: 'key', operator: 'neq', value: 'free_shipping_threshold' },
+        ],
         fields: [
           { key: 'key', label: 'Klucz', required: true, placeholder: 'np. courier_price, paczkomat_price, pickup_price' },
           { key: 'label', label: 'Nazwa dla klienta', required: true, placeholder: 'np. Kurier InPost' },

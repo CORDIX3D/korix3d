@@ -45,7 +45,7 @@ export type AdminCrudConfig = {
   allowCreate?: boolean;
   filters?: Array<{
     field: string;
-    operator?: 'eq' | 'in';
+    operator?: 'eq' | 'in' | 'neq';
     value: unknown;
   }>;
 };
@@ -129,9 +129,13 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     try {
       let query = (supabase as any).from(config.table).select('*');
       for (const filter of config.filters || []) {
-        query = filter.operator === 'in'
-          ? query.in(filter.field, filter.value)
-          : query.eq(filter.field, filter.value);
+        if (filter.operator === 'in') {
+          query = query.in(filter.field, filter.value);
+        } else if (filter.operator === 'neq') {
+          query = query.neq(filter.field, filter.value);
+        } else {
+          query = query.eq(filter.field, filter.value);
+        }
       }
       if (config.orderBy) query = query.order(config.orderBy, { ascending: false });
       const { data, error } = await query;

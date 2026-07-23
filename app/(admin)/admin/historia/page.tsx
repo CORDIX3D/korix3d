@@ -27,7 +27,7 @@ const moduleNames: Record<string, string> = {
   warehouse_items: 'Magazyn',
   filaments: 'Filamenty',
   materials: 'Materiały',
-  material_colors: 'Kolory materiałów',
+  material_colors: 'Kolory materiałów (archiwum)',
   products: 'Produkty',
   categories: 'Kategorie',
   orders_3d: 'Zamówienia 3D',
@@ -150,7 +150,7 @@ export default function AdminHistoryPage() {
             Historia zmian
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Edycje magazynu i pozostałych modułów wraz z informacją, kto je wykonał.
+            Edycje magazynu i pozostałych modułów wraz z informacją, kto je wykonał. Nowe kolory materiałów są rejestrowane przy filamentach.
           </p>
         </div>
         <Button variant="outline" onClick={loadHistory} disabled={loading}>

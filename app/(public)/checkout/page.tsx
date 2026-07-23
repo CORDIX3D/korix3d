@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, CheckCircle2, Loader2, Package, ShoppingCart, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCart } from '@/lib/cart-provider';
 import { OptimizedImage } from '@/components/ui/optimized-image';
+import { supabase } from '@/lib/supabase/client';
+
+type DeliveryOption = { value: string; label: string; price: number };
+
+const defaultDeliveryOptions: DeliveryOption[] = [
+  { value: 'pickup', label: 'Odbiór osobisty', price: 0 },
+  { value: 'courier', label: 'Kurier', price: 15 },
+  { value: 'paczkomat', label: 'Paczkomat', price: 12 },
+];
+
+const ignoredShippingSettingKeys = new Set(['free_shipping_threshold']);
 
 function normalizeCheckoutError(message: string) {
   const lower = message.toLowerCase();
@@ -29,6 +40,51 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(defaultDeliveryOptions);
+  const [deliveryType, setDeliveryType] = useState(defaultDeliveryOptions[0].value);
+  const [deliveryError, setDeliveryError] = useState('');
+  const selectedDelivery = deliveryOptions.find((option) => option.value === deliveryType) || deliveryOptions[0];
+  const total = subtotal + (selectedDelivery?.price || 0);
+
+  const fetchDeliveryOptions = useCallback(async () => {
+    setDeliveryError('');
+
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('key, label, value')
+        .eq('category', 'shipping')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const options = (data || [])
+        .filter((setting: { key: string | null }) => setting.key && !ignoredShippingSettingKeys.has(setting.key))
+        .map((setting: { key: string; label: string | null; value: string | number | null }) => {
+          const price = Number(String(setting.value ?? '0').replace(',', '.'));
+          return {
+            value: setting.key.replace(/_price$/, ''),
+            label: setting.label || setting.key.replace(/_/g, ' '),
+            price: Number.isFinite(price) ? price : 0,
+          };
+        });
+
+      setDeliveryOptions(options.length > 0 ? options : defaultDeliveryOptions);
+    } catch {
+      setDeliveryOptions(defaultDeliveryOptions);
+      setDeliveryError('Nie udało się pobrać aktualnych metod dostawy. Pokazujemy domyślne opcje.');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDeliveryOptions();
+  }, [fetchDeliveryOptions]);
+
+  useEffect(() => {
+    if (deliveryOptions.length > 0 && !deliveryOptions.some((option) => option.value === deliveryType)) {
+      setDeliveryType(deliveryOptions[0].value);
+    }
+  }, [deliveryOptions, deliveryType]);
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -68,6 +124,7 @@ export default function CheckoutPage() {
             city: form.get('city'),
             country: 'PL',
           },
+          deliveryType,
           items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
         }),
       });
@@ -201,6 +258,36 @@ export default function CheckoutPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Metoda dostawy</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {deliveryError && (
+                <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-muted-foreground">
+                  {deliveryError}
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-3">
+                {deliveryOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setDeliveryType(option.value)}
+                    className={`rounded-xl border p-4 text-left transition-all ${
+                      deliveryType === option.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <p className="font-semibold">{option.label}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {option.price === 0 ? 'Gratis' : `${option.price.toFixed(2)} zł`}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <Card className="h-fit lg:sticky lg:top-24">
@@ -234,8 +321,18 @@ export default function CheckoutPage() {
               <strong className="text-xl">{subtotal.toFixed(2)} zł</strong>
             </div>
 
+            <div className="flex items-center justify-between">
+              <span>Dostawa</span>
+              <strong>{selectedDelivery?.price === 0 ? 'Gratis' : `${(selectedDelivery?.price || 0).toFixed(2)} zł`}</strong>
+            </div>
+
+            <div className="flex items-center justify-between border-t pt-5">
+              <span>Razem</span>
+              <strong className="text-2xl">{total.toFixed(2)} zł</strong>
+            </div>
+
             <div className="rounded-lg bg-primary/10 p-3 text-xs text-muted-foreground">
-              Koszt dostawy i dane do płatności potwierdzimy przed realizacją. Nie pobieramy teraz danych karty.
+              Dane do płatności potwierdzimy przed realizacją. Nie pobieramy teraz danych karty.
             </div>
 
             {error && (

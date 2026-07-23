@@ -17,11 +17,14 @@ const orderSchema = z.object({
     city: z.string().trim().min(2).max(100),
     country: z.literal('PL'),
   }),
+  deliveryType: z.string().trim().min(1).max(80),
   items: z.array(z.object({
     id: z.string().uuid(),
     quantity: z.number().int().min(1).max(99),
   })).min(1).max(50),
 });
+
+const ignoredShippingSettingKeys = new Set(['free_shipping_threshold']);
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,6 +49,37 @@ export async function POST(request: NextRequest) {
     const orderNumber = `SK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
+    const { data: shippingSettings, error: shippingError } = await admin
+      .from('settings')
+      .select('key, label, value')
+      .eq('category', 'shipping');
+
+    if (shippingError) {
+      return NextResponse.json(
+        { error: 'Nie udało się pobrać metod dostawy. Spróbuj ponownie.' },
+        { status: 503 }
+      );
+    }
+
+    const deliverySetting = (shippingSettings || []).find((setting: { key: string | null }) => {
+      if (!setting.key || ignoredShippingSettingKeys.has(setting.key)) return false;
+      return setting.key === parsed.data.deliveryType || setting.key.replace(/_price$/, '') === parsed.data.deliveryType;
+    });
+
+    if (!deliverySetting) {
+      return NextResponse.json(
+        { error: 'Wybrana metoda dostawy jest niedostępna. Odśwież stronę i wybierz metodę ponownie.' },
+        { status: 400 }
+      );
+    }
+
+    const shippingCost = Number(String(deliverySetting.value ?? '0').replace(',', '.'));
+    if (!Number.isFinite(shippingCost) || shippingCost < 0) {
+      return NextResponse.json(
+        { error: 'Konfiguracja kosztu dostawy jest nieprawidłowa.' },
+        { status: 500 }
+      );
+    }
 
     const { data: order, error: orderError } = await admin.rpc('create_store_order_with_stock', {
       p_user_id: auth.user?.id || null,
@@ -55,8 +89,11 @@ export async function POST(request: NextRequest) {
       p_shipping_address: {
         ...parsed.data.shippingAddress,
         phone: parsed.data.customer.phone,
+        delivery_type: parsed.data.deliveryType,
+        delivery_label: deliverySetting.label || deliverySetting.key,
       },
       p_billing_address: parsed.data.shippingAddress,
+      p_shipping_cost: shippingCost,
       p_items: parsed.data.items,
     });
 

@@ -180,14 +180,24 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
   const maintenanceCost = parseFloat(settingsMap.maintenance_hour_cost || '5') * productionHours;
   const materialCosts = (orders3DCurrent || []).reduce((sum: number, o: any) => sum + (o.material_cost || 0), 0);
   const prevMaterialCosts = (orders3DPrevious || []).reduce((sum: number, o: any) => sum + (o.material_cost || 0), 0);
-  const shippingCost = ((orders3DCurrent || []).filter((o: any) => o.status === 'shipped').length +
-                       (storeOrdersCurrent || []).filter((o: any) => o.status === 'shipped').length) * 15;
+  const defaultShippingCost = parseFloat(settingsMap.courier_price || settingsMap.shipping_cost || '15');
+  const shippingCost3D = (orders3DCurrent || []).filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
+  const shippingCostStore = (storeOrdersCurrent || [])
+    .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
+    .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
+  const shippingCost = shippingCost3D + shippingCostStore;
+  const prevShippingCost3D = (orders3DPrevious || []).filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
+  const prevShippingCostStore = (storeOrdersPrevious || [])
+    .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
+    .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
+  const prevShippingCost = prevShippingCost3D + prevShippingCostStore;
   const packagingCost = parseFloat(settingsMap.packaging_cost || '5') * ((orders3DCurrent || []).length);
 
   const totalExpenses = materialCosts + electricityCost + maintenanceCost + shippingCost + packagingCost;
   const prevTotalExpenses = prevMaterialCosts +
     (parseFloat(settingsMap.electricity_hour_cost || '2') * prevProductionHours) +
-    (parseFloat(settingsMap.maintenance_hour_cost || '5') * prevProductionHours);
+    (parseFloat(settingsMap.maintenance_hour_cost || '5') * prevProductionHours) +
+    prevShippingCost;
 
   const expensesChange = prevTotalExpenses > 0 ? ((totalExpenses - prevTotalExpenses) / prevTotalExpenses) * 100 : 0;
 

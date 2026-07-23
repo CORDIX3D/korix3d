@@ -163,8 +163,14 @@ Deno.serve(async (req: Request) => {
     const electricityCost = parseFloat(settingsMap.electricity_hour_cost || '2') * productionHours;
     const maintenanceCost = parseFloat(settingsMap.maintenance_hour_cost || '5') * productionHours;
     const packagingCost = parseFloat(settingsMap.packaging_cost || '5') * ((orders3D || []).length);
+    const defaultShippingCost = parseFloat(settingsMap.courier_price || settingsMap.shipping_cost || '15');
+    const orders3DShipping = (orders3D || []).filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
+    const storeOrdersShipping = (storeOrders || [])
+      .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
+      .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
+    const shippingCost = orders3DShipping + storeOrdersShipping;
 
-    const totalExpenses = materialCosts + electricityCost + maintenanceCost + packagingCost;
+    const totalExpenses = materialCosts + electricityCost + maintenanceCost + packagingCost + shippingCost;
     const grossProfit = totalRevenue - totalExpenses;
     const margin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
@@ -205,6 +211,7 @@ Całkowite koszty: ${totalExpenses.toFixed(2)} PLN
   - Materiały: ${materialCosts.toFixed(2)} PLN
   - Energia: ${electricityCost.toFixed(2)} PLN
   - Utrzymanie: ${maintenanceCost.toFixed(2)} PLN
+  - Dostawa: ${shippingCost.toFixed(2)} PLN
 
 ZYSKI
 Zysk brutto: ${grossProfit.toFixed(2)} PLN

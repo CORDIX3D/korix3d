@@ -199,8 +199,12 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   // Calculate expenses
   const electricity = productionHours * electricityCost;
   const maintenance = productionHours * maintenanceCost;
-  const shipping = (orders3D || []).filter((o: any) => o.status === 'shipped').length * 15 +
-                   (storeOrders || []).filter((o: any) => o.status === 'shipped').length * 15;
+  const defaultShippingCost = parseFloat(settingsMap.courier_price || settingsMap.shipping_cost || '15');
+  const orders3DShipping = (orders3D || []).filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
+  const storeOrdersShipping = (storeOrders || [])
+    .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
+    .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
+  const shipping = orders3DShipping + storeOrdersShipping;
 
   const expenses = {
     total: materialCosts + electricity + maintenance + shipping + (packagingCost * ((orders3D || []).length)),

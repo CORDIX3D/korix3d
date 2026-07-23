@@ -590,8 +590,8 @@ export default function QuotePage() {
                             <span className="font-semibold text-foreground">
                               {material.name}
                             </span>
-                            <span className="text-sm text-primary font-medium">
-                              {material.price_per_kg.toFixed(0)} zł/kg
+                            <span className="text-xs text-primary font-medium">
+                              wybierz kolor dalej
                             </span>
                           </div>
                           <p className="text-sm text-muted-foreground line-clamp-2">
@@ -668,8 +668,8 @@ export default function QuotePage() {
                           {selectedMaterial.name}
                         </h4>
                         <div className="text-sm text-muted-foreground space-y-1">
-                          <p>Temperatura druku: {selectedMaterial.print_temp_min}-{selectedMaterial.print_temp_max}°C</p>
-                          <p>Łóżko: {selectedMaterial.bed_temp_min}-{selectedMaterial.bed_temp_max}°C</p>
+                          <p>To jest typ materiału. Kolor, cena i dostępność są pobierane z konkretnych filamentów w magazynie.</p>
+                          <p>Dokładne parametry druku potwierdzimy po analizie przesłanego pliku.</p>
                         </div>
                       </div>
                     </div>

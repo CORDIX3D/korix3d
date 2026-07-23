@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 type DatabaseContext = {
-  materials: Array<{ name: string; price_per_kg: number; available: boolean }>;
+  materials: Array<{ name: string; available: boolean }>;
   filaments: Array<{
     brand: string;
     material_name: string;
@@ -13,6 +13,7 @@ type DatabaseContext = {
     color_hex: string | null;
     remaining_weight_grams: number;
     min_weight_grams: number | null;
+    price_per_kg: number | null;
     location: string | null;
     active: boolean | null;
   }>;
@@ -64,12 +65,12 @@ async function getDatabaseContext(): Promise<DatabaseContext> {
   const [materialsResult, filamentsResult, productsResult, warehouseResult, ordersResult] = await Promise.all([
     supabaseAdmin
       .from('materials')
-      .select('name, price_per_kg, available')
+      .select('name, available')
       .eq('available', true)
       .order('name'),
     supabaseAdmin
       .from('filaments')
-      .select('brand, material_name, color, color_hex, remaining_weight_grams, min_weight_grams, location, active')
+      .select('brand, material_name, color, color_hex, remaining_weight_grams, min_weight_grams, price_per_kg, location, active')
       .eq('active', true)
       .order('material_name'),
     supabaseAdmin
@@ -197,8 +198,9 @@ function formatFilamentStock(filament: DatabaseContext['filaments'][number]) {
   const status = stockStatusLabel(remaining, minimum);
   const location = filament.location ? ` Lokalizacja: ${filament.location}.` : '';
   const colorHex = filament.color_hex ? ` Próbka koloru: ${filament.color_hex}.` : '';
+  const price = filament.price_per_kg ? ` Cena materiału: ${Number(filament.price_per_kg).toFixed(2)} zł/kg.` : '';
 
-  return `${filament.material_name} ${filament.color} (${filament.brand}): ${status}, zostało ${remaining} g.${minimum ? ` Minimum: ${minimum} g.` : ''}${location}${colorHex}`;
+  return `${filament.material_name} ${filament.color} (${filament.brand}): ${status}, zostało ${remaining} g.${minimum ? ` Minimum: ${minimum} g.` : ''}${price}${location}${colorHex}`;
 }
 
 function findMatchingMaterials(question: string, context: DatabaseContext) {
@@ -279,7 +281,7 @@ function buildFreeResponse(question: string, context: DatabaseContext): string {
   if (matchingMaterials.length > 0) {
     return matchingMaterials
       .slice(0, 5)
-      .map((material) => `${material.name}: ${material.available ? 'dostępny' : 'niedostępny'}${material.price_per_kg ? `, cena bazowa: ${Number(material.price_per_kg).toFixed(0)} zł/kg` : ''}.`)
+      .map((material) => `${material.name}: ${material.available ? 'dostępny' : 'niedostępny'}. Kolory, stan i cena zależą od konkretnego filamentu w magazynie.`)
       .join('\n');
   }
 
@@ -300,12 +302,10 @@ function buildFreeResponse(question: string, context: DatabaseContext): string {
       return `Aktualnie w magazynie widzę m.in.: ${filamentSummary.join(', ')}. Jeśli napiszesz konkretny materiał i kolor, sprawdzę dokładny stan szpulki.`;
     }
 
-    const materials = context.materials.map((material) =>
-      `${material.name}${material.price_per_kg ? ` (${Number(material.price_per_kg).toFixed(0)} zł/kg)` : ''}`
-    );
+    const materials = context.materials.map((material) => material.name);
 
     if (materials.length > 0) {
-      return `Aktualnie w bazie widzę takie dostępne materiały: ${materials.join(', ')}. Jeśli napiszesz, do czego ma służyć element, pomożemy dobrać materiał pod wytrzymałość, temperaturę, wygląd albo cenę.`;
+      return `Aktualnie w bazie widzę takie dostępne typy materiałów: ${materials.join(', ')}. Kolory, stan i cena zależą od konkretnego filamentu w magazynie. Jeśli napiszesz, do czego ma służyć element, pomożemy dobrać materiał pod wytrzymałość, temperaturę, wygląd albo cenę.`;
     }
 
     return 'Dobór materiału zależy od zastosowania. PLA sprawdza się do modeli wizualnych, PETG do części bardziej użytkowych, ASA/ABS do większej odporności, a TPU do elementów elastycznych. Ostateczną dostępność potwierdzimy przy wycenie.';

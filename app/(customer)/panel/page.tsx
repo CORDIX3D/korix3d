@@ -18,7 +18,7 @@ import {
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import { PanelError, PanelLoading } from '@/components/customer/panel-state';
-import type { Order3D } from '@/lib/types/database';
+import type { Order3D, StoreOrder } from '@/lib/types/database';
 
 interface StatCard {
   title: string;
@@ -28,10 +28,20 @@ interface StatCard {
   color: string;
 }
 
+type RecentCustomerOrder = {
+  id: string;
+  href: string;
+  orderNumber: string;
+  title: string;
+  description: string;
+  status: string;
+  createdAt: string;
+};
+
 export default function CustomerDashboardPage() {
   const { user, profile } = useAuth();
   const [stats, setStats] = useState<StatCard[]>([]);
-  const [recentOrders, setRecentOrders] = useState<Order3D[]>([]);
+  const [recentOrders, setRecentOrders] = useState<RecentCustomerOrder[]>([]);
   const [recentQuotes, setRecentQuotes] = useState<Order3D[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -49,6 +59,12 @@ export default function CustomerDashboardPage() {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
+      const { data: storeOrders, error: storeOrdersError } = await supabase
+        .from('store_orders')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
       // Fetch quotes
       const { data: quotes, error: quotesError } = await supabase
         .from('orders_3d')
@@ -58,16 +74,25 @@ export default function CustomerDashboardPage() {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (ordersError || quotesError) throw ordersError || quotesError;
+      if (ordersError || storeOrdersError || quotesError) throw ordersError || storeOrdersError || quotesError;
 
       // Calculate stats
       const ordersData = orders as Array<{ status?: string; final_price?: string | number }> | undefined;
-      const totalOrders = ordersData?.length || 0;
-      const completedOrders = ordersData?.filter((o) => o.status === 'completed').length || 0;
-      const pendingOrders = ordersData?.filter((o) => !['completed', 'cancelled'].includes(o.status || '')).length || 0;
-      const totalSpent = ordersData
+      const storeOrdersData = storeOrders as Array<{ status?: string; total?: string | number }> | undefined;
+      const totalOrders = (ordersData?.length || 0) + (storeOrdersData?.length || 0);
+      const completedOrders =
+        (ordersData?.filter((o) => o.status === 'completed').length || 0) +
+        (storeOrdersData?.filter((o) => ['delivered', 'completed'].includes(o.status || '')).length || 0);
+      const pendingOrders =
+        (ordersData?.filter((o) => !['completed', 'cancelled'].includes(o.status || '')).length || 0) +
+        (storeOrdersData?.filter((o) => !['delivered', 'completed', 'cancelled', 'refunded'].includes(o.status || '')).length || 0);
+      const totalSpent3d = ordersData
         ?.filter((o) => Boolean(o.final_price))
         .reduce((sum, o) => sum + Number(o.final_price), 0) || 0;
+      const totalSpentStore = storeOrdersData
+        ?.filter((o) => Boolean(o.total))
+        .reduce((sum, o) => sum + Number(o.total), 0) || 0;
+      const totalSpent = totalSpent3d + totalSpentStore;
 
       setStats([
         {
@@ -100,7 +125,25 @@ export default function CustomerDashboardPage() {
         },
       ]);
 
-      setRecentOrders(((orders || []) as Order3D[]).slice(0, 5));
+      const recentPrintOrders: RecentCustomerOrder[] = ((orders || []) as Order3D[]).map((order) => ({
+        id: order.id,
+        href: `/panel/zamowienia/${order.id}`,
+        orderNumber: order.order_number,
+        title: order.material_name || 'Wydruk 3D',
+        description: `${order.color || 'Kolor do ustalenia'} • ${order.quantity} szt.`,
+        status: order.status,
+        createdAt: order.created_at,
+      }));
+      const recentStoreOrders: RecentCustomerOrder[] = ((storeOrders || []) as StoreOrder[]).map((order) => ({
+        id: order.id,
+        href: `/panel/zamowienia/sklep/${order.id}`,
+        orderNumber: order.order_number,
+        title: 'Zamówienie ze sklepu',
+        description: `${Number(order.total || 0).toFixed(2)} zł • dostawa ${Number(order.shipping_cost || 0).toFixed(2)} zł`,
+        status: order.status,
+        createdAt: order.created_at,
+      }));
+      setRecentOrders([...recentPrintOrders, ...recentStoreOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5));
       setRecentQuotes((quotes || []) as Order3D[]);
     } catch {
       setRecentOrders([]);
@@ -118,15 +161,20 @@ export default function CustomerDashboardPage() {
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; className: string }> = {
       new: { label: 'Nowe', className: 'status-new' },
+      pending: { label: 'Nowe', className: 'status-new' },
       quoted: { label: 'Otrzymano wycenę', className: 'status-quoted' },
       accepted: { label: 'Zaakceptowane', className: 'status-accepted' },
+      paid: { label: 'Opłacone', className: 'status-accepted' },
       queued: { label: 'W kolejce', className: 'status-pending' },
+      processing: { label: 'W realizacji', className: 'status-pending' },
       printing: { label: 'Drukowanie', className: 'status-printing' },
       post_processing: { label: 'Post-processing', className: 'status-printing' },
       packed: { label: 'Spakowane', className: 'status-accepted' },
       shipped: { label: 'Wysłane', className: 'status-printing' },
       completed: { label: 'Zrealizowane', className: 'status-completed' },
+      delivered: { label: 'Dostarczone', className: 'status-completed' },
       cancelled: { label: 'Anulowane', className: 'status-cancelled' },
+      refunded: { label: 'Zwrócone', className: 'status-cancelled' },
     };
 
     const config = statusConfig[status] || { label: status, className: 'status-pending' };
@@ -277,16 +325,16 @@ export default function CustomerDashboardPage() {
                 {recentOrders.map((order) => (
                   <Link
                     key={order.id}
-                    href={`/panel/zamowienia/${order.id}`}
+                    href={order.href}
                     className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary transition-colors"
                   >
                     <div>
-                      <p className="font-medium text-foreground">{order.order_number}</p>
+                      <p className="font-medium text-foreground">{order.orderNumber}</p>
                       <p className="text-sm text-muted-foreground">
-                        {order.material_name || 'Materiał do ustalenia'} • {order.quantity} szt.
+                        {order.title} • {order.description}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Złożono {new Date(order.created_at).toLocaleDateString('pl-PL')}
+                        Złożono {new Date(order.createdAt).toLocaleDateString('pl-PL')}
                       </p>
                     </div>
                     {getStatusBadge(order.status)}

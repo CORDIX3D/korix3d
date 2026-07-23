@@ -38,10 +38,11 @@ const quoteSchema = z.object({
   quantity: z.number({ invalid_type_error: 'Podaj liczbę sztuk' }).int('Ilość musi być liczbą całkowitą').min(1, 'Minimalna ilość to 1').max(1000, 'Maksymalna ilość to 1000'),
   priority: z.enum(['standard', 'express', 'urgent']),
   notes: z.string().trim().max(2000, 'Uwagi mogą mieć maksymalnie 2000 znaków').optional(),
-  delivery_type: z.enum(['pickup', 'courier', 'paczkomat']),
+  delivery_type: z.string().min(1, 'Wybierz metodę dostawy'),
 });
 
 type QuoteFormValues = z.infer<typeof quoteSchema>;
+type DeliveryOption = { value: string; label: string; price: number };
 
 const infillOptions = [
   { value: '10', label: '10%', description: 'Bardzo lekki, niska wytrzymałość' },
@@ -58,11 +59,13 @@ const priorityOptions = [
   { value: 'urgent', label: 'Urgent', price: 100, days: '< 24h' },
 ];
 
-const deliveryOptions = [
+const defaultDeliveryOptions: DeliveryOption[] = [
   { value: 'pickup', label: 'Odbiór osobisty', price: 0 },
   { value: 'courier', label: 'Kurier', price: 15 },
   { value: 'paczkomat', label: 'Paczkomat', price: 12 },
 ];
+
+const ignoredShippingSettingKeys = new Set(['free_shipping_threshold']);
 
 export default function QuotePage() {
   const { user } = useAuth();
@@ -73,6 +76,9 @@ export default function QuotePage() {
   const [materialsError, setMaterialsError] = useState('');
   const [colorsLoading, setColorsLoading] = useState(false);
   const [colorsError, setColorsError] = useState('');
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(defaultDeliveryOptions);
+  const [deliveryLoading, setDeliveryLoading] = useState(true);
+  const [deliveryError, setDeliveryError] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -169,9 +175,45 @@ export default function QuotePage() {
     }
   }, [setValue]);
 
+  const fetchDeliveryOptions = useCallback(async () => {
+    setDeliveryLoading(true);
+    setDeliveryError('');
+
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('key, label, value')
+        .eq('category', 'shipping')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const options = (data || [])
+        .filter((setting: { key: string | null; label: string | null; value: string | number | null }) =>
+          setting.key && !ignoredShippingSettingKeys.has(setting.key)
+        )
+        .map((setting: { key: string; label: string | null; value: string | number | null }) => {
+          const price = Number(String(setting.value ?? '0').replace(',', '.'));
+          return {
+            value: setting.key.replace(/_price$/, ''),
+            label: setting.label || setting.key.replace(/_/g, ' '),
+            price: Number.isFinite(price) ? price : 0,
+          };
+        });
+
+      setDeliveryOptions(options.length > 0 ? options : defaultDeliveryOptions);
+    } catch {
+      setDeliveryOptions(defaultDeliveryOptions);
+      setDeliveryError('Nie udało się pobrać metod dostawy z panelu admina. Pokazujemy domyślne opcje.');
+    } finally {
+      setDeliveryLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchMaterials();
-  }, [fetchMaterials]);
+    fetchDeliveryOptions();
+  }, [fetchDeliveryOptions, fetchMaterials]);
 
   useEffect(() => {
     if (watchMaterial) {
@@ -180,6 +222,12 @@ export default function QuotePage() {
       setSelectedMaterial(mat);
     }
   }, [fetchColors, watchMaterial, materials]);
+
+  useEffect(() => {
+    if (deliveryOptions.length > 0 && !deliveryOptions.some((option) => option.value === watchDelivery)) {
+      setValue('delivery_type', deliveryOptions[0].value);
+    }
+  }, [deliveryOptions, setValue, watchDelivery]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -867,12 +915,17 @@ export default function QuotePage() {
                 {/* Delivery Method */}
                 <div className="space-y-2">
                   <label className="form-label">Metoda dostawy</label>
+                  {deliveryError && (
+                    <p className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-muted-foreground">
+                      {deliveryError}
+                    </p>
+                  )}
                   <div className="grid gap-3 sm:grid-cols-3">
                     {deliveryOptions.map((option) => (
                       <button
                         key={option.value}
                         type="button"
-                        onClick={() => setValue('delivery_type', option.value as any)}
+                        onClick={() => setValue('delivery_type', option.value)}
                         className={`p-4 rounded-xl border text-left transition-all ${
                           watchDelivery === option.value
                             ? 'border-primary bg-primary/10'
@@ -881,11 +934,14 @@ export default function QuotePage() {
                       >
                         <p className="font-semibold text-foreground">{option.label}</p>
                         <p className="text-sm text-muted-foreground">
-                          {option.price === 0 ? 'Gratis' : `${option.price.toFixed(2)} zł`}
+                          {deliveryLoading ? 'Ładowanie...' : option.price === 0 ? 'Gratis' : `${option.price.toFixed(2)} zł`}
                         </p>
                       </button>
                     ))}
                   </div>
+                  {errors.delivery_type && (
+                    <p className="text-sm text-destructive">{errors.delivery_type.message}</p>
+                  )}
                 </div>
 
                 {/* Info Box */}

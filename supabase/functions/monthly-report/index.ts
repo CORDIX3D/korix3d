@@ -101,15 +101,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create placeholder record
+    const reportFileName = `KORIX3D_Raport_${year}-${month.toString().padStart(2, '0')}.txt`;
+    const reportFilePath = `${year}/${month}/${reportFileName}`;
+
+    // Create report record
     const { data: report, error: insertError } = await supabase
       .from('accounting_reports')
       .insert({
         report_month: new Date(year, month - 1, 1).toISOString().split('T')[0],
         report_year: year,
         report_type: 'monthly',
-        file_name: `KORIX3D_Raport_${year}-${month.toString().padStart(2, '0')}.xlsx`,
-        file_path: `${year}/${month}/KORIX3D_Raport_${year}-${month.toString().padStart(2, '0')}.xlsx`,
+        file_name: reportFileName,
+        file_path: reportFilePath,
         status: 'generating'
       })
       .select()
@@ -187,7 +190,7 @@ Deno.serve(async (req: Request) => {
       productionHours
     };
 
-    // Generate simple Excel (placeholder - in production would use full generator)
+    // Generate a lightweight text report for the current MVP.
     const excelContent = `
 KORIX3D - Raport Finansowy
 Okres: ${year}-${month.toString().padStart(2, '0')}
@@ -213,13 +216,11 @@ Nowi klienci: ${newCustomers}
 Wartość magazynu: ${warehouseValue.toFixed(2)} PLN
     `.trim();
 
-    // Upload "file" (text placeholder - real implementation would generate Excel)
     const fileBlob = new Blob([excelContent], { type: 'text/plain' });
-    const filePath = `${year}/${month}/KORIX3D_Raport_${year}-${month.toString().padStart(2, '0')}.txt`;
 
     const { error: uploadError } = await supabase.storage
       .from('accounting-reports')
-      .upload(filePath, fileBlob);
+      .upload(reportFilePath, fileBlob);
 
     if (uploadError) {
       console.error('Upload error:', uploadError);
@@ -230,7 +231,7 @@ Wartość magazynu: ${warehouseValue.toFixed(2)} PLN
       .from('accounting_reports')
       .update({
         status: 'generated',
-        file_path: filePath,
+        file_path: reportFilePath,
         file_size: excelContent.length,
         summary,
         generated_at: new Date().toISOString()

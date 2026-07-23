@@ -968,14 +968,14 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
   return notifications;
 }
 
-async function generateAIAnalysis(data: ExecutiveData, scores: CompanyScores): Promise<string> {
+function generateExecutiveAnalysis(data: ExecutiveData, scores: CompanyScores): string {
   return generateFallbackAnalysis(data, scores);
 }
 
 function generateFallbackAnalysis(data: ExecutiveData, scores: CompanyScores): string {
   const month = format(data.period.start, 'MMMM yyyy', { locale: pl });
 
-  return `RAPORT WYKONAWCZY AI - ${month}
+  return `RAPORT WYKONAWCZY - ${month}
 
 === PODSUMOWANIE WYKONAWCZE ===
 Przychody ${data.revenue.change >= 0 ? 'wzrosły' : 'spadły'} o ${Math.abs(data.revenue.change).toFixed(1)}% r/r do ${Math.round(data.revenue.total)} PLN.
@@ -1050,8 +1050,8 @@ export async function generateExecutiveReport(
   const ceoComment = generateCEOComment(data, scores, forecast);
   const notifications = generateNotifications(data);
 
-  // Generate AI analysis
-  const aiAnalysis = await generateAIAnalysis(data, scores);
+  // Generate executive analysis
+  const executiveAnalysis = generateExecutiveAnalysis(data, scores);
 
   // Create report
   const { data: report, error: insertError } = await supabase
@@ -1059,8 +1059,8 @@ export async function generateExecutiveReport(
     .insert({
       report_month: periodStart,
       report_year: year,
-      title: `Raport Wykonawczy AI - ${format(periodStart, 'MMMM yyyy', { locale: pl })}`,
-      summary: aiAnalysis,
+      title: `Raport Wykonawczy - ${format(periodStart, 'MMMM yyyy', { locale: pl })}`,
+      summary: executiveAnalysis,
       full_report: {
         period: { start: periodStart.toISOString(), end: periodEnd.toISOString() },
         revenue: data.revenue,
@@ -1130,7 +1130,7 @@ export async function generateExecutiveReport(
 
   return {
     id: report.id,
-    summary: aiAnalysis,
+    summary: executiveAnalysis,
     scores
   };
 }

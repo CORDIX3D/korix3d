@@ -137,7 +137,7 @@ export default function ExecutiveReportsPage() {
         toast.error('Błąd', { description: data.error });
       }
     } catch {
-      setLoadError('Nie udało się połączyć z usługą raportów AI.');
+      setLoadError('Nie udało się połączyć z usługą raportów.');
       toast.error('Błąd', { description: 'Nie udało się pobrać raportów' });
     }
     setLoading(false);
@@ -233,7 +233,7 @@ export default function ExecutiveReportsPage() {
       const printContent = document.getElementById('report-content');
       if (printContent) {
         const printWindow = window.open('', '', 'height=800,width=1000');
-        printWindow?.document.write('<html><head><title>Raport AI</title>');
+        printWindow?.document.write('<html><head><title>Raport zarządczy</title>');
         printWindow?.document.write('<style>body{font-family:Arial;padding:20px}h1,h2{color:#FF6A00}pre{white-space:pre-wrap}</style>');
         printWindow?.document.write('</head><body>');
         printWindow?.document.write(printContent.innerHTML);
@@ -308,7 +308,7 @@ export default function ExecutiveReportsPage() {
             Executive Report
           </h1>
           <p className="text-muted-foreground mt-1">
-            Miesięczne raporty wykonawcze z analizą AI
+            Miesięczne raporty wykonawcze z analizą zarządczą
           </p>
         </div>
         <div className="flex gap-2">
@@ -388,7 +388,7 @@ export default function ExecutiveReportsPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{totalReports}</p>
-                <p className="text-xs text-muted-foreground">Raportów AI</p>
+                <p className="text-xs text-muted-foreground">Raportów</p>
               </div>
             </div>
           </CardContent>
@@ -444,7 +444,7 @@ export default function ExecutiveReportsPage() {
             <div>
               <CardTitle className="text-lg text-foreground">Lista raportów wykonawczych</CardTitle>
               <CardDescription>
-                AI analizy całego przedsiębiorstwa
+                Analizy całego przedsiębiorstwa
               </CardDescription>
             </div>
             <Select value={selectedYear} onValueChange={setSelectedYear}>
@@ -469,7 +469,7 @@ export default function ExecutiveReportsPage() {
           ) : reports.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Brain className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Brak raportów AI za wybrany rok</p>
+              <p className="text-muted-foreground">Brak raportów za wybrany rok</p>
               <Button onClick={() => setShowGenerateDialog(true)} variant="outline" className="mt-4">
                 <Sparkles className="w-4 h-4 mr-2" />
                 Wygeneruj pierwszy raport
@@ -480,7 +480,7 @@ export default function ExecutiveReportsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Okres</TableHead>
-                  <TableHead>Ocena AI</TableHead>
+                  <TableHead>Ocena</TableHead>
                   <TableHead>Finanse</TableHead>
                   <TableHead>Produkcja</TableHead>
                   <TableHead>Wzrost</TableHead>
@@ -579,8 +579,8 @@ export default function ExecutiveReportsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            AI analizuje całe przedsiębiorstwo jak doświadczony CEO, CFO i kierownik produkcji.
-            Każdy raport zawiera naturalne podsumowania, oceny punktowe i konkretne rekomendacje.
+            Raport analizuje całe przedsiębiorstwo jak doświadczony CEO, CFO i kierownik produkcji.
+            Każdy raport zawiera podsumowania, oceny punktowe i konkretne rekomendacje.
           </p>
           <div className="grid gap-3 md:grid-cols-4">
             <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
@@ -717,7 +717,7 @@ export default function ExecutiveReportsPage() {
                 <div className="space-y-4">
                   <h3 className="font-semibold text-lg flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-red-500" />
-                    Alerty AI
+                    Alerty
                   </h3>
                   <div className="space-y-2">
                     {viewingReport.notifications.map((n, i) => (
@@ -855,7 +855,7 @@ export default function ExecutiveReportsPage() {
               <div className="space-y-4">
                 <h3 className="font-semibold text-lg flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
-                  Podsumowanie AI
+                  Podsumowanie
                 </h3>
                 <div className="p-4 rounded-xl bg-card border whitespace-pre-wrap text-sm">
                   {viewingReport.summary}

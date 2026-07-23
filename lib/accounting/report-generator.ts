@@ -367,27 +367,7 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   };
 }
 
-async function generateAISummary(data: ReportData): Promise<string> {
-  // Try to use AI for analysis
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/ai-analysis`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-      },
-      body: JSON.stringify({ reportData: data })
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      return result.analysis;
-    }
-  } catch (error) {
-    console.log('AI analysis not available, using manual analysis');
-  }
-
-  // Manual analysis
+function generateAnalysisSummary(data: ReportData): string {
   const revenueChange = data.revenue.byMonth.length >= 2
     ? ((data.revenue.byMonth[5].inflow - data.revenue.byMonth[4].inflow) / (data.revenue.byMonth[4].inflow || 1)) * 100
     : 0;
@@ -485,7 +465,7 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-async function createExcelReport(data: ReportData, aiSummary: string): Promise<Buffer> {
+async function createExcelReport(data: ReportData, analysisSummary: string): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
 
   workbook.creator = 'KORIX3D';
@@ -941,14 +921,14 @@ async function createExcelReport(data: ReportData, aiSummary: string): Promise<B
 
   sheet14.columns.forEach(col => col.width = 28);
 
-  // ==================== SHEET 15: AI ANALYSIS ====================
-  const sheet15 = workbook.addWorksheet('15 Analiza AI');
-  sheet15.getCell('A1').value = 'ANALIZA FINANSOWA AI';
+  // ==================== SHEET 15: ANALYSIS ====================
+  const sheet15 = workbook.addWorksheet('15 Analiza');
+  sheet15.getCell('A1').value = 'ANALIZA FINANSOWA';
   sheet15.getCell('A1').style = headerStyle as any;
   sheet15.mergeCells('A1:A1');
 
-  // Split AI summary into lines
-  const lines = aiSummary.split('\n');
+  // Split analysis summary into lines
+  const lines = analysisSummary.split('\n');
   lines.forEach((line, i) => {
     const rowNum = 3 + i;
     const cell = sheet15.getCell(`A${rowNum}`);
@@ -991,11 +971,11 @@ export async function generateAccountingReport(
   // Fetch data
   const reportData = await fetchReportData(periodStart, periodEnd);
 
-  // Generate AI summary
-  const aiSummary = await generateAISummary(reportData);
+  // Generate deterministic analysis summary
+  const analysisSummary = generateAnalysisSummary(reportData);
 
   // Create Excel file
-  const excelBuffer = await createExcelReport(reportData, aiSummary);
+  const excelBuffer = await createExcelReport(reportData, analysisSummary);
 
   // Upload to storage
   const fileName = `KORIX3D_Raport_${format(periodStart, 'yyyy-MM', { locale: pl })}.xlsx`;
@@ -1044,5 +1024,5 @@ export async function generateAccountingReport(
   };
 }
 
-export { fetchReportData, createExcelReport, generateAISummary };
+export { fetchReportData, createExcelReport, generateAnalysisSummary };
 export type { ReportData };

@@ -525,7 +525,7 @@ export default function AccountingPage() {
             </div>
             <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
               <TrendingUp className="w-5 h-5 text-primary mb-2" />
-              <p className="text-sm font-medium">Analiza AI</p>
+              <p className="text-sm font-medium">Analiza finansowa</p>
               <p className="text-xs text-muted-foreground">Rekomendacje i prognozy</p>
             </div>
           </div>

@@ -169,7 +169,7 @@ export default function CheckoutPage() {
             <p className="mb-2 text-muted-foreground">Numer zamówienia:</p>
             <p className="mb-5 text-xl font-semibold">{orderNumber}</p>
             <p className="mb-7 text-sm text-muted-foreground">
-              Potwierdzimy dostępność, koszt dostawy i sposób płatności wiadomością e-mail.
+              Potwierdzimy dostępność produktów oraz sposób płatności wiadomością e-mail.
             </p>
             <Button asChild>
               <Link href="/sklep">Wróć do sklepu</Link>

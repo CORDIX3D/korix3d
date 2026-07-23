@@ -41,7 +41,7 @@ export default function CartPage() {
             </CardContent></Card>
           ))}
         </div>
-        <Card className="h-fit lg:sticky lg:top-24"><CardContent className="p-6"><h2 className="mb-6 text-xl font-semibold">Podsumowanie</h2><div className="mb-6 flex items-center justify-between border-b pb-4"><span className="text-muted-foreground">Wartość produktów</span><span className="text-2xl font-bold">{subtotal.toFixed(2)} zł</span></div><p className="mb-6 text-sm text-muted-foreground">Koszt dostawy i ostateczne warunki potwierdzimy przed realizacją.</p><Button asChild className="w-full"><Link href="/checkout">Przejdź do zamówienia</Link></Button><Button asChild variant="outline" className="mt-3 w-full"><Link href="/sklep">Kontynuuj zakupy</Link></Button></CardContent></Card>
+        <Card className="h-fit lg:sticky lg:top-24"><CardContent className="p-6"><h2 className="mb-6 text-xl font-semibold">Podsumowanie</h2><div className="mb-6 flex items-center justify-between border-b pb-4"><span className="text-muted-foreground">Wartość produktów</span><span className="text-2xl font-bold">{subtotal.toFixed(2)} zł</span></div><p className="mb-6 text-sm text-muted-foreground">Metodę i koszt dostawy wybierzesz w kolejnym kroku.</p><Button asChild className="w-full"><Link href="/checkout">Przejdź do zamówienia</Link></Button><Button asChild variant="outline" className="mt-3 w-full"><Link href="/sklep">Kontynuuj zakupy</Link></Button></CardContent></Card>
       </div>
     </div>
   );

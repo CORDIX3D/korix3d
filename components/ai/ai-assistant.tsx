@@ -137,8 +137,8 @@ export function AIAssistant() {
     if (fileData?.analysis) {
       fullContent = `[Plik STL: ${fileData.name}]
 Wymiary: ${fileData.analysis.dimensions.width} x ${fileData.analysis.dimensions.depth} x ${fileData.analysis.dimensions.height} mm
-Szacowany czas druku: ${fileData.analysis.estimatedPrintingTime}h
-Zużycie filamentu: ~${fileData.analysis.estimatedFilamentUsage}g
+Wstępnie szacowany czas druku: ${fileData.analysis.estimatedPrintingTime}h
+Wstępnie szacowane zużycie filamentu: ~${fileData.analysis.estimatedFilamentUsage}g
 ${messageContent}`;
     }
 
@@ -287,7 +287,7 @@ ${messageContent}`;
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (fileAnalysis) {
-      sendMessage(input || 'Przeanalizuj ten model', fileAnalysis);
+      sendMessage(input || 'Przeanalizuj wstępnie ten model', fileAnalysis);
     } else {
       sendMessage(input);
     }
@@ -466,7 +466,7 @@ ${messageContent}`;
                   <p className="text-sm text-white truncate">{fileAnalysis.name}</p>
                   <p className="text-xs text-white/50">
                     {fileAnalysis.analysis.dimensions.width} x {fileAnalysis.analysis.dimensions.depth} x {fileAnalysis.analysis.dimensions.height} mm
-                    {' • '}{fileAnalysis.analysis.estimatedFilamentUsage}g filamentu
+                    {' • '}wstępnie {fileAnalysis.analysis.estimatedFilamentUsage}g filamentu
                   </p>
                 </div>
                 <button

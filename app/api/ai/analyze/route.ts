@@ -266,6 +266,7 @@ export async function POST(request: NextRequest) {
     const filamentUsage = estimateFilamentUsage(volume);
     const printingTime = estimatePrintingTime(volume, boundingBox.max, layerHeight);
     const issues = identifyPossibleIssues(boundingBox, volume);
+    issues.unshift('To wstępna analiza geometrii STL. Finalny czas i zużycie materiału wymagają przeliczenia w slicerze.');
 
     const analysis: STLAnalysis = {
       fileName: file.name,

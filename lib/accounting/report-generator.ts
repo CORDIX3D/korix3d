@@ -166,11 +166,6 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     0
   );
 
-  // Fetch materials
-  const { data: materials } = await supabase
-    .from('materials')
-    .select('*');
-
   // Fetch customers
   const { data: profiles } = await supabase
     .from('profiles')
@@ -335,7 +330,12 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
       totalUsed: totalFilamentUsed,
       byMaterial: {},
       byColor: [],
-      costPerGram: (materials || []).reduce((sum: number, m: any) => sum + (m.price_per_kg || 0), 0) / ((materials || []).length || 1) / 1000
+      costPerGram: (() => {
+        const pricedFilaments = (filaments || []).filter((filament: any) => Number(filament.price_per_kg || 0) > 0);
+        if (pricedFilaments.length === 0) return 0;
+        const averagePricePerKg = pricedFilaments.reduce((sum: number, filament: any) => sum + Number(filament.price_per_kg || 0), 0) / pricedFilaments.length;
+        return averagePricePerKg / 1000;
+      })()
     },
     production: {
       totalHours: productionHours,

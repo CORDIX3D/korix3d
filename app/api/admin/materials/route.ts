@@ -77,12 +77,6 @@ export async function POST(request: NextRequest) {
       name,
       slug: existingSlug || `${slugify(name)}-${crypto.randomUUID().slice(0, 6)}`,
       description,
-      price_per_kg: 0,
-      image_url: null,
-      print_temp_min: null,
-      print_temp_max: null,
-      bed_temp_min: null,
-      bed_temp_max: null,
       available: true,
       updated_at: new Date().toISOString(),
     };

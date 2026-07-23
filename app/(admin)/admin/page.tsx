@@ -490,7 +490,7 @@ export default function AdminDashboardPage() {
         )}
       </section>
 
-      {/* AI Executive Report Widget */}
+      {/* Executive Report Widget */}
       {latestReport && (
         <Card className="bg-gradient-to-r from-primary/10 to-orange-600/10 border-primary/20">
           <CardContent className="p-6">
@@ -500,9 +500,9 @@ export default function AdminDashboardPage() {
                   <Brain className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground">AI Executive Report</h3>
+                  <h3 className="font-semibold text-foreground">Executive Report</h3>
                   <p className="text-sm text-muted-foreground">
-                    Najnowsza analiza AI - {new Date(latestReport.report_month).toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}
+                    Najnowsza analiza zarządcza - {new Date(latestReport.report_month).toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}
                   </p>
                 </div>
               </div>

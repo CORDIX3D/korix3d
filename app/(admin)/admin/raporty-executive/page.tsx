@@ -158,7 +158,7 @@ export default function ExecutiveReportsPage() {
       const data = await response.json();
 
       if (response.ok) {
-        toast.success('Raport wygenerowany', { description: 'AI Executive Report gotowy' });
+        toast.success('Raport wygenerowany', { description: 'Executive Report gotowy' });
         setShowGenerateDialog(false);
         fetchReports();
       } else {
@@ -305,7 +305,7 @@ export default function ExecutiveReportsPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-orange-600 flex items-center justify-center">
               <Brain className="w-5 h-5 text-white" />
             </div>
-            AI Executive Report
+            Executive Report
           </h1>
           <p className="text-muted-foreground mt-1">
             Miesięczne raporty wykonawcze z analizą AI
@@ -325,9 +325,9 @@ export default function ExecutiveReportsPage() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Generuj AI Executive Report</DialogTitle>
+                <DialogTitle>Generuj Executive Report</DialogTitle>
                 <DialogDescription>
-                  Wybierz miesiąc i rok dla którego chcesz wygenerować raport wykonawczy AI
+                  Wybierz miesiąc i rok, dla którego chcesz wygenerować raport zarządczy.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-4">
@@ -369,7 +369,7 @@ export default function ExecutiveReportsPage() {
                     ) : (
                       <Brain className="w-4 h-4 mr-2" />
                     )}
-                    Generuj AI Raport
+                    Generuj raport
                   </Button>
                 </div>
               </div>
@@ -574,7 +574,7 @@ export default function ExecutiveReportsPage() {
         <CardHeader>
           <CardTitle className="text-lg text-foreground flex items-center gap-2">
             <Brain className="w-5 h-5 text-primary" />
-            Jak działa AI Executive Report
+            Jak działa Executive Report
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

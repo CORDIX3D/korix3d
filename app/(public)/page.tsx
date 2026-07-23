@@ -91,7 +91,7 @@ const steps = [
   {
     step: '03',
     title: 'Otrzymaj wycenę',
-    description: 'Automatyczna lub ręczna wycena w 24h',
+    description: 'Indywidualna wycena w 24h',
   },
   {
     step: '04',

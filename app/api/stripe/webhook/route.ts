@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
         stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : null,
       }).eq('id', orderId);
     } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
+      await admin.rpc('cancel_store_order_and_restore_stock', { p_order_id: orderId });
       await admin.from('store_orders').update({ status: 'cancelled', stripe_session_id: session.id }).eq('id', orderId);
     }
 

@@ -119,13 +119,16 @@ export default function AdminOrdersPage() {
 
     setUpdatingOrderId(orderId);
     try {
-      const { error } = await supabase
-        .from('orders_3d')
-        .update({ status: newStatus })
-        .eq('id', orderId);
+      const response = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'status', id: orderId, status: newStatus }),
+      });
 
-      if (error) {
-        toast.error('Błąd', { description: 'Nie udało się zaktualizować statusu' });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error('Błąd', { description: result?.error || 'Nie udało się zaktualizować statusu' });
       } else {
         toast.success('Status zaktualizowany');
         fetchOrders();
@@ -151,19 +154,23 @@ export default function AdminOrdersPage() {
     setSubmittingQuote(true);
 
     try {
-      const { error } = await supabase
-        .from('orders_3d')
-        .update({
-          status: 'quoted',
+      const response = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'quote',
+          id: selectedOrder.id,
           printing_time_hours: printingTime,
           filament_used_grams: filamentWeight,
           final_price: finalPrice,
-          admin_notes: quoteForm.admin_notes.trim() || null,
-        })
-        .eq('id', selectedOrder.id);
+          admin_notes: quoteForm.admin_notes,
+        }),
+      });
 
-      if (error) {
-        toast.error('Błąd', { description: 'Nie udało się zapisać wyceny' });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error('Błąd', { description: result?.error || 'Nie udało się zapisać wyceny' });
       } else {
         toast.success('Wycena wysłana');
         setQuoteDialog(false);

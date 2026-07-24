@@ -220,22 +220,17 @@ export default function AdminAIPage() {
 
     setSaving(true);
 
-    let hasError = false;
-
     try {
-      for (const [key, value] of Object.entries(settings)) {
-        const { error } = await supabase
-          .from('ai_settings')
-          .update({ setting_value: value })
-          .eq('setting_key', key);
+      const response = await fetch('/api/admin/ai-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings }),
+      });
 
-        if (error) {
-          hasError = true;
-        }
-      }
+      const result = await response.json().catch(() => null);
 
-      if (hasError) {
-        toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
+      if (!response.ok) {
+        toast.error('Błąd', { description: result?.error || 'Nie udało się zapisać ustawień AI' });
       } else {
         toast.success('Ustawienia AI zapisane');
       }

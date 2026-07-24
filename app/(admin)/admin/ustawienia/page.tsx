@@ -85,22 +85,18 @@ export default function AdminSettingsPage() {
     if (saving) return;
 
     setSaving(true);
-    let hasError = false;
 
     try {
-      for (const [key, value] of Object.entries(formData)) {
-        const { error } = await supabase
-          .from('settings')
-          .update({ value })
-          .eq('key', key);
+      const response = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: formData }),
+      });
 
-        if (error) {
-          hasError = true;
-        }
-      }
+      const result = await response.json().catch(() => null);
 
-      if (hasError) {
-        toast.error('Błąd', { description: 'Nie udało się zapisać niektórych ustawień' });
+      if (!response.ok) {
+        toast.error('Błąd', { description: result?.error || 'Nie udało się zapisać ustawień' });
       } else {
         toast.success('Ustawienia zapisane');
       }

@@ -86,6 +86,12 @@ function preparePayload(table: string, payload: AdminCrudPayload) {
   return prepared;
 }
 
+function isMissingUpdatedAtError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const message = 'message' in error ? String(error.message || '') : '';
+  return message.includes('updated_at');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();
@@ -135,14 +141,27 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Brak danych pozycji do usunięcia.' }, { status: 400 });
     }
 
-    const result = softDeleteField
-      ? ALLOWED_SOFT_DELETE_FIELDS.has(softDeleteField)
-        ? await context.client
+    let result;
+
+    if (softDeleteField) {
+      if (!ALLOWED_SOFT_DELETE_FIELDS.has(softDeleteField)) {
+        result = { error: new Error('Niepoprawne pole dezaktywacji.') };
+      } else {
+        result = await context.client
+          .from(table)
+          .update({ [softDeleteField]: false, updated_at: new Date().toISOString() })
+          .eq('id', id);
+
+        if (result.error && isMissingUpdatedAtError(result.error)) {
+          result = await context.client
             .from(table)
-            .update({ [softDeleteField]: false, updated_at: new Date().toISOString() })
-            .eq('id', id)
-        : { error: new Error('Niepoprawne pole dezaktywacji.') }
-      : await context.client.from(table).delete().eq('id', id);
+            .update({ [softDeleteField]: false })
+            .eq('id', id);
+        }
+      }
+    } else {
+      result = await context.client.from(table).delete().eq('id', id);
+    }
 
     if (result.error) throw result.error;
 

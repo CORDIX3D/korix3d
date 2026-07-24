@@ -93,7 +93,7 @@ ALTER TABLE public.faq_items
 UPDATE public.faq_items
 SET
   question = COALESCE(NULLIF(trim(question), ''), 'Pytanie bez treści'),
-  answer = COALESCE(NULLIF(trim(answer), ''), 'Odpowiedź jest przygotowywana.'),
+  answer = COALESCE(NULLIF(trim(answer), ''), 'Skontaktuj się z nami przez formularz kontaktowy, a odpowiemy najszybciej jak to możliwe.'),
   sort_order = COALESCE(sort_order, 0),
   active = COALESCE(active, true),
   created_at = COALESCE(created_at, now()),

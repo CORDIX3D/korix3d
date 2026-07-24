@@ -212,8 +212,8 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     electricity,
     maintenance,
     shipping,
-    salaries: 0, // Would need employee data
-    marketing: 0, // Would need marketing spend data
+    salaries: 0, // Not tracked in MVP
+    marketing: 0, // Not tracked in MVP
     other: (packagingCost * ((orders3D || []).length))
   };
 
@@ -256,7 +256,7 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
 
   // Top products (from store orders)
   const productSales: Record<string, { name: string; sold: number; revenue: number }> = {};
-  // Would need order items table for accurate data
+  // Detailed item ranking is unavailable until report queries include store_order_items.
 
   // Cash flow by month (last 6 months)
   const cashFlowByMonth = [];
@@ -318,7 +318,7 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
       new: newCustomers,
       returning: (profiles || []).length - newCustomers,
       top: topCustomers,
-      growth: 0 // Would need historical data
+      growth: 0 // Historical customer growth is not tracked in the MVP report.
     },
     products: {
       top: [],

@@ -543,7 +543,7 @@ export default function AdminDashboardPage() {
 
             {latestReport.notifications && latestReport.notifications.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Alerty AI</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Alerty raportu</p>
                 <div className="flex flex-wrap gap-2">
                   {latestReport.notifications.slice(0, 3).map((n, i) => (
                     <div key={i} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs ${

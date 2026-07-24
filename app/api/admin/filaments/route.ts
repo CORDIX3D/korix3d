@@ -104,6 +104,51 @@ function buildFilamentData(payload: FilamentPayload) {
   };
 }
 
+function isFilamentsSchemaError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const message = 'message' in error ? String(error.message || '') : '';
+
+  return [
+    'material_id',
+    'color_hex',
+    'image_url',
+    'price_per_kg',
+    'original_weight_grams',
+    'price_paid',
+    'min_weight_grams',
+    'location',
+    'notes',
+    'active',
+    'updated_at',
+  ].some((column) => message.includes(column));
+}
+
+function removeUnsupportedFilamentFields<T extends Record<string, unknown>>(data: T, error: unknown) {
+  if (!error || typeof error !== 'object') return data;
+  const message = 'message' in error ? String(error.message || '') : '';
+  const nextData = { ...data };
+
+  for (const column of [
+    'material_id',
+    'color_hex',
+    'image_url',
+    'price_per_kg',
+    'original_weight_grams',
+    'price_paid',
+    'min_weight_grams',
+    'location',
+    'notes',
+    'active',
+    'updated_at',
+  ]) {
+    if (message.includes(column)) {
+      delete nextData[column];
+    }
+  }
+
+  return nextData;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();
@@ -115,10 +160,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const data = buildFilamentData(payload);
-    const result = payload.id
+    let data = buildFilamentData(payload);
+    let result = payload.id
       ? await context.client.from('filaments').update(data).eq('id', payload.id)
       : await context.client.from('filaments').insert([data]);
+
+    if (result.error && isFilamentsSchemaError(result.error)) {
+      data = removeUnsupportedFilamentFields(data, result.error);
+      result = payload.id
+        ? await context.client.from('filaments').update(data).eq('id', payload.id)
+        : await context.client.from('filaments').insert([data]);
+    }
 
     if (result.error) throw result.error;
 
@@ -142,10 +194,19 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Brak identyfikatora filamentu.' }, { status: 400 });
     }
 
-    const { error } = await context.client
+    const deleteData = { active: false, updated_at: new Date().toISOString() };
+    let { error } = await context.client
       .from('filaments')
-      .update({ active: false, updated_at: new Date().toISOString() })
+      .update(deleteData)
       .eq('id', id);
+
+    if (error && isFilamentsSchemaError(error)) {
+      const retry = await context.client
+        .from('filaments')
+        .update(removeUnsupportedFilamentFields(deleteData, error))
+        .eq('id', id);
+      error = retry.error;
+    }
 
     if (error) throw error;
 

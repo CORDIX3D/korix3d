@@ -262,22 +262,29 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       payload.updated_at = new Date().toISOString();
     }
 
-    let result;
     try {
-      result = editingRow
-        ? await (supabase as any).from(config.table).update(payload).eq('id', editingRow.id)
-        : await (supabase as any).from(config.table).insert([payload]);
+      const response = await fetch('/api/admin/crud', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: config.table,
+          id: editingRow?.id,
+          payload,
+        }),
+      });
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setSaving(false);
+        toast.error('Błąd zapisu', { description: result?.error || 'Nie udało się zapisać pozycji.' });
+        return;
+      }
     } catch (error) {
       setSaving(false);
       toast.error('Nie udało się zapisać pozycji', {
         description: error instanceof Error ? error.message : 'Nieoczekiwany błąd zapisu.',
       });
-      return;
-    }
-
-    if (result.error) {
-      setSaving(false);
-      toast.error('Błąd zapisu', { description: result.error.message });
       return;
     }
 
@@ -295,15 +302,27 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
 
     setDeletingRowId(String(row.id));
     try {
-      const result = config.softDeleteField
-        ? await (supabase as any).from(config.table).update({ [config.softDeleteField]: false, updated_at: new Date().toISOString() }).eq('id', row.id)
-        : await (supabase as any).from(config.table).delete().eq('id', row.id);
+      const response = await fetch('/api/admin/crud', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: config.table,
+          id: row.id,
+          softDeleteField: config.softDeleteField,
+        }),
+      });
 
-      if (result.error) toast.error('Nie udało się usunąć pozycji', { description: result.error.message });
-      else {
-        toast.success(config.softDeleteField ? 'Pozycja ukryta/dezaktywowana' : 'Pozycja usunięta');
-        fetchRows();
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error('Nie udało się usunąć pozycji', {
+          description: result?.error || 'Nieoczekiwany błąd usuwania.',
+        });
+        return;
       }
+
+      toast.success(config.softDeleteField ? 'Pozycja ukryta/dezaktywowana' : 'Pozycja usunięta');
+      fetchRows();
     } catch (error) {
       toast.error('Nie udało się usunąć pozycji', {
         description: error instanceof Error ? error.message : 'Nieoczekiwany błąd usuwania.',

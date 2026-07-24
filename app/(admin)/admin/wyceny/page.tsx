@@ -1,2 +1,69 @@
 import { GenericAdminCrud } from '@/components/admin/generic-admin-crud';
-export default function Page(){return <GenericAdminCrud config={{title:'Wyceny druku 3D',description:'Zamówienia i zapytania wymagające wyceny.',table:'orders_3d',orderBy:'created_at',addLabel:'Dodaj wycenę',allowCreate:false,searchKeys:['order_number','material_name','status','notes'],fields:[{key:'material_name',label:'Materiał'},{key:'color',label:'Kolor'},{key:'quantity',label:'Ilość',type:'number',defaultValue:1},{key:'priority',label:'Priorytet',defaultValue:'standard',options:[{label:'Standard',value:'standard'},{label:'Express',value:'express'},{label:'Pilne',value:'urgent'}]},{key:'status',label:'Status',defaultValue:'new',options:[{label:'Nowa',value:'new'},{label:'Wycena w toku',value:'quoted'},{label:'Zaakceptowana',value:'accepted'},{label:'W kolejce',value:'queued'},{label:'Drukowanie',value:'printing'},{label:'Obróbka',value:'post_processing'},{label:'Spakowana',value:'packed'},{label:'Wysłana',value:'shipped'},{label:'Zakończona',value:'completed'},{label:'Anulowana',value:'cancelled'}]},{key:'printing_time_hours',label:'Czas druku h',type:'number'},{key:'filament_used_grams',label:'Zużycie g',type:'number'},{key:'material_cost',label:'Koszt materiału',type:'number'},{key:'final_price',label:'Cena końcowa',type:'number'},{key:'notes',label:'Notatki klienta',type:'textarea'},{key:'admin_notes',label:'Notatki admina',type:'textarea'}],defaultInsert:{files:[],user_id:'00000000-0000-0000-0000-000000000000'},columns:[{key:'order_number',label:'Numer'},{key:'material_name',label:'Materiał'},{key:'quantity',label:'Ilość',type:'number'},{key:'status',label:'Status',type:'status'},{key:'final_price',label:'Cena',type:'money'},{key:'created_at',label:'Data',type:'date'}]}}/>}
+
+export const metadata = {
+  title: 'Wyceny druku 3D | Panel administratora KORIX3D',
+  description: 'Zamówienia i zapytania klientów wymagające wyceny druku 3D.',
+};
+
+export default function Page() {
+  return (
+    <GenericAdminCrud
+      config={{
+        title: 'Wyceny druku 3D',
+        description: 'Zamówienia i zapytania wymagające wyceny.',
+        table: 'orders_3d',
+        orderBy: 'created_at',
+        addLabel: 'Dodaj wycenę',
+        allowCreate: false,
+        searchKeys: ['order_number', 'material_name', 'status', 'notes'],
+        fields: [
+          { key: 'material_name', label: 'Materiał' },
+          { key: 'color', label: 'Kolor' },
+          { key: 'quantity', label: 'Ilość', type: 'number', defaultValue: 1 },
+          {
+            key: 'priority',
+            label: 'Priorytet',
+            defaultValue: 'standard',
+            options: [
+              { label: 'Standard', value: 'standard' },
+              { label: 'Express', value: 'express' },
+              { label: 'Pilne', value: 'urgent' },
+            ],
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            defaultValue: 'new',
+            options: [
+              { label: 'Nowa', value: 'new' },
+              { label: 'Wycena w toku', value: 'quoted' },
+              { label: 'Zaakceptowana', value: 'accepted' },
+              { label: 'W kolejce', value: 'queued' },
+              { label: 'Drukowanie', value: 'printing' },
+              { label: 'Obróbka', value: 'post_processing' },
+              { label: 'Spakowana', value: 'packed' },
+              { label: 'Wysłana', value: 'shipped' },
+              { label: 'Zakończona', value: 'completed' },
+              { label: 'Anulowana', value: 'cancelled' },
+            ],
+          },
+          { key: 'printing_time_hours', label: 'Czas druku h', type: 'number' },
+          { key: 'filament_used_grams', label: 'Zużycie g', type: 'number' },
+          { key: 'material_cost', label: 'Koszt materiału', type: 'number' },
+          { key: 'final_price', label: 'Cena końcowa', type: 'number' },
+          { key: 'notes', label: 'Notatki klienta', type: 'textarea' },
+          { key: 'admin_notes', label: 'Notatki admina', type: 'textarea' },
+        ],
+        defaultInsert: { files: [], user_id: '00000000-0000-0000-0000-000000000000' },
+        columns: [
+          { key: 'order_number', label: 'Numer' },
+          { key: 'material_name', label: 'Materiał' },
+          { key: 'quantity', label: 'Ilość', type: 'number' },
+          { key: 'status', label: 'Status', type: 'status' },
+          { key: 'final_price', label: 'Cena', type: 'money' },
+          { key: 'created_at', label: 'Data', type: 'date' },
+        ],
+      }}
+    />
+  );
+}

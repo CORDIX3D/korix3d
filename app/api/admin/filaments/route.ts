@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -49,15 +49,28 @@ async function getAdminSupabaseClient() {
   return { client: sessionClient };
 }
 
-function validatePayload(payload: FilamentPayload) {
-  const brand = String(payload.brand || '').trim();
+async function resolveMaterialName(client: SupabaseClient, payload: FilamentPayload) {
   const materialName = String(payload.material_name || '').trim();
+  if (materialName || !payload.material_id) return materialName;
+
+  const { data, error } = await client
+    .from('materials')
+    .select('name')
+    .eq('id', payload.material_id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return String(data?.name || '').trim();
+}
+
+function validatePayload(payload: FilamentPayload, resolvedMaterialName: string) {
+  const brand = String(payload.brand || '').trim();
   const color = String(payload.color || '').trim();
   const originalWeight = Number(payload.original_weight_grams);
   const remainingWeight = Number(payload.remaining_weight_grams);
   const minimumWeight = Number(payload.min_weight_grams ?? 0);
 
-  if (!brand || !materialName || !color) {
+  if (!brand || !resolvedMaterialName || !color) {
     return 'Marka, materiał i kolor są wymagane.';
   }
 
@@ -84,11 +97,11 @@ function validatePayload(payload: FilamentPayload) {
   return null;
 }
 
-function buildFilamentData(payload: FilamentPayload) {
+function buildFilamentData(payload: FilamentPayload, resolvedMaterialName: string) {
   return {
     brand: String(payload.brand || '').trim(),
     material_id: payload.material_id || null,
-    material_name: String(payload.material_name || '').trim(),
+    material_name: resolvedMaterialName,
     color: String(payload.color || '').trim(),
     color_hex: payload.color_hex || '#FFFFFF',
     image_url: payload.image_url || null,
@@ -155,12 +168,13 @@ export async function POST(request: NextRequest) {
     if (context.error) return context.error;
 
     const payload = (await request.json()) as FilamentPayload;
-    const validationError = validatePayload(payload);
+    const resolvedMaterialName = await resolveMaterialName(context.client, payload);
+    const validationError = validatePayload(payload, resolvedMaterialName);
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    let data = buildFilamentData(payload);
+    let data = buildFilamentData(payload, resolvedMaterialName);
     let result = payload.id
       ? await context.client.from('filaments').update(data).eq('id', payload.id)
       : await context.client.from('filaments').insert([data]);

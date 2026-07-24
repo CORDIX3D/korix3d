@@ -8,14 +8,70 @@ import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+async function fetchMaterialForMetadata(slug: string) {
   const supabase = await createClient();
-  const { data: material } = await supabase
+  const normalizedSlug = decodeURIComponent(slug).trim();
+  const normalizedName = normalizedSlug.replace(/-/g, ' ');
+
+  const bySlug = await supabase
     .from('materials')
     .select('name, description')
-    .eq('slug', params.slug)
+    .eq('slug', normalizedSlug)
     .eq('available', true)
     .maybeSingle();
+
+  if (bySlug.data || bySlug.error) return bySlug;
+
+  const byExactName = await supabase
+    .from('materials')
+    .select('name, description')
+    .ilike('name', normalizedSlug)
+    .eq('available', true)
+    .maybeSingle();
+
+  if (byExactName.data || byExactName.error || normalizedName === normalizedSlug) return byExactName;
+
+  return supabase
+    .from('materials')
+    .select('name, description')
+    .ilike('name', normalizedName)
+    .eq('available', true)
+    .maybeSingle();
+}
+
+async function fetchMaterialForPage(slug: string) {
+  const supabase = await createClient();
+  const normalizedSlug = decodeURIComponent(slug).trim();
+  const normalizedName = normalizedSlug.replace(/-/g, ' ');
+
+  const bySlug = await supabase
+    .from('materials')
+    .select('id, name, description')
+    .eq('slug', normalizedSlug)
+    .eq('available', true)
+    .maybeSingle();
+
+  if (bySlug.data || bySlug.error) return bySlug;
+
+  const byExactName = await supabase
+    .from('materials')
+    .select('id, name, description')
+    .ilike('name', normalizedSlug)
+    .eq('available', true)
+    .maybeSingle();
+
+  if (byExactName.data || byExactName.error || normalizedName === normalizedSlug) return byExactName;
+
+  return supabase
+    .from('materials')
+    .select('id, name, description')
+    .ilike('name', normalizedName)
+    .eq('available', true)
+    .maybeSingle();
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const { data: material } = await fetchMaterialForMetadata(params.slug);
 
   if (!material) notFound();
 
@@ -24,12 +80,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 
 export default async function MaterialDetailPage({ params }: { params: { slug: string } }) {
   const supabase = await createClient();
-  const { data: material, error } = await supabase
-    .from('materials')
-    .select('id, name, description')
-    .eq('slug', params.slug)
-    .eq('available', true)
-    .maybeSingle();
+  const { data: material, error } = await fetchMaterialForPage(params.slug);
 
   if (error) throw new Error('Nie udało się pobrać materiału.');
   if (!material) notFound();

@@ -146,12 +146,19 @@ export default function AdminFilamentsPage() {
 
   const fetchMaterials = async () => {
     try {
-      const { data } = await supabase
+      let { data, error: materialsError } = await supabase
         .from('materials')
         .select('*')
         .eq('available', true)
         .order('name');
 
+      if (materialsError) {
+        const fallback = await supabase.from('materials').select('*').order('name');
+        data = fallback.data;
+        materialsError = fallback.error;
+      }
+
+      if (materialsError) throw materialsError;
       if (data) setMaterials(data as Material[]);
     } catch {
       toast.error('Błąd', { description: 'Nie udało się pobrać listy materiałów' });
@@ -179,18 +186,27 @@ export default function AdminFilamentsPage() {
     }
     setSaving(true);
     try {
-      const imageUrl = imageFile ? await uploadImage(imageFile) : formData.image_url || null;
+      let imageUrl = formData.image_url || null;
+      if (imageFile) {
+        try {
+          imageUrl = await uploadImage(imageFile);
+        } catch {
+          toast.warning('Nie udało się wysłać zdjęcia', {
+            description: 'Filament zostanie zapisany bez fotografii. Zdjęcie możesz dodać później.',
+          });
+        }
+      }
       const data = {
         brand: formData.brand.trim(),
         material_id: formData.material_id || null,
-        material_name: formData.material_name,
-        color: formData.color,
+        material_name: formData.material_name.trim(),
+        color: formData.color.trim(),
         color_hex: formData.color_hex,
         image_url: imageUrl,
         price_per_kg: pricePerKg,
         original_weight_grams: originalWeight,
         remaining_weight_grams: remainingWeight,
-        price_paid: formData.price_paid ? parseFloat(formData.price_paid) : null,
+        price_paid: formData.price_paid ? Number(formData.price_paid.replace(',', '.')) : null,
         min_weight_grams: minimumWeight,
         location: formData.location || null,
         notes: formData.notes || null,
@@ -363,6 +379,19 @@ export default function AdminFilamentsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="form-label">MateriaĹ‚ rÄ™cznie</label>
+                  <Input
+                    value={formData.material_name}
+                    onChange={(e) => setFormData({ ...formData, material_id: '', material_name: e.target.value })}
+                    placeholder="np. PLA, PETG, ABS"
+                    className="h-11 bg-secondary border-border"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    JeĹ›li lista materiaĹ‚Ăłw jest pusta, wpisz typ tutaj. Filament zapisze siÄ™ bez blokady Supabase.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

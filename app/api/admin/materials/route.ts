@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     const materialData = {
       name,
-      slug: existingSlug || `${slugify(name)}-${crypto.randomUUID().slice(0, 6)}`,
+      slug: existingSlug || slugify(name) || crypto.randomUUID().slice(0, 8),
       description,
       available: true,
       updated_at: new Date().toISOString(),

@@ -21,6 +21,7 @@ import {
   Timer,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import type { Material } from '@/lib/types/database';
 
 // Services data
 const services = [
@@ -50,15 +51,7 @@ const services = [
   },
 ];
 
-// Materials data
-const featuredMaterials = [
-  { name: 'PLA', description: 'Eko-materiał do prototypów', color: '#22c55e' },
-  { name: 'PETG', description: 'Wytrzymały i uniwersalny', color: '#3b82f6' },
-  { name: 'ABS', description: 'Dla części technicznych', color: '#ef4444' },
-  { name: 'TPU', description: 'Elastyczny i wytrzymały', color: '#a855f7' },
-  { name: 'PA-CF', description: 'Włókno węglowe', color: '#1f2937' },
-  { name: 'ASA', description: 'Odporny na UV', color: '#f59e0b' },
-];
+const materialColors = ['#22c55e', '#3b82f6', '#ef4444', '#a855f7', '#64748b', '#f59e0b'];
 
 // Benefits data
 const benefits = [
@@ -109,19 +102,30 @@ const particles = Array.from({ length: 20 }, (_, index) => ({
 
 export default function HomePage() {
   const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: portfolioData } = await supabase
-        .from('portfolio_items')
-        .select('*')
-        .eq('active', true)
-        .eq('featured', true)
-        .order('sort_order')
-        .limit(6);
+      const [portfolioResult, materialsResult] = await Promise.all([
+        supabase
+          .from('portfolio_items')
+          .select('*')
+          .eq('active', true)
+          .eq('featured', true)
+          .order('sort_order')
+          .limit(6),
+        supabase
+          .from('materials')
+          .select('*')
+          .eq('available', true)
+          .order('name')
+          .limit(6),
+      ]);
 
-      if (portfolioData) setPortfolio(portfolioData);
-
+      if (portfolioResult.data) setPortfolio(portfolioResult.data);
+      if (materialsResult.data) setMaterials(materialsResult.data as Material[]);
+      setMaterialsLoading(false);
     };
 
     fetchData();
@@ -323,22 +327,39 @@ export default function HomePage() {
           </div>
 
           {/* Material Cards */}
+          {materialsLoading ? (
+            <div className="mb-8 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6" aria-label="Ładowanie materiałów">
+              {Array.from({ length: 6 }, (_, index) => (
+                <div key={index} className="h-36 animate-pulse rounded-xl border border-border bg-card" />
+              ))}
+            </div>
+          ) : materials.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-8">
-            {featuredMaterials.map((material) => (
+            {materials.map((material, index) => (
               <Link
-                key={material.name}
-                href={`/materialy/${material.name.toLowerCase()}`}
+                key={material.id}
+                href={`/materialy/${material.slug}`}
                 className="group bg-card border border-border rounded-xl p-4 hover:border-primary/50 transition-all text-center"
               >
                 <div
                   className="w-12 h-12 mx-auto rounded-full mb-3 border-2 border-border"
-                  style={{ backgroundColor: material.color }}
+                  style={{ backgroundColor: materialColors[index % materialColors.length] }}
                 />
                 <h3 className="font-semibold text-foreground mb-1">{material.name}</h3>
-                <p className="text-xs text-muted-foreground">{material.description}</p>
+                <p className="line-clamp-2 text-xs text-muted-foreground">
+                  {material.description || 'Materiał dostępny do wyceny wydruku 3D'}
+                </p>
               </Link>
             ))}
           </div>
+          ) : (
+            <div className="mb-8 rounded-xl border border-dashed border-border bg-card/50 p-8 text-center">
+              <p className="font-medium">Lista materiałów jest obecnie aktualizowana.</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Skontaktuj się z nami, aby dobrać materiał do projektu.
+              </p>
+            </div>
+          )}
 
           {/* View All Button */}
           <div className="text-center">

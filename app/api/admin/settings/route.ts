@@ -40,6 +40,17 @@ function normalizeSettings(settings: unknown) {
   }));
 }
 
+const NON_NEGATIVE_NUMBER_SETTINGS = new Set([
+  'printing_hour_cost',
+  'electricity_hour_cost',
+  'maintenance_hour_cost',
+  'packaging_cost',
+  'default_margin',
+  'vat_rate',
+  'minimum_order_value',
+  'free_shipping_threshold',
+]);
+
 export async function PATCH(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();
@@ -48,8 +59,27 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const settings = normalizeSettings(body.settings);
 
-    if (!settings || settings.some((setting) => !setting.key)) {
+    if (
+      !settings ||
+      settings.length > 100 ||
+      settings.some(
+        (setting) =>
+          !/^[a-z0-9_]{1,100}$/.test(setting.key) ||
+          setting.value.length > 2000
+      )
+    ) {
       return NextResponse.json({ error: 'Niepoprawne dane ustawień.' }, { status: 400 });
+    }
+
+    for (const setting of settings) {
+      if (!NON_NEGATIVE_NUMBER_SETTINGS.has(setting.key)) continue;
+      const value = Number(setting.value.replace(',', '.'));
+      if (!Number.isFinite(value) || value < 0) {
+        return NextResponse.json(
+          { error: `Ustawienie ${setting.key} musi być liczbą równą lub większą od 0.` },
+          { status: 400 }
+        );
+      }
     }
 
     for (const setting of settings) {
@@ -65,7 +95,7 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error('Admin settings update error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się zapisać ustawień.' },
+      { error: 'Nie udało się zapisać ustawień. Sprawdź połączenie i spróbuj ponownie.' },
       { status: 500 }
     );
   }

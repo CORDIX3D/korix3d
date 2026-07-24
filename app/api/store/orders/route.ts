@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,16 +37,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !serviceKey) {
+    let admin;
+    try {
+      const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+      admin = createSupabaseClient(url, serviceRoleKey);
+    } catch {
       return NextResponse.json(
         { error: 'Składanie zamówień jest chwilowo niedostępne.' },
         { status: 503 }
       );
     }
 
-    const admin = createSupabaseClient(url, serviceKey);
     const orderNumber = `SK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();

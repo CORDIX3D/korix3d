@@ -266,7 +266,15 @@ export default function AdminWarehousePage() {
     try {
       setSaving(true);
       let imageUrl = formData.image_url;
-      if (imageFile) imageUrl = await uploadImage(imageFile);
+      if (imageFile) {
+        try {
+          imageUrl = await uploadImage(imageFile);
+        } catch {
+          toast.warning('Nie udało się dodać zdjęcia', {
+            description: 'Produkt zostanie zapisany bez nowego zdjęcia.',
+          });
+        }
+      }
 
       const payload = {
         sku: formData.sku.trim(),

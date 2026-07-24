@@ -239,7 +239,15 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       for (const field of config.fields) {
         if (editingRow && field.readOnlyOnEdit) continue;
         if (field.type === 'image' && imageFiles[field.key]) {
-          payload[field.key] = await uploadImage(imageFiles[field.key] as File);
+          try {
+            payload[field.key] = await uploadImage(imageFiles[field.key] as File);
+          } catch (error) {
+            if (field.required) throw error;
+            payload[field.key] = normalizeValue(field, formData[field.key]);
+            toast.warning('Nie udało się dodać zdjęcia', {
+              description: 'Pozostałe dane zostaną zapisane bez nowego zdjęcia.',
+            });
+          }
         } else {
           payload[field.key] = normalizeValue(field, formData[field.key]);
         }

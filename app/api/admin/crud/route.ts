@@ -60,6 +60,32 @@ function normalizePayload(payload: unknown) {
   return payload as AdminCrudPayload;
 }
 
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ł/g, 'l')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function preparePayload(table: string, payload: AdminCrudPayload) {
+  const prepared = { ...payload };
+
+  if (table === 'categories') {
+    const name = String(prepared.name || '').trim();
+    if (!name) return null;
+
+    prepared.name = name;
+    prepared.slug = String(prepared.slug || '').trim() || slugify(name) || crypto.randomUUID().slice(0, 8);
+    prepared.active = prepared.active ?? true;
+    prepared.sort_order = Number(prepared.sort_order ?? 0);
+  }
+
+  return prepared;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();
@@ -67,11 +93,16 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const table = validateTable(body.table);
-    const payload = normalizePayload(body.payload);
+    const normalizedPayload = normalizePayload(body.payload);
     const id = String(body.id || '').trim();
 
-    if (!table || !payload) {
+    if (!table || !normalizedPayload) {
       return NextResponse.json({ error: 'Niepoprawne dane zapisu.' }, { status: 400 });
+    }
+
+    const payload = preparePayload(table, normalizedPayload);
+    if (!payload) {
+      return NextResponse.json({ error: 'Nazwa kategorii jest wymagana.' }, { status: 400 });
     }
 
     const result = id

@@ -1,6 +1,11 @@
 import { MessageSquare } from 'lucide-react';
 import { UnavailableModule } from '@/components/customer/unavailable-module';
 
+export const metadata = {
+  title: 'Wiadomości | Panel klienta KORIX3D',
+  description: 'Wiadomości i kontakt dotyczący wycen oraz realizacji zamówień KORIX3D.',
+};
+
 export default function MessagesPage() {
   return (
     <UnavailableModule

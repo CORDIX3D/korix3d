@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import { Mail, Printer } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 const footerLinks = {
@@ -48,16 +47,19 @@ export function PublicFooter() {
     }
     setNewsletterLoading(true);
     try {
-      const { error } = await supabase.from('newsletter_subscribers').insert([{
-        email,
-        source: 'footer',
-      }]);
-      if (error && error.code !== '23505') {
-        toast.error('Nie udało się zapisać', { description: 'Spróbuj ponownie za chwilę.' });
+      const response = await fetch('/api/public/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error('Nie udało się zapisać', { description: result?.error || 'Spróbuj ponownie za chwilę.' });
         return;
       }
       setNewsletterEmail('');
-      toast.success(error?.code === '23505' ? 'Ten adres jest już zapisany' : 'Zapisano do newslettera');
+      toast.success(result?.duplicate ? 'Ten adres jest już zapisany' : 'Zapisano do newslettera');
     } catch {
       toast.error('Nie udało się zapisać', { description: 'Sprawdź połączenie i spróbuj ponownie.' });
     } finally {

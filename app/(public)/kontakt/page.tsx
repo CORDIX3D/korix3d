@@ -16,7 +16,6 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 const contactSchema = z.object({
@@ -61,17 +60,17 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
     setSubmitting(true);
 
     try {
-      const { error } = await supabase.from('contact_submissions').insert([
-        {
-          name: data.name,
-          email: data.email,
-          phone: data.phone || null,
-          subject: data.subject,
-          message: data.message,
-        },
-      ]);
+      const response = await fetch('/api/public/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
 
-      if (error) throw error;
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(result?.error || 'Nie udało się wysłać wiadomości.');
+      }
 
       toast.success('Wiadomość wysłana', {
         description: 'Odpowiemy najszybciej jak to możliwe',

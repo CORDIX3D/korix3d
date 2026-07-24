@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import { DEFAULT_DELIVERY_OPTIONS, IGNORED_SHIPPING_SETTING_KEYS } from '@/lib/shipping';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +25,6 @@ const orderSchema = z.object({
     quantity: z.number().int().min(1).max(99),
   })).min(1).max(50),
 });
-
-const ignoredShippingSettingKeys = new Set(['free_shipping_threshold']);
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,25 +56,32 @@ export async function POST(request: NextRequest) {
       .eq('category', 'shipping');
 
     if (shippingError) {
-      return NextResponse.json(
-        { error: 'Nie udało się pobrać metod dostawy. Spróbuj ponownie.' },
-        { status: 503 }
-      );
+      console.error('Shipping settings fetch error:', shippingError);
     }
 
-    const deliverySetting = (shippingSettings || []).find((setting: { key: string | null }) => {
-      if (!setting.key || ignoredShippingSettingKeys.has(setting.key)) return false;
-      return setting.key === parsed.data.deliveryType || setting.key.replace(/_price$/, '') === parsed.data.deliveryType;
+    const availableShippingSettings = (shippingSettings || []).filter(
+      (setting: { key: string | null }) =>
+        Boolean(setting.key) && !IGNORED_SHIPPING_SETTING_KEYS.has(String(setting.key))
+    );
+    const deliverySetting = availableShippingSettings.find((setting: { key: string | null }) => {
+      const key = String(setting.key);
+      return key === parsed.data.deliveryType || key.replace(/_price$/, '') === parsed.data.deliveryType;
     });
+    const defaultDelivery =
+      shippingError || availableShippingSettings.length === 0
+        ? DEFAULT_DELIVERY_OPTIONS.find((option) => option.value === parsed.data.deliveryType)
+        : undefined;
 
-    if (!deliverySetting) {
+    if (!deliverySetting && !defaultDelivery) {
       return NextResponse.json(
         { error: 'Wybrana metoda dostawy jest niedostępna. Odśwież stronę i wybierz metodę ponownie.' },
         { status: 400 }
       );
     }
 
-    const shippingCost = Number(String(deliverySetting.value ?? '0').replace(',', '.'));
+    const shippingCost = deliverySetting
+      ? Number(String(deliverySetting.value ?? '0').replace(',', '.'))
+      : Number(defaultDelivery?.price ?? 0);
     if (!Number.isFinite(shippingCost) || shippingCost < 0) {
       return NextResponse.json(
         { error: 'Konfiguracja kosztu dostawy jest nieprawidłowa.' },
@@ -92,7 +98,7 @@ export async function POST(request: NextRequest) {
         ...parsed.data.shippingAddress,
         phone: parsed.data.customer.phone,
         delivery_type: parsed.data.deliveryType,
-        delivery_label: deliverySetting.label || deliverySetting.key,
+        delivery_label: deliverySetting?.label || deliverySetting?.key || defaultDelivery?.label,
       },
       p_billing_address: parsed.data.shippingAddress,
       p_shipping_cost: shippingCost,

@@ -10,16 +10,11 @@ import { Label } from '@/components/ui/label';
 import { useCart } from '@/lib/cart-provider';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 import { supabase } from '@/lib/supabase/client';
-
-type DeliveryOption = { value: string; label: string; price: number };
-
-const defaultDeliveryOptions: DeliveryOption[] = [
-  { value: 'pickup', label: 'Odbiór osobisty', price: 0 },
-  { value: 'courier', label: 'Kurier', price: 15 },
-  { value: 'paczkomat', label: 'Paczkomat', price: 12 },
-];
-
-const ignoredShippingSettingKeys = new Set(['free_shipping_threshold']);
+import {
+  DEFAULT_DELIVERY_OPTIONS,
+  IGNORED_SHIPPING_SETTING_KEYS,
+  type DeliveryOption,
+} from '@/lib/shipping';
 
 function normalizeCheckoutError(message: string) {
   const lower = message.toLowerCase();
@@ -40,8 +35,8 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
-  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(defaultDeliveryOptions);
-  const [deliveryType, setDeliveryType] = useState(defaultDeliveryOptions[0].value);
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(DEFAULT_DELIVERY_OPTIONS);
+  const [deliveryType, setDeliveryType] = useState(DEFAULT_DELIVERY_OPTIONS[0].value);
   const [deliveryError, setDeliveryError] = useState('');
   const selectedDelivery = deliveryOptions.find((option) => option.value === deliveryType) || deliveryOptions[0];
   const total = subtotal + (selectedDelivery?.price || 0);
@@ -59,7 +54,7 @@ export default function CheckoutPage() {
       if (error) throw error;
 
       const options = (data || [])
-        .filter((setting: { key: string | null }) => setting.key && !ignoredShippingSettingKeys.has(setting.key))
+        .filter((setting: { key: string | null }) => setting.key && !IGNORED_SHIPPING_SETTING_KEYS.has(setting.key))
         .map((setting: { key: string; label: string | null; value: string | number | null }) => {
           const price = Number(String(setting.value ?? '0').replace(',', '.'));
           return {
@@ -69,9 +64,9 @@ export default function CheckoutPage() {
           };
         });
 
-      setDeliveryOptions(options.length > 0 ? options : defaultDeliveryOptions);
+      setDeliveryOptions(options.length > 0 ? options : DEFAULT_DELIVERY_OPTIONS);
     } catch {
-      setDeliveryOptions(defaultDeliveryOptions);
+      setDeliveryOptions(DEFAULT_DELIVERY_OPTIONS);
       setDeliveryError('Nie udało się pobrać aktualnych metod dostawy. Pokazujemy domyślne opcje.');
     }
   }, []);

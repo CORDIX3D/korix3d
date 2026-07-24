@@ -310,28 +310,27 @@ export default function QuotePage() {
 
       // Najpierw tworzymy pusty rekord. Polityka Storage pozwala wysyłać pliki
       // wyłącznie do istniejącego zamówienia należącego do użytkownika.
-      const orderData = {
-        id: orderId,
-        user_id: user.id,
-        material_id: data.material_id,
-        material_name: materialName,
-        color: selectedColor?.name || 'Do ustalenia',
-        color_hex: selectedColor?.hex,
-        layer_height: 0.2,
-        quantity: data.quantity,
-        priority: data.priority,
-        notes: configurationNotes,
-        status: 'new',
-        files: [],
-      };
+      const createResponse = await fetch('/api/public/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          order_id: orderId,
+          material_id: data.material_id,
+          material_name: materialName,
+          color: selectedColor?.name || 'Do ustalenia',
+          color_hex: selectedColor?.hex,
+          quantity: data.quantity,
+          priority: data.priority,
+          notes: configurationNotes,
+        }),
+      });
 
-      const { data: createdOrder, error: orderError } = await supabase
-        .from('orders_3d')
-        .insert([orderData])
-        .select('order_number')
-        .single();
+      const createdOrder = await createResponse.json().catch(() => null);
 
-      if (orderError) throw orderError;
+      if (!createResponse.ok) {
+        throw new Error(createdOrder?.error || 'Nie udało się utworzyć zlecenia.');
+      }
 
       const storedFiles = [];
       for (let index = 0; index < uploadedFiles.length; index += 1) {
@@ -365,13 +364,20 @@ export default function QuotePage() {
         setUploadProgress({ completed: index + 1, total: uploadedFiles.length });
       }
 
-      const { data: finalized, error: finalizeError } = await supabase.rpc('finalize_quote_files', {
-        p_order_id: orderId,
-        p_files: storedFiles,
+      const finalizeResponse = await fetch('/api/public/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'finalize',
+          order_id: orderId,
+          files: storedFiles,
+        }),
       });
 
-      if (finalizeError || !finalized) {
-        throw new Error(finalizeError?.message || 'Nie udało się przypisać plików do zamówienia.');
+      const finalized = await finalizeResponse.json().catch(() => null);
+
+      if (!finalizeResponse.ok) {
+        throw new Error(finalized?.error || 'Nie udało się przypisać plików do zamówienia.');
       }
 
       toast.success('Zlecenie przyjęte', {
@@ -394,7 +400,11 @@ export default function QuotePage() {
         }
       }
       try {
-        await supabase.rpc('discard_incomplete_quote', { p_order_id: orderId });
+        await fetch('/api/public/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'discard', order_id: orderId }),
+        });
       } catch {
         // Cleanup failure should not hide the original submission error.
       }

@@ -196,28 +196,23 @@ export default function AdminFilamentsPage() {
         notes: formData.notes || null,
         active: true,
       };
-      let error;
-      if (editingFilament) {
-        const result = await supabase
-          .from('filaments')
-          .update(data)
-          .eq('id', editingFilament.id);
-        error = result.error;
-      } else {
-        const result = await supabase.from('filaments').insert([data]);
-        error = result.error;
-      }
+      const response = await fetch('/api/admin/filaments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingFilament ? { ...data, id: editingFilament.id } : data),
+      });
+      const result = await response.json();
 
-      if (error) {
-        toast.error('Błąd', { description: 'Nie udało się zapisać filamentu' });
-      } else {
-        toast.success(editingFilament ? 'Zaktualizowano' : 'Dodano filament');
-        setDialogOpen(false);
-        resetForm();
-        fetchFilaments();
-      }
-    } catch {
-      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas zapisywania filamentu' });
+      if (!response.ok) throw new Error(result.error || 'Nie udało się zapisać filamentu');
+
+      toast.success(editingFilament ? 'Zaktualizowano' : 'Dodano filament');
+      setDialogOpen(false);
+      resetForm();
+      fetchFilaments();
+    } catch (error) {
+      toast.error('Błąd zapisu', {
+        description: error instanceof Error ? error.message : 'Nie udało się zapisać filamentu.',
+      });
     } finally {
       setSaving(false);
     }
@@ -272,19 +267,19 @@ export default function AdminFilamentsPage() {
 
     setDeletingFilamentId(id);
     try {
-      const { error } = await supabase
-        .from('filaments')
-        .update({ active: false })
-        .eq('id', id);
+      const response = await fetch(`/api/admin/filaments?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
 
-      if (error) {
-        toast.error('Błąd', { description: 'Nie udało się usunąć filamentu' });
-      } else {
-        toast.success('Usunięto filament');
-        fetchFilaments();
-      }
-    } catch {
-      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase podczas usuwania filamentu' });
+      if (!response.ok) throw new Error(result.error || 'Nie udało się usunąć filamentu');
+
+      toast.success('Usunięto filament');
+      fetchFilaments();
+    } catch (error) {
+      toast.error('Błąd usuwania', {
+        description: error instanceof Error ? error.message : 'Nie udało się usunąć filamentu.',
+      });
     } finally {
       setDeletingFilamentId(null);
     }

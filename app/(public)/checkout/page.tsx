@@ -133,6 +133,24 @@ export default function CheckoutPage() {
         throw new Error('Zamówienie zostało zapisane, ale nie udało się odczytać jego numeru. Skontaktuj się z nami, jeśli nie otrzymasz potwierdzenia.');
       }
 
+      if (result.orderId) {
+        const paymentResponse = await fetch('/api/stripe/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: result.orderId }),
+        });
+        const paymentResult = await paymentResponse.json().catch(() => ({}));
+
+        if (paymentResponse.ok && paymentResult.url) {
+          window.location.assign(paymentResult.url);
+          return;
+        }
+
+        if (paymentResult.error !== 'stripe_not_configured') {
+          throw new Error(paymentResult.error || 'Nie udało się przygotować płatności.');
+        }
+      }
+
       setOrderNumber(String(result.orderNumber));
       clearCart();
     } catch (submitError) {

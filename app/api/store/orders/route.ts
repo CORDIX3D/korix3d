@@ -125,7 +125,15 @@ export async function POST(request: NextRequest) {
         ? String(order.orderNumber || orderNumber)
         : orderNumber;
 
-    return NextResponse.json({ orderNumber: savedOrderNumber });
+    const orderId = typeof order === 'object' && order !== null && 'orderId' in order
+      ? String(order.orderId)
+      : null;
+
+    return NextResponse.json({
+      orderId,
+      orderNumber: savedOrderNumber,
+      total: typeof order === 'object' && order !== null && 'total' in order ? Number(order.total) : undefined,
+    });
   } catch (error) {
     console.error('Store order API error:', error);
     return NextResponse.json(

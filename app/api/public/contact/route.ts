@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
 function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error('Brak konfiguracji Supabase.');
-  }
-
-  return createClient(url, key);
+  const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+  return createClient(url, serviceRoleKey);
 }
 
 function validateContact(data: Record<string, unknown>) {

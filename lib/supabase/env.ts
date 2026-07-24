@@ -1,14 +1,11 @@
-const FALLBACK_SUPABASE_URL = 'https://example.supabase.co';
-const FALLBACK_SUPABASE_ANON_KEY = 'placeholder-anon-key-for-local-builds';
-
 export function getSupabaseEnv() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
   return {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL || FALLBACK_SUPABASE_URL,
-    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || FALLBACK_SUPABASE_ANON_KEY,
-    isConfigured: Boolean(
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ),
+    url,
+    anonKey,
+    isConfigured: Boolean(url && anonKey),
   };
 }
 
@@ -18,4 +15,15 @@ export function getRequiredSupabaseEnv() {
     throw new Error('Brak konfiguracji Supabase w zmiennych środowiskowych');
   }
   return env;
+}
+
+export function getRequiredSupabaseServiceEnv() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+  if (!url || !serviceRoleKey) {
+    throw new Error('Brak konfiguracji Supabase Service Role w zmiennych środowiskowych');
+  }
+
+  return { url, serviceRoleKey };
 }

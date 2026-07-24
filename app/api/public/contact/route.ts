@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Contact form submit error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się wysłać wiadomości.' },
+      { error: 'Nie udało się wysłać wiadomości. Spróbuj ponownie za chwilę.' },
       { status: 500 }
     );
   }

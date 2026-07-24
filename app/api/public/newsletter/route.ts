@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Newsletter subscribe error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się zapisać do newslettera.' },
+      { error: 'Nie udało się zapisać do newslettera. Spróbuj ponownie za chwilę.' },
       { status: 500 }
     );
   }

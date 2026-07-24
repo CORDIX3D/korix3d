@@ -120,18 +120,20 @@ export default function AdminMaterialsPage() {
 
     setTogglingMaterialId(material.id);
     try {
-      const { error } = await supabase
-        .from('materials')
-        .update({ available: !material.available, updated_at: new Date().toISOString() })
-        .eq('id', material.id);
+      const response = await fetch('/api/admin/materials', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: material.id, available: !material.available }),
+      });
+      const result = await response.json();
 
-      if (error) {
-        toast.error('Nie udało się zmienić dostępności typu materiału');
-      } else {
-        fetchMaterials();
-      }
-    } catch {
-      toast.error('Nie udało się połączyć z Supabase podczas zmiany dostępności');
+      if (!response.ok) throw new Error(result.error || 'Nie udało się zmienić dostępności typu materiału');
+
+      fetchMaterials();
+    } catch (error) {
+      toast.error('Nie udało się zmienić dostępności typu materiału', {
+        description: error instanceof Error ? error.message : 'Spróbuj ponownie za chwilę.',
+      });
     } finally {
       setTogglingMaterialId(null);
     }
@@ -143,17 +145,19 @@ export default function AdminMaterialsPage() {
 
     setDeletingMaterialId(material.id);
     try {
-      const { error } = await supabase.from('materials').delete().eq('id', material.id);
+      const response = await fetch(`/api/admin/materials?id=${encodeURIComponent(material.id)}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
 
-      if (error) {
-        toast.error('Nie udało się usunąć typu materiału', { description: error.message });
-        return;
-      }
+      if (!response.ok) throw new Error(result.error || 'Nie udało się usunąć typu materiału');
 
       toast.success('Typ materiału został usunięty');
       fetchMaterials();
-    } catch {
-      toast.error('Nie udało się połączyć z Supabase podczas usuwania typu materiału');
+    } catch (error) {
+      toast.error('Nie udało się usunąć typu materiału', {
+        description: error instanceof Error ? error.message : 'Spróbuj ponownie za chwilę.',
+      });
     } finally {
       setDeletingMaterialId(null);
     }

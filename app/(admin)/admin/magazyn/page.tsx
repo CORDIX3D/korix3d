@@ -53,21 +53,10 @@ type ProductForm = typeof emptyForm;
 function createSlug(value: string) {
   return value
     .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ł/g, 'l')
     .trim()
-    .replace(/[ąćęłńóśźż]/g, (letter) => {
-      const map: Record<string, string> = {
-        ą: 'a',
-        ć: 'c',
-        ę: 'e',
-        ł: 'l',
-        ń: 'n',
-        ó: 'o',
-        ś: 's',
-        ź: 'z',
-        ż: 'z',
-      };
-      return map[letter] || letter;
-    })
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
@@ -298,12 +287,16 @@ export default function AdminWarehousePage() {
         updated_at: new Date().toISOString(),
       };
 
-      const result = editingProduct
-        ? await supabase.from('products').update(payload).eq('id', editingProduct.id)
-        : await supabase.from('products').insert([payload]);
+      const response = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingProduct ? { ...payload, id: editingProduct.id } : payload),
+      });
 
-      if (result.error) {
-        toast.error('Błąd zapisu', { description: result.error.message });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error('Błąd zapisu', { description: result?.error || 'Nie udało się zapisać produktu.' });
         return;
       }
 

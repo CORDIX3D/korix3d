@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,45 @@ function slugify(value: string) {
 function isLegacyMaterialsSchemaError(error: unknown) {
   if (!error || typeof error !== 'object') return false;
   const message = 'message' in error ? String(error.message || '') : '';
-  return message.includes('price_per_kg') || message.includes('properties');
+  return ['price_per_kg', 'properties', 'slug', 'available', 'updated_at'].some((column) =>
+    message.includes(column)
+  );
+}
+
+function removeUnsupportedMaterialFields<T extends Record<string, unknown>>(data: T, error: unknown) {
+  if (!error || typeof error !== 'object') return data;
+  const message = 'message' in error ? String(error.message || '') : '';
+  const nextData = { ...data };
+
+  for (const column of ['price_per_kg', 'properties', 'slug', 'available', 'updated_at']) {
+    if (message.includes(column)) {
+      delete nextData[column];
+    }
+  }
+
+  return nextData;
+}
+
+async function findExistingMaterial(
+  admin: SupabaseClient,
+  name: string,
+  id?: string
+) {
+  const baseQuery = id
+    ? admin.from('materials').select('id, slug').eq('id', id).maybeSingle()
+    : admin.from('materials').select('id, slug').ilike('name', name).limit(1).maybeSingle();
+
+  const { data, error } = await baseQuery;
+  if (!error) return { id: data?.id || '', slug: data?.slug || '' };
+  if (!isLegacyMaterialsSchemaError(error)) throw error;
+
+  const fallbackQuery = id
+    ? admin.from('materials').select('id').eq('id', id).maybeSingle()
+    : admin.from('materials').select('id').ilike('name', name).limit(1).maybeSingle();
+
+  const fallback = await fallbackQuery;
+  if (fallback.error) throw fallback.error;
+  return { id: fallback.data?.id || '', slug: '' };
 }
 
 async function getAdminSupabaseClient() {
@@ -66,27 +104,9 @@ export async function POST(request: NextRequest) {
     let materialId = id;
     let existingSlug = '';
 
-    if (!materialId) {
-      const { data: existing, error } = await admin
-        .from('materials')
-        .select('id, slug')
-        .ilike('name', name)
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      materialId = existing?.id || '';
-      existingSlug = existing?.slug || '';
-    } else {
-      const { data: existing, error } = await admin
-        .from('materials')
-        .select('slug')
-        .eq('id', materialId)
-        .maybeSingle();
-
-      if (error) throw error;
-      existingSlug = existing?.slug || '';
-    }
+    const existingMaterial = await findExistingMaterial(admin, name, materialId || undefined);
+    materialId = materialId || existingMaterial.id;
+    existingSlug = existingMaterial.slug;
 
     const materialData = {
       name,
@@ -97,7 +117,14 @@ export async function POST(request: NextRequest) {
     };
 
     if (materialId) {
-      const { error } = await admin.from('materials').update(materialData).eq('id', materialId);
+      let { error } = await admin.from('materials').update(materialData).eq('id', materialId);
+      if (error && isLegacyMaterialsSchemaError(error)) {
+        const retry = await admin
+          .from('materials')
+          .update(removeUnsupportedMaterialFields(materialData, error))
+          .eq('id', materialId);
+        error = retry.error;
+      }
       if (error) throw error;
     } else {
       const insertData = {
@@ -113,7 +140,11 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error && isLegacyMaterialsSchemaError(error)) {
-        const retry = await admin.from('materials').insert(materialData).select('id').single();
+        const retry = await admin
+          .from('materials')
+          .insert(removeUnsupportedMaterialFields(insertData, error))
+          .select('id')
+          .single();
         data = retry.data;
         error = retry.error;
       }
@@ -144,10 +175,19 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Brak poprawnych danych materiału.' }, { status: 400 });
     }
 
-    const { error } = await context.client
+    const updateData = { available, updated_at: new Date().toISOString() };
+    let { error } = await context.client
       .from('materials')
-      .update({ available, updated_at: new Date().toISOString() })
+      .update(updateData)
       .eq('id', id);
+
+    if (error && isLegacyMaterialsSchemaError(error)) {
+      const retry = await context.client
+        .from('materials')
+        .update(removeUnsupportedMaterialFields(updateData, error))
+        .eq('id', id);
+      error = retry.error;
+    }
 
     if (error) throw error;
 

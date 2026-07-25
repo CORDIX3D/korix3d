@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import {
   getRequiredSupabaseServiceEnv,
   isSupabaseConfigurationError,
 } from '@/lib/supabase/env';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
+import { createServiceRoleClient } from '@/lib/supabase/service-client';
 
 export const dynamic = 'force-dynamic';
 
 function getSupabaseClient() {
   const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
-  return createClient(url, serviceRoleKey);
+  return createServiceRoleClient(url, serviceRoleKey);
 }
 
 function validateContact(data: Record<string, unknown>) {
@@ -31,6 +32,24 @@ function validateContact(data: Record<string, unknown>) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
+    const rateLimit = await checkPublicRateLimit(request, {
+      scope: 'contact_form',
+      limit: 5,
+      windowSeconds: 60 * 60,
+      consumePersistent: async (args) => {
+        const { data, error } = await supabase.rpc('consume_public_api_rate_limit', args);
+        return { data: data === true, error };
+      },
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(
+        'Wysłano zbyt wiele wiadomości. Spróbuj ponownie później.',
+        rateLimit.retryAfter
+      );
+    }
+
     const body = await readJsonObject(request, 16 * 1024);
     const validationError = validateContact(body);
 
@@ -38,7 +57,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
     const { error } = await supabase.from('contact_submissions').insert([
       {
         name: String(body.name || '').trim(),

@@ -172,6 +172,7 @@ export default function AdminFilamentsPage() {
     const remainingWeight = Number(formData.remaining_weight_grams);
     const minimumWeight = Number(formData.min_weight_grams);
     const pricePerKg = formData.price_per_kg ? Number(formData.price_per_kg.replace(',', '.')) : null;
+    const pricePaid = formData.price_paid ? Number(formData.price_paid.replace(',', '.')) : null;
     if (!formData.brand.trim() || !formData.material_name.trim() || !formData.color.trim()) {
       toast.error('Uzupełnij wymagane pola', { description: 'Marka, materiał i kolor są wymagane.' });
       return;
@@ -182,6 +183,14 @@ export default function AdminFilamentsPage() {
     }
     if (pricePerKg !== null && (!Number.isFinite(pricePerKg) || pricePerKg < 0)) {
       toast.error('Nieprawidłowa cena', { description: 'Cena z kilograma musi być liczbą większą lub równą 0 albo pozostać pusta.' });
+      return;
+    }
+    if (pricePaid !== null && (!Number.isFinite(pricePaid) || pricePaid < 0)) {
+      toast.error('Nieprawidłowa cena', { description: 'Cena zakupu musi być liczbą większą lub równą 0 albo pozostać pusta.' });
+      return;
+    }
+    if (!/^#[0-9a-f]{6}$/i.test(formData.color_hex)) {
+      toast.error('Nieprawidłowy kolor', { description: 'Podaj kod HEX w formacie #16A34A.' });
       return;
     }
     setSaving(true);
@@ -206,7 +215,7 @@ export default function AdminFilamentsPage() {
         price_per_kg: pricePerKg,
         original_weight_grams: originalWeight,
         remaining_weight_grams: remainingWeight,
-        price_paid: formData.price_paid ? Number(formData.price_paid.replace(',', '.')) : null,
+        price_paid: pricePaid,
         min_weight_grams: minimumWeight,
         location: formData.location || null,
         notes: formData.notes || null,
@@ -224,7 +233,7 @@ export default function AdminFilamentsPage() {
       toast.success(editingFilament ? 'Zaktualizowano' : 'Dodano filament');
       setDialogOpen(false);
       resetForm();
-      fetchFilaments();
+      await fetchFilaments();
     } catch (error) {
       toast.error('Błąd zapisu', {
         description: error instanceof Error ? error.message : 'Nie udało się zapisać filamentu.',
@@ -382,7 +391,7 @@ export default function AdminFilamentsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="form-label">MateriaĹ‚ rÄ™cznie</label>
+                  <label className="form-label">Materiał wpisany ręcznie</label>
                   <Input
                     value={formData.material_name}
                     onChange={(e) => setFormData({ ...formData, material_id: '', material_name: e.target.value })}
@@ -390,7 +399,7 @@ export default function AdminFilamentsPage() {
                     className="h-11 bg-secondary border-border"
                   />
                   <p className="text-xs text-muted-foreground">
-                    JeĹ›li lista materiaĹ‚Ăłw jest pusta, wpisz typ tutaj. Filament zapisze siÄ™ bez blokady Supabase.
+                    Jeśli odpowiedniego typu nie ma na liście, wpisz go tutaj, na przykład PLA, PETG lub ABS.
                   </p>
                 </div>
 

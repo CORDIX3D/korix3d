@@ -21,6 +21,22 @@ type FilamentPayload = {
   notes?: string | null;
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const HEX_COLOR_REGEX = /^#[0-9a-f]{6}$/i;
+const OPTIONAL_FILAMENT_COLUMNS = [
+  'material_id',
+  'color_hex',
+  'image_url',
+  'price_per_kg',
+  'original_weight_grams',
+  'price_paid',
+  'min_weight_grams',
+  'location',
+  'notes',
+  'active',
+  'updated_at',
+] as const;
+
 async function getAdminSupabaseClient() {
   const sessionClient = await createClient();
   const { data: auth } = await sessionClient.auth.getUser();
@@ -74,6 +90,14 @@ function validatePayload(payload: FilamentPayload, resolvedMaterialName: string)
     return 'Marka, materiał i kolor są wymagane.';
   }
 
+  if (brand.length > 120 || resolvedMaterialName.length > 120 || color.length > 120) {
+    return 'Marka, materiał i kolor mogą mieć maksymalnie po 120 znaków.';
+  }
+
+  if (payload.color_hex && !HEX_COLOR_REGEX.test(payload.color_hex)) {
+    return 'Kolor musi mieć format HEX, na przykład #16A34A.';
+  }
+
   if (
     !Number.isFinite(originalWeight) ||
     originalWeight <= 0 ||
@@ -94,7 +118,20 @@ function validatePayload(payload: FilamentPayload, resolvedMaterialName: string)
     return 'Cena zakupu musi być liczbą większą lub równą 0 albo pozostać pusta.';
   }
 
+  if (String(payload.location || '').trim().length > 160) {
+    return 'Lokalizacja może mieć maksymalnie 160 znaków.';
+  }
+
+  if (String(payload.notes || '').trim().length > 2000) {
+    return 'Notatki mogą mieć maksymalnie 2000 znaków.';
+  }
+
   return null;
+}
+
+function optionalText(value: unknown) {
+  const normalized = String(value || '').trim();
+  return normalized || null;
 }
 
 function buildFilamentData(payload: FilamentPayload, resolvedMaterialName: string) {
@@ -103,15 +140,15 @@ function buildFilamentData(payload: FilamentPayload, resolvedMaterialName: strin
     material_id: payload.material_id || null,
     material_name: resolvedMaterialName,
     color: String(payload.color || '').trim(),
-    color_hex: payload.color_hex || '#FFFFFF',
-    image_url: payload.image_url || null,
+    color_hex: String(payload.color_hex || '#FFFFFF').toUpperCase(),
+    image_url: optionalText(payload.image_url),
     price_per_kg: payload.price_per_kg ?? null,
     original_weight_grams: Number(payload.original_weight_grams),
     remaining_weight_grams: Number(payload.remaining_weight_grams),
     price_paid: payload.price_paid ?? null,
     min_weight_grams: Number(payload.min_weight_grams ?? 0),
-    location: payload.location || null,
-    notes: payload.notes || null,
+    location: optionalText(payload.location),
+    notes: optionalText(payload.notes),
     active: true,
     updated_at: new Date().toISOString(),
   };
@@ -120,20 +157,14 @@ function buildFilamentData(payload: FilamentPayload, resolvedMaterialName: strin
 function isFilamentsSchemaError(error: unknown) {
   if (!error || typeof error !== 'object') return false;
   const message = 'message' in error ? String(error.message || '') : '';
+  const code = 'code' in error ? String(error.code || '') : '';
+  const isMissingColumn =
+    code === 'PGRST204' ||
+    code === '42703' ||
+    message.includes('schema cache') ||
+    (message.includes('column') && message.includes('does not exist'));
 
-  return [
-    'material_id',
-    'color_hex',
-    'image_url',
-    'price_per_kg',
-    'original_weight_grams',
-    'price_paid',
-    'min_weight_grams',
-    'location',
-    'notes',
-    'active',
-    'updated_at',
-  ].some((column) => message.includes(column));
+  return isMissingColumn && OPTIONAL_FILAMENT_COLUMNS.some((column) => message.includes(column));
 }
 
 function removeUnsupportedFilamentFields<T extends Record<string, unknown>>(data: T, error: unknown) {
@@ -141,19 +172,7 @@ function removeUnsupportedFilamentFields<T extends Record<string, unknown>>(data
   const message = 'message' in error ? String(error.message || '') : '';
   const nextData = { ...data };
 
-  for (const column of [
-    'material_id',
-    'color_hex',
-    'image_url',
-    'price_per_kg',
-    'original_weight_grams',
-    'price_paid',
-    'min_weight_grams',
-    'location',
-    'notes',
-    'active',
-    'updated_at',
-  ]) {
+  for (const column of OPTIONAL_FILAMENT_COLUMNS) {
     if (message.includes(column)) {
       delete nextData[column];
     }
@@ -162,33 +181,62 @@ function removeUnsupportedFilamentFields<T extends Record<string, unknown>>(data
   return nextData;
 }
 
+async function saveFilament(
+  client: SupabaseClient,
+  payload: FilamentPayload,
+  initialData: ReturnType<typeof buildFilamentData>
+) {
+  let data: Record<string, unknown> = initialData;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt <= OPTIONAL_FILAMENT_COLUMNS.length; attempt += 1) {
+    const result = payload.id
+      ? await client.from('filaments').update(data).eq('id', payload.id).select('id').maybeSingle()
+      : await client.from('filaments').insert([data]).select('id').single();
+
+    if (!result.error) {
+      if (!result.data) {
+        throw new Error('Filament nie istnieje lub nie masz dostępu do tego rekordu.');
+      }
+      return result.data;
+    }
+
+    lastError = result.error;
+    if (!isFilamentsSchemaError(result.error)) throw result.error;
+
+    const reducedData = removeUnsupportedFilamentFields(data, result.error);
+    if (Object.keys(reducedData).length === Object.keys(data).length) {
+      throw result.error;
+    }
+    data = reducedData;
+  }
+
+  throw lastError || new Error('Nie udało się zapisać filamentu.');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();
     if (context.error) return context.error;
 
     const payload = (await request.json()) as FilamentPayload;
+    if (payload.id && !UUID_REGEX.test(payload.id)) {
+      return NextResponse.json({ error: 'Nieprawidłowy identyfikator filamentu.' }, { status: 400 });
+    }
+    if (payload.material_id && !UUID_REGEX.test(payload.material_id)) {
+      return NextResponse.json({ error: 'Nieprawidłowy identyfikator materiału.' }, { status: 400 });
+    }
+
     const resolvedMaterialName = await resolveMaterialName(context.client, payload);
     const validationError = validatePayload(payload, resolvedMaterialName);
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    let data = buildFilamentData(payload, resolvedMaterialName);
-    let result = payload.id
-      ? await context.client.from('filaments').update(data).eq('id', payload.id)
-      : await context.client.from('filaments').insert([data]);
+    const data = buildFilamentData(payload, resolvedMaterialName);
+    const savedFilament = await saveFilament(context.client, payload, data);
 
-    if (result.error && isFilamentsSchemaError(result.error)) {
-      data = removeUnsupportedFilamentFields(data, result.error);
-      result = payload.id
-        ? await context.client.from('filaments').update(data).eq('id', payload.id)
-        : await context.client.from('filaments').insert([data]);
-    }
-
-    if (result.error) throw result.error;
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, id: savedFilament.id });
   } catch (error) {
     console.error('Admin filament save error:', error);
     return NextResponse.json(
@@ -204,25 +252,33 @@ export async function DELETE(request: NextRequest) {
     if (context.error) return context.error;
 
     const id = request.nextUrl.searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ error: 'Brak identyfikatora filamentu.' }, { status: 400 });
+    if (!id || !UUID_REGEX.test(id)) {
+      return NextResponse.json({ error: 'Nieprawidłowy identyfikator filamentu.' }, { status: 400 });
     }
 
     const deleteData = { active: false, updated_at: new Date().toISOString() };
-    let { error } = await context.client
+    let { data, error } = await context.client
       .from('filaments')
       .update(deleteData)
-      .eq('id', id);
+      .eq('id', id)
+      .select('id')
+      .maybeSingle();
 
     if (error && isFilamentsSchemaError(error)) {
       const retry = await context.client
         .from('filaments')
         .update(removeUnsupportedFilamentFields(deleteData, error))
-        .eq('id', id);
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
+      data = retry.data;
       error = retry.error;
     }
 
     if (error) throw error;
+    if (!data) {
+      return NextResponse.json({ error: 'Filament nie istnieje.' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

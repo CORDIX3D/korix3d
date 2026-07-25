@@ -2,12 +2,51 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  // If Supabase environment variables are not set, skip auth middleware in dev.
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    // Allow running the app in development without Supabase configured.
-    // This avoids blocking requests with a fatal error and lets the UI run
-    // using local/dev fallbacks (localStorage, mocks, etc.).
-    console.warn('Supabase env vars missing — skipping auth middleware.');
+  const pathname = request.nextUrl.pathname;
+  const isAdminRoute = pathname.startsWith('/admin');
+  const isCustomerRoute = pathname.startsWith('/panel');
+  const isProtectedPage = isAdminRoute || isCustomerRoute;
+  const isPrivateApiRoute =
+    pathname.startsWith('/api/admin') ||
+    pathname.startsWith('/api/accounting') ||
+    pathname.startsWith('/api/executive');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('Supabase env vars missing — using local development fallbacks.');
+      return NextResponse.next({ request });
+    }
+
+    if (isPrivateApiRoute) {
+      return NextResponse.json(
+        { error: 'Usługa administracyjna jest chwilowo niedostępna.' },
+        {
+          status: 503,
+          headers: {
+            'Cache-Control': 'no-store',
+            'Retry-After': '60',
+          },
+        }
+      );
+    }
+
+    if (isProtectedPage) {
+      const unavailableUrl = request.nextUrl.clone();
+      unavailableUrl.pathname = '/serwis-niedostepny';
+      unavailableUrl.search = '';
+      unavailableUrl.searchParams.set('returnTo', pathname);
+
+      return NextResponse.rewrite(unavailableUrl, {
+        status: 503,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Retry-After': '60',
+        },
+      });
+    }
+
     return NextResponse.next({ request });
   }
 
@@ -16,8 +55,8 @@ export async function middleware(request: NextRequest) {
   });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -46,11 +85,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-
   // Protected routes
-  const isAdminRoute = pathname.startsWith('/admin');
-  const isCustomerRoute = pathname.startsWith('/panel');
   const isAuthRoute = pathname.startsWith('/logowanie') ||
                      pathname.startsWith('/rejestracja') ||
                      pathname.startsWith('/odzyskaj-haslo') ||

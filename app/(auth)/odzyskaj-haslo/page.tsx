@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuth } from '@/lib/providers';
 import { Mail, Loader2, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAuthErrorMessage } from '@/lib/auth-error';
 
 const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email('Nieprawidłowy adres email'),
@@ -43,9 +44,10 @@ export default function ForgotPasswordPage() {
       const { error } = await resetPassword(data.email);
 
       if (error) {
-        setError(error.message);
+        const message = getAuthErrorMessage(error, 'reset');
+        setError(message);
         toast.error('Błąd', {
-          description: error.message,
+          description: message,
         });
       } else {
         setSuccess(true);

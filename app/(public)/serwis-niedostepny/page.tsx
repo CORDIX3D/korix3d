@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Home, RefreshCw, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { isPathWithin, normalizeInternalPath } from '@/lib/navigation';
 
 export const metadata: Metadata = {
   title: 'Panel chwilowo niedostępny',
@@ -18,10 +19,10 @@ export default async function ServiceUnavailablePage({
   searchParams: Promise<{ returnTo?: string }>;
 }) {
   const { returnTo: requestedReturnTo } = await searchParams;
-  const returnTo =
-    requestedReturnTo?.startsWith('/admin') || requestedReturnTo?.startsWith('/panel')
-      ? requestedReturnTo
-      : '/';
+  const normalizedReturnTo = normalizeInternalPath(requestedReturnTo);
+  const returnTo = isPathWithin(normalizedReturnTo, ['/admin', '/panel'])
+    ? normalizedReturnTo
+    : '/';
 
   return (
     <main className="flex min-h-[70vh] items-center justify-center px-4 py-16">

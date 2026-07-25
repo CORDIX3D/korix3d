@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuth } from '@/lib/providers';
 import { Eye, EyeOff, Mail, Lock, User, Loader2, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAuthErrorMessage } from '@/lib/auth-error';
 
 const registerSchema = z.object({
   full_name: z.string().trim().min(2, 'Imię musi mieć co najmniej 2 znaki').max(100),
@@ -53,13 +54,10 @@ export default function RegisterPage() {
       const { error } = await signUp(data.email, data.password, data.full_name);
 
       if (error) {
-        if (error.message.includes('already registered')) {
-          setError('Konto z tym adresem email już istnieje');
-        } else {
-          setError(error.message);
-        }
+        const message = getAuthErrorMessage(error, 'register');
+        setError(message);
         toast.error('Błąd rejestracji', {
-          description: error.message,
+          description: message,
         });
       } else {
         setSuccess(true);

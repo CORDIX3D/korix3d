@@ -13,7 +13,10 @@ interface AuthContextType {
   isAdmin: boolean;
   isEmployee: boolean;
   isCustomer: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{
+    error: Error | null;
+    role: Profile['role'] | null;
+  }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
@@ -97,13 +100,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      return { error: error as Error | null };
+      if (error || !data.user) {
+        return { error: error as Error | null, role: null };
+      }
+
+      const profileData = await fetchProfile(data.user.id);
+      setProfile(profileData);
+      return { error: null, role: profileData?.role || 'customer' };
     } catch (err) {
-      return { error: err as Error };
+      return { error: err as Error, role: null };
     }
   };
 
@@ -113,6 +122,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         options: {
+          emailRedirectTo:
+            typeof window !== 'undefined'
+              ? `${window.location.origin}/auth/callback?next=/panel`
+              : undefined,
           data: {
             full_name: fullName,
           },
@@ -134,7 +147,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
+        redirectTo:
+          typeof window !== 'undefined'
+            ? `${window.location.origin}/auth/callback?next=/reset-password`
+            : undefined,
       });
       return { error: error as Error | null };
     } catch (err) {

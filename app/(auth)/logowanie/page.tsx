@@ -12,6 +12,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuth } from '@/lib/providers';
 import { Eye, EyeOff, Mail, Lock, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAuthErrorMessage } from '@/lib/auth-error';
+import { normalizeInternalPath } from '@/lib/navigation';
+import { getAdminHomePath, isStaffRole } from '@/lib/admin-access';
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Nieprawidłowy adres email'),
@@ -23,12 +26,15 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const requestedRedirect = searchParams.get('redirect') || '/';
-  const redirect = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') ? requestedRedirect : '/';
+  const requestedRedirect = searchParams.get('redirect');
   const { signIn } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    searchParams.get('error') === 'callback_error'
+      ? 'Link logowania jest nieprawidłowy lub wygasł. Spróbuj zalogować się ponownie.'
+      : null
+  );
 
   const {
     register,
@@ -45,20 +51,25 @@ function LoginPageContent() {
     setError(null);
 
     try {
-      const { error } = await signIn(data.email, data.password);
+      const { error, role } = await signIn(data.email, data.password);
 
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          setError('Nieprawidłowy email lub hasło');
-        } else {
-          setError(error.message);
-        }
+        const message = getAuthErrorMessage(error, 'login');
+        setError(message);
         toast.error('Błąd logowania', {
-          description: error.message,
+          description: message,
         });
       } else {
+        const defaultRedirect = isStaffRole(role)
+          ? getAdminHomePath(role)
+          : '/panel';
+        const redirect = normalizeInternalPath(
+          requestedRedirect,
+          defaultRedirect
+        );
         toast.success('Zalogowano pomyślnie');
-        router.push(redirect);
+        router.replace(redirect);
+        router.refresh();
       }
     } catch {
       setError('Nie udało się połączyć z usługą logowania. Spróbuj ponownie za chwilę.');

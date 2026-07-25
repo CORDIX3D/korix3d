@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isPathWithin, normalizeInternalPath } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,10 +22,9 @@ function escapeHtml(value: string) {
 
 export function GET(request: NextRequest) {
   const requestedReturnTo = request.nextUrl.searchParams.get('returnTo') || '/';
-  const returnTo = ALLOWED_RETURN_PATHS.some(
-    (path) => requestedReturnTo === path || requestedReturnTo.startsWith(`${path}/`)
-  )
-    ? requestedReturnTo
+  const normalizedReturnTo = normalizeInternalPath(requestedReturnTo);
+  const returnTo = isPathWithin(normalizedReturnTo, ALLOWED_RETURN_PATHS)
+    ? normalizedReturnTo
     : '/';
 
   const html = `<!doctype html>

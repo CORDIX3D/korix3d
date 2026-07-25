@@ -1,22 +1,47 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { isPathWithin, normalizeInternalPath } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
+const ALLOWED_CALLBACK_PATHS = ['/panel', '/reset-password'] as const;
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const requestUrl = new URL(request.url);
+  const { searchParams, origin } = requestUrl;
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/panel';
+  const requestedNext = normalizeInternalPath(searchParams.get('next'), '/panel');
+  const next = isPathWithin(requestedNext, ALLOWED_CALLBACK_PATHS)
+    ? requestedNext
+    : '/panel';
 
   if (code) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    try {
+      const supabase = await createClient();
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      if (!error) {
+        return NextResponse.redirect(new URL(next, origin));
+      }
+
+      if ((error.status ?? 0) >= 500) {
+        return NextResponse.redirect(
+          new URL('/serwis-niedostepny?returnTo=/logowanie', origin)
+        );
+      }
+
+      console.error('Supabase callback exchange rejected:', {
+        name: error.name,
+        status: error.status,
+      });
+    } catch (error) {
+      console.error('Supabase callback exchange unavailable:', error);
+      return NextResponse.redirect(
+        new URL('/serwis-niedostepny?returnTo=/logowanie', origin)
+      );
     }
   }
 
-  // Return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/logowanie?error=callback_error`);
+  return NextResponse.redirect(
+    new URL('/logowanie?error=callback_error', origin)
+  );
 }

@@ -117,20 +117,29 @@ export default function CheckoutPage() {
     const query = new URLSearchParams(window.location.search);
     if (query.get('cancelled') !== '1') return;
 
+    const cancelledOrderId = query.get('order');
     const rawPendingPayment = window.sessionStorage.getItem('korix3d_pending_payment');
     window.history.replaceState({}, '', window.location.pathname);
-    if (!rawPendingPayment) {
+    if (!rawPendingPayment || !cancelledOrderId) {
       setPaymentNotice('Płatność została przerwana. Koszyk pozostaje bez zmian.');
       return;
     }
 
     void (async () => {
+      let matchedPendingOrder = false;
       try {
         const pendingPayment = JSON.parse(rawPendingPayment) as {
           orderId?: string;
           paymentToken?: string;
         };
-        if (!pendingPayment.orderId || !pendingPayment.paymentToken) throw new Error('invalid payment');
+        if (pendingPayment.orderId !== cancelledOrderId) {
+          setPaymentNotice(
+            'Nie udało się potwierdzić, którego zamówienia dotyczy powrót z płatności. Koszyk pozostaje bez zmian.'
+          );
+          return;
+        }
+        matchedPendingOrder = true;
+        if (!pendingPayment.paymentToken) throw new Error('invalid payment');
 
         const response = await fetch('/api/stripe/cancel-checkout', {
           method: 'POST',
@@ -142,7 +151,9 @@ export default function CheckoutPage() {
       } catch {
         setPaymentNotice('Płatność została przerwana. Jeśli nie możesz spróbować ponownie, skontaktuj się z nami.');
       } finally {
-        window.sessionStorage.removeItem('korix3d_pending_payment');
+        if (matchedPendingOrder) {
+          window.sessionStorage.removeItem('korix3d_pending_payment');
+        }
       }
     })();
   }, []);

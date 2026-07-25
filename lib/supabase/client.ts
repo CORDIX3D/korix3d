@@ -285,39 +285,114 @@ function createLocalFallback() {
   } as any;
 }
 
-export function createClient() {
-  // Never call createBrowserClient on the server — only create it in the browser
-  // when env vars are present. On the server return a safe stub.
-  if (typeof window === 'undefined') {
-    return {
-      from: (_name: string) => ({
-        select: async () => ({ data: [], error: null }),
-        insert: async () => ({ data: null, error: null }),
-        update: async () => ({ data: null, error: null }),
-        eq: () => ({ single: async () => ({ data: null, error: null }) }),
-      }),
-      auth: { getUser: async () => ({ data: { user: null }, error: null }) },
-      rpc: async () => ({ data: null, error: new Error('RPC is unavailable on the server fallback') }),
-      storage: {
-        from: () => ({
-          upload: async () => ({ data: null, error: new Error('Storage is unavailable on the server fallback') }),
-          remove: async () => ({ data: null, error: null }),
-          createSignedUrl: async () => ({ data: null, error: new Error('Storage is unavailable on the server fallback') }),
-        }),
+const SUPABASE_UNAVAILABLE_MESSAGE =
+  'Usługa danych jest chwilowo niedostępna. Spróbuj ponownie później.';
+
+function createUnavailableError() {
+  const error = new Error(SUPABASE_UNAVAILABLE_MESSAGE);
+  error.name = 'SupabaseUnavailableError';
+  return error;
+}
+
+function createUnavailableQuery() {
+  let query: any;
+  query = new Proxy(
+    {},
+    {
+      get(_target, property) {
+        if (property === 'then') {
+          return (
+            resolve: (value: { data: null; error: Error }) => unknown,
+            reject: (reason: unknown) => unknown
+          ) => Promise.resolve({ data: null, error: createUnavailableError() }).then(resolve, reject);
+        }
+
+        return () => query;
       },
-    } as any;
+    }
+  );
+  return query;
+}
+
+function createUnavailableClient() {
+  return {
+    from: () => createUnavailableQuery(),
+    rpc: async () => ({ data: null, error: createUnavailableError() }),
+    storage: {
+      from: () => ({
+        upload: async () => ({ data: null, error: createUnavailableError() }),
+        remove: async () => ({ data: null, error: createUnavailableError() }),
+        download: async () => ({ data: null, error: createUnavailableError() }),
+        createSignedUrl: async () => ({ data: null, error: createUnavailableError() }),
+        getPublicUrl: () => ({ data: { publicUrl: '' } }),
+      }),
+    },
+    auth: {
+      getSession: async () => ({
+        data: { session: null },
+        error: createUnavailableError(),
+      }),
+      getUser: async () => ({
+        data: { user: null },
+        error: createUnavailableError(),
+      }),
+      signInWithPassword: async () => ({
+        data: { session: null, user: null },
+        error: createUnavailableError(),
+      }),
+      signUp: async () => ({
+        data: { session: null, user: null },
+        error: createUnavailableError(),
+      }),
+      signOut: async () => ({ error: createUnavailableError() }),
+      resetPasswordForEmail: async () => ({
+        data: null,
+        error: createUnavailableError(),
+      }),
+      updateUser: async () => ({
+        data: { user: null },
+        error: createUnavailableError(),
+      }),
+      onAuthStateChange: () => ({
+        data: {
+          subscription: {
+            unsubscribe: () => undefined,
+          },
+        },
+      }),
+    },
+  } as any;
+}
+
+let cachedBrowserClient: ReturnType<typeof createBrowserClient> | null = null;
+let cachedLocalFallback: ReturnType<typeof createLocalFallback> | null = null;
+let cachedUnavailableClient: ReturnType<typeof createUnavailableClient> | null = null;
+
+function getUnavailableClient() {
+  cachedUnavailableClient ??= createUnavailableClient();
+  return cachedUnavailableClient;
+}
+
+export function createClient() {
+  // Never initialize a browser client while rendering on the server.
+  if (typeof window === 'undefined') {
+    return getUnavailableClient();
   }
-  // We're in the browser. If env vars are provided, use the real Supabase client;
-  // otherwise use the localStorage fallback for dev/testing.
+
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return createBrowserClient(
+    cachedBrowserClient ??= createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
+    return cachedBrowserClient;
   }
 
-  // @ts-ignore
-  return createLocalFallback();
+  if (process.env.NODE_ENV !== 'production') {
+    cachedLocalFallback ??= createLocalFallback();
+    return cachedLocalFallback;
+  }
+
+  return getUnavailableClient();
 }
 
 // Legacy export for backwards compatibility

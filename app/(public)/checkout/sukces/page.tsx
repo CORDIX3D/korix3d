@@ -25,9 +25,10 @@ async function getPaymentState(sessionId: string | undefined): Promise<PaymentSt
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams: { session_id?: string };
+  searchParams: Promise<{ session_id?: string }>;
 }) {
-  const state = await getPaymentState(searchParams.session_id);
+  const { session_id: sessionId } = await searchParams;
+  const state = await getPaymentState(sessionId);
   const paid = state === 'paid';
   const processing = state === 'processing';
 

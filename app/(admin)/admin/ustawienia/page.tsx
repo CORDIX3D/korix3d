@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -376,9 +377,9 @@ export default function AdminSettingsPage() {
               <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
                 <p className="text-sm text-muted-foreground">
                   Metody dostawy i ich ceny konfiguruje się w sekcji{' '}
-                  <a href="/admin/dostawa" className="text-primary hover:underline">
+                  <Link href="/admin/dostawa" className="text-primary hover:underline">
                     Dostawy
-                  </a>
+                  </Link>
                   .
                 </p>
               </div>

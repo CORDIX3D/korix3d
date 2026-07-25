@@ -1,6 +1,6 @@
 'use client';
 
-import { MouseEvent, useCallback, useEffect, useState } from 'react';
+import { MouseEvent, Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,7 +48,7 @@ function canAddProductToCart(product: Product) {
   return product.stock_quantity > 0 && Number.isFinite(Number(product.price)) && Number(product.price) >= 0;
 }
 
-export default function ShopPage() {
+function ShopPageContent() {
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get('k');
 
@@ -416,6 +416,14 @@ export default function ShopPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" aria-label="Ładowanie sklepu" /></div>}>
+      <ShopPageContent />
+    </Suspense>
   );
 }
 

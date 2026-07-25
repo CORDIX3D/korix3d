@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { ArrowLeft, MapPin, Package, ReceiptText, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +34,9 @@ function asAddress(value: unknown): ShippingAddress {
   return value && typeof value === 'object' ? (value as ShippingAddress) : {};
 }
 
-export default function StoreOrderDetailsPage({ params }: { params: { id: string } }) {
+export default function StoreOrderDetailsPage() {
+  const params = useParams<{ id: string }>();
+  const orderId = params.id;
   const { user } = useAuth();
   const [order, setOrder] = useState<StoreOrder | null>(null);
   const [items, setItems] = useState<StoreOrderItem[]>([]);
@@ -49,7 +52,7 @@ export default function StoreOrderDetailsPage({ params }: { params: { id: string
       const { data: orderData, error: orderError } = await supabase
         .from('store_orders')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', orderId)
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -70,7 +73,7 @@ export default function StoreOrderDetailsPage({ params }: { params: { id: string
       const { data: itemData, error: itemsError } = await supabase
         .from('store_order_items')
         .select('*')
-        .eq('order_id', params.id)
+        .eq('order_id', orderId)
         .order('created_at', { ascending: true });
 
       if (itemsError) {
@@ -89,7 +92,7 @@ export default function StoreOrderDetailsPage({ params }: { params: { id: string
     } finally {
       setLoading(false);
     }
-  }, [params.id, user]);
+  }, [orderId, user]);
 
   useEffect(() => {
     void loadOrder();

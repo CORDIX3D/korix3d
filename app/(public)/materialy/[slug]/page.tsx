@@ -70,17 +70,19 @@ async function fetchMaterialForPage(slug: string) {
     .maybeSingle();
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const { data: material } = await fetchMaterialForMetadata(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const { data: material } = await fetchMaterialForMetadata(slug);
 
   if (!material) notFound();
 
   return { title: material.name, description: material.description || undefined };
 }
 
-export default async function MaterialDetailPage({ params }: { params: { slug: string } }) {
+export default async function MaterialDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
   const supabase = await createClient();
-  const { data: material, error } = await fetchMaterialForPage(params.slug);
+  const { data: material, error } = await fetchMaterialForPage(slug);
 
   if (error) throw new Error('Nie udało się pobrać materiału.');
   if (!material) notFound();

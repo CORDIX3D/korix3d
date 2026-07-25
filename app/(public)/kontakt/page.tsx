@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -38,7 +39,10 @@ const businessHours = [
   { day: 'Niedziela', hours: 'Zamknięte' },
 ];
 
-export default function ContactPage({ searchParams }: { searchParams?: { temat?: string; produkt?: string } }) {
+function ContactPageContent() {
+  const searchParams = useSearchParams();
+  const requestedProduct = searchParams.get('produkt');
+  const requestedTopic = searchParams.get('temat');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -50,7 +54,7 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
   } = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
-      subject: searchParams?.produkt ? `Pytanie o produkt ${searchParams.produkt}` : searchParams?.temat === 'zamowienie' ? 'Zapytanie dotyczące zamówienia' : '',
+      subject: requestedProduct ? `Pytanie o produkt ${requestedProduct}` : requestedTopic === 'zamowienie' ? 'Zapytanie dotyczące zamówienia' : '',
     },
   });
 
@@ -290,5 +294,13 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
         </div>
       </section>
     </div>
+  );
+}
+
+export default function ContactPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Ładowanie formularza kontaktowego" /></div>}>
+      <ContactPageContent />
+    </Suspense>
   );
 }

@@ -7,16 +7,18 @@ import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
   const supabase = await createClient();
-  const { data: item } = await supabase.from('portfolio_items').select('title, description').eq('id', params.id).eq('active', true).maybeSingle();
+  const { data: item } = await supabase.from('portfolio_items').select('title, description').eq('id', id).eq('active', true).maybeSingle();
   if (!item) notFound();
   return { title: item.title, description: item.description || undefined };
 }
 
-export default async function PortfolioDetailPage({ params }: { params: { id: string } }) {
+export default async function PortfolioDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createClient();
-  const { data: item, error } = await supabase.from('portfolio_items').select('*').eq('id', params.id).eq('active', true).maybeSingle();
+  const { data: item, error } = await supabase.from('portfolio_items').select('*').eq('id', id).eq('active', true).maybeSingle();
   if (error || !item) notFound();
   const images = Array.isArray(item.images) ? item.images as string[] : [];
   const mainImage = item.image_url || images[0];

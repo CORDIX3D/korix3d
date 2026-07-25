@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -74,7 +74,7 @@ const serviceNotes: Record<string, string> = {
   'produkcja-seryjna': 'Interesuje mnie produkcja małoseryjna.',
 };
 
-export default function QuotePage() {
+function QuotePageContent() {
   const searchParams = useSearchParams();
   const requestedMaterialId = searchParams.get('material');
   const requestedService = searchParams.get('usluga');
@@ -1056,5 +1056,13 @@ export default function QuotePage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function QuotePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[70vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Ładowanie formularza wyceny" /></div>}>
+      <QuotePageContent />
+    </Suspense>
   );
 }

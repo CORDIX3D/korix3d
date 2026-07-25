@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AlertCircle, Eye, History, RefreshCw, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -71,7 +71,7 @@ function formatValue(value: unknown) {
   return String(value);
 }
 
-export default function AdminHistoryPage() {
+function AdminHistoryPageContent() {
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [actors, setActors] = useState<Record<string, Actor>>({});
@@ -247,5 +247,13 @@ export default function AdminHistoryPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function AdminHistoryPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><RefreshCw className="h-8 w-8 animate-spin text-primary" aria-label="Ładowanie historii zmian" /></div>}>
+      <AdminHistoryPageContent />
+    </Suspense>
   );
 }

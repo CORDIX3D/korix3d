@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { ArrowLeft, CheckCircle2, FileBox, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/client';
@@ -36,7 +37,9 @@ const statusProgress: Record<string, number> = {
   completed: 5,
 };
 
-export default function OrderDetailsPage({ params }: { params: { id: string } }) {
+export default function OrderDetailsPage() {
+  const params = useParams<{ id: string }>();
+  const orderId = params.id;
   const { user } = useAuth();
   const [order, setOrder] = useState<Order3D | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +50,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
     if (!user) return;
     setLoading(true); setError('');
     try {
-      const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('id', params.id).eq('user_id', user.id).maybeSingle();
+      const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('id', orderId).eq('user_id', user.id).maybeSingle();
       if (queryError) {
         setError('Nie udało się pobrać szczegółów zamówienia.');
         setOrder(null);
@@ -63,7 +66,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
     } finally {
       setLoading(false);
     }
-  }, [params.id, user]);
+  }, [orderId, user]);
 
   useEffect(() => { void loadOrder(); }, [loadOrder]);
 

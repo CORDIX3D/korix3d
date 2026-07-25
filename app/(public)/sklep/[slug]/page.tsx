@@ -9,16 +9,18 @@ import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
   const supabase = await createClient();
-  const { data: product } = await supabase.from('products').select('name, short_description, description').eq('slug', params.slug).eq('active', true).maybeSingle();
+  const { data: product } = await supabase.from('products').select('name, short_description, description').eq('slug', slug).eq('active', true).maybeSingle();
   if (!product) notFound();
   return { title: product.name, description: product.short_description || product.description || undefined };
 }
 
-export default async function ProductPage({ params }: { params: { slug: string } }) {
+export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
   const supabase = await createClient();
-  const { data, error } = await supabase.from('products').select('*').eq('slug', params.slug).eq('active', true).maybeSingle();
+  const { data, error } = await supabase.from('products').select('*').eq('slug', slug).eq('active', true).maybeSingle();
   if (error || !data) notFound();
   const product = data as Product;
   const images = Array.isArray(product.images) ? product.images as string[] : [];

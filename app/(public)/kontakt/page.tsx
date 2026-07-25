@@ -97,7 +97,7 @@ export default function ContactPage({ searchParams }: { searchParams?: { temat?:
               Dziękujemy za wiadomość!
             </h2>
             <p className="text-muted-foreground mb-6">
-              Twoja wiadomość została wysłana. Odpowiemy w ciągu 24 godzin w dni robocze.
+              Twoja wiadomość została wysłana. Odpowiemy najszybciej, jak to możliwe.
             </p>
             <Button
               onClick={() => { reset(); setSubmitted(false); }}

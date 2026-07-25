@@ -54,9 +54,9 @@ const infillOptions = [
 ];
 
 const priorityOptions = [
-  { value: 'standard', label: 'Standard', price: 0, days: '3-5' },
-  { value: 'express', label: 'Express', price: 50, days: '1-2' },
-  { value: 'urgent', label: 'Urgent', price: 100, days: '< 24h' },
+  { value: 'standard', label: 'Standard', price: 0, description: 'Termin ustalany po analizie pliku' },
+  { value: 'express', label: 'Express', price: 50, description: 'Przyspieszona kolejka po potwierdzeniu dostępności' },
+  { value: 'urgent', label: 'Pilne', price: 100, description: 'Najwyższy priorytet po indywidualnym potwierdzeniu' },
 ];
 
 const defaultDeliveryOptions: DeliveryOption[] = [
@@ -429,7 +429,7 @@ export default function QuotePage() {
               Zlecenie przyjęte!
             </h2>
             <p className="text-muted-foreground mb-6">
-              Przeanalizujemy przesłane pliki i wyślemy wycenę na Twój email w ciągu 24h.
+              Przeanalizujemy przesłane pliki i wyślemy wycenę na podany adres email.
             </p>
             <p className="text-sm text-muted-foreground mb-6">
               Numer zlecenia: <strong className="text-foreground">{submittedOrderNumber}</strong>
@@ -459,7 +459,7 @@ export default function QuotePage() {
             Wyceń wydruk 3D
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Prześlij swój model, wybierz parametry i otrzymaj bezpłatną wycenę w 24h
+            Prześlij swój model, wybierz parametry i otrzymaj bezpłatną, indywidualną wycenę
           </p>
         </div>
 
@@ -825,7 +825,7 @@ export default function QuotePage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">{option.days} dni roboczych</p>
+                        <p className="text-sm text-muted-foreground">{option.description}</p>
                       </button>
                     ))}
                   </div>
@@ -964,7 +964,7 @@ export default function QuotePage() {
                       </h4>
                       <p className="text-sm text-muted-foreground">
                         Po przesłaniu zlecenia, nasz zespół przeanalizuje pliki i przygotuje szczegółową wycenę.
-                        Otrzymasz ją na swój email w ciągu 24 godzin. Wycena jest bezpłatna i niezobowiązująca.
+                        Termin realizacji potwierdzimy razem z wyceną. Wycena jest bezpłatna i niezobowiązująca.
                       </p>
                     </div>
                   </div>

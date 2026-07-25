@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,19 +30,11 @@ import {
   Weight,
   MapPin,
   RefreshCw,
-  ImagePlus,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { Filament, Material } from '@/lib/types/database';
 import { toast } from 'sonner';
 import { PanelError } from '@/components/customer/panel-state';
-import { OptimizedImage } from '@/components/ui/optimized-image';
-
-const ALLOWED_IMAGE_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
 
 export default function AdminFilamentsPage() {
   const [filaments, setFilaments] = useState<Filament[]>([]);
@@ -54,22 +46,18 @@ export default function AdminFilamentsPage() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFilament, setEditingFilament] = useState<Filament | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState('');
   const [formData, setFormData] = useState({
     brand: '',
     material_id: '',
     material_name: '',
     color: '',
     color_hex: '#FFFFFF',
-    image_url: '',
     price_per_kg: '',
     original_weight_grams: '1000',
     remaining_weight_grams: '1000',
     price_paid: '',
     min_weight_grams: '100',
     location: '',
-    notes: '',
   });
 
   useEffect(() => {
@@ -78,72 +66,6 @@ export default function AdminFilamentsPage() {
     // Wyszukiwanie jest zatwierdzane przyciskiem, a nie przy każdym znaku.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-    };
-  }, [imagePreview]);
-
-  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      toast.error('Nieobsługiwany format zdjęcia', {
-        description: 'Wybierz plik JPG, PNG lub WebP.',
-      });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Zdjęcie jest za duże', { description: 'Maksymalny rozmiar pliku to 5 MB.' });
-      return;
-    }
-    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-  };
-
-  const removeImage = () => {
-    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-    setImageFile(null);
-    setImagePreview('');
-    setFormData((current) => ({ ...current, image_url: '' }));
-  };
-
-  const uploadImage = async (file: File) => {
-    const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const fileName = `filaments/${crypto.randomUUID()}.${extension}`;
-    const { error } = await supabase.storage.from('product-images').upload(fileName, file, {
-      cacheControl: '3600',
-      contentType: file.type,
-      upsert: false,
-    });
-    if (error) throw error;
-    return {
-      path: fileName,
-      publicUrl: supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl,
-    };
-  };
-
-  const getManagedImagePath = (value: string | null | undefined) => {
-    if (!value) return null;
-    const marker = '/storage/v1/object/public/product-images/';
-    const markerIndex = value.indexOf(marker);
-    if (markerIndex === -1) return null;
-    const path = decodeURIComponent(value.slice(markerIndex + marker.length));
-    return path.startsWith('filaments/') ? path : null;
-  };
-
-  const removeStoredImage = async (path: string | null) => {
-    if (!path) return;
-    const { error: removeError } = await supabase.storage
-      .from('product-images')
-      .remove([path]);
-    if (removeError) {
-      console.error('Filament image cleanup error:', removeError);
-    }
-  };
 
   const fetchFilaments = async () => {
     setLoading(true);
@@ -224,34 +146,19 @@ export default function AdminFilamentsPage() {
       return;
     }
     setSaving(true);
-    let uploadedImagePath: string | null = null;
     try {
-      let imageUrl = formData.image_url || null;
-      if (imageFile) {
-        try {
-          const uploadedImage = await uploadImage(imageFile);
-          uploadedImagePath = uploadedImage.path;
-          imageUrl = uploadedImage.publicUrl;
-        } catch {
-          toast.warning('Nie udało się wysłać zdjęcia', {
-            description: 'Filament zostanie zapisany bez fotografii. Zdjęcie możesz dodać później.',
-          });
-        }
-      }
       const data = {
         brand: formData.brand.trim(),
         material_id: formData.material_id || null,
         material_name: formData.material_name.trim(),
         color: formData.color.trim(),
         color_hex: formData.color_hex,
-        image_url: imageUrl,
         price_per_kg: pricePerKg,
         original_weight_grams: originalWeight,
         remaining_weight_grams: remainingWeight,
         price_paid: pricePaid,
         min_weight_grams: minimumWeight,
         location: formData.location || null,
-        notes: formData.notes || null,
         active: true,
       };
       const response = await fetch('/api/admin/filaments', {
@@ -263,20 +170,11 @@ export default function AdminFilamentsPage() {
 
       if (!response.ok) throw new Error(result.error || 'Nie udało się zapisać filamentu');
 
-      const oldImagePath = getManagedImagePath(editingFilament?.image_url);
-      if (
-        oldImagePath &&
-        (uploadedImagePath || !imageUrl)
-      ) {
-        await removeStoredImage(oldImagePath);
-      }
-
       toast.success(editingFilament ? 'Zaktualizowano' : 'Dodano filament');
       setDialogOpen(false);
       resetForm();
       await fetchFilaments();
     } catch (error) {
-      await removeStoredImage(uploadedImagePath);
       toast.error('Błąd zapisu', {
         description: error instanceof Error ? error.message : 'Nie udało się zapisać filamentu.',
       });
@@ -292,17 +190,13 @@ export default function AdminFilamentsPage() {
       material_name: '',
       color: '',
       color_hex: '#FFFFFF',
-      image_url: '',
       price_per_kg: '',
       original_weight_grams: '1000',
       remaining_weight_grams: '1000',
       price_paid: '',
       min_weight_grams: '100',
       location: '',
-      notes: '',
     });
-    setImageFile(null);
-    setImagePreview('');
     setEditingFilament(null);
   };
 
@@ -314,17 +208,13 @@ export default function AdminFilamentsPage() {
       material_name: filament.material_name,
       color: filament.color,
       color_hex: filament.color_hex || '#FFFFFF',
-      image_url: filament.image_url || '',
       price_per_kg: filament.price_per_kg?.toString() || '',
       original_weight_grams: filament.original_weight_grams?.toString() || '1000',
       remaining_weight_grams: filament.remaining_weight_grams.toString(),
       price_paid: filament.price_paid?.toString() || '',
       min_weight_grams: filament.min_weight_grams?.toString() || '100',
       location: filament.location || '',
-      notes: filament.notes || '',
     });
-    setImageFile(null);
-    setImagePreview(filament.image_url || '');
     setDialogOpen(true);
   };
 
@@ -528,50 +418,12 @@ export default function AdminFilamentsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="form-label">Fotografia filamentu</label>
-                  {imagePreview ? (
-                    <div className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center">
-                      <OptimizedImage src={imagePreview} alt="Podgląd filamentu" className="h-24 w-24 rounded-md border object-cover" sizes="96px" />
-                      <div className="flex flex-wrap gap-2">
-                        <Button type="button" variant="outline" asChild>
-                          <label className="cursor-pointer">
-                            <ImagePlus className="mr-2 h-4 w-4" />
-                            Zmień zdjęcie
-                            <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleImageChange} />
-                          </label>
-                        </Button>
-                        <Button type="button" variant="outline" onClick={removeImage}>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Usuń
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-5 text-center transition-colors hover:bg-muted/50">
-                      <ImagePlus className="h-8 w-8 text-muted-foreground" />
-                      <span className="font-medium">Wybierz zdjęcie z urządzenia</span>
-                      <span className="text-xs text-muted-foreground">JPG, PNG lub WebP do 5 MB</span>
-                      <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleImageChange} />
-                    </label>
-                  )}
-                </div>
-
-                <div className="space-y-2">
                   <label className="form-label">Lokalizacja</label>
                   <Input
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     placeholder="np. Półka A1"
                     className="h-11 bg-secondary border-border"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="form-label">Notatki</label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    className="w-full h-20 bg-secondary border border-border rounded-lg p-3 text-foreground"
                   />
                 </div>
 
@@ -708,14 +560,10 @@ export default function AdminFilamentsPage() {
                 <CardContent className="p-4">
                   {/* Color indicator */}
                   <div className="flex items-start justify-between mb-4">
-                    {filament.image_url ? (
-                      <OptimizedImage src={filament.image_url} alt={`${filament.brand} ${filament.color}`} className="h-12 w-12 rounded-xl border object-cover" sizes="48px" />
-                    ) : (
-                      <div
-                        className="w-12 h-12 rounded-xl border border-border"
-                        style={{ backgroundColor: filament.color_hex || '#FFFFFF' }}
-                      />
-                    )}
+                    <div
+                      className="w-12 h-12 rounded-xl border border-border"
+                      style={{ backgroundColor: filament.color_hex || '#FFFFFF' }}
+                    />
                     {isLow && (
                       <AlertTriangle className="w-5 h-5 text-red-400" />
                     )}

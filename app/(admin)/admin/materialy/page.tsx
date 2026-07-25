@@ -92,12 +92,15 @@ export default function AdminMaterialsPage() {
 
     setSaving(true);
     try {
-      const payload = new FormData();
-      if (editingMaterial) payload.set('id', editingMaterial.id);
-      payload.set('name', name);
-      payload.set('description', formData.description.trim());
-
-      const response = await fetch('/api/admin/materials', { method: 'POST', body: payload });
+      const response = await fetch('/api/admin/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingMaterial?.id,
+          name,
+          description: formData.description.trim(),
+        }),
+      });
       const result = await response.json();
 
       if (!response.ok) throw new Error(result.error || 'Nie udało się zapisać typu materiału');

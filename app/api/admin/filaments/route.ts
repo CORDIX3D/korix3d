@@ -15,28 +15,28 @@ type FilamentPayload = {
   material_name?: string;
   color?: string;
   color_hex?: string | null;
-  image_url?: string | null;
   price_per_kg?: number | null;
   original_weight_grams?: number | null;
   remaining_weight_grams?: number;
   price_paid?: number | null;
   min_weight_grams?: number | null;
   location?: string | null;
-  notes?: string | null;
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HEX_COLOR_REGEX = /^#[0-9a-f]{6}$/i;
-const OPTIONAL_FILAMENT_COLUMNS = [
+const FILAMENT_COLUMNS = [
+  'brand',
   'material_id',
+  'material_name',
+  'color',
   'color_hex',
-  'image_url',
   'price_per_kg',
   'original_weight_grams',
+  'remaining_weight_grams',
   'price_paid',
   'min_weight_grams',
   'location',
-  'notes',
   'active',
   'updated_at',
 ] as const;
@@ -144,10 +144,6 @@ function validatePayload(payload: FilamentPayload, resolvedMaterialName: string)
     return 'Lokalizacja może mieć maksymalnie 160 znaków.';
   }
 
-  if (String(payload.notes || '').trim().length > 2000) {
-    return 'Notatki mogą mieć maksymalnie 2000 znaków.';
-  }
-
   return null;
 }
 
@@ -163,14 +159,12 @@ function buildFilamentData(payload: FilamentPayload, resolvedMaterialName: strin
     material_name: resolvedMaterialName,
     color: String(payload.color || '').trim(),
     color_hex: String(payload.color_hex || '#FFFFFF').toUpperCase(),
-    image_url: optionalText(payload.image_url),
     price_per_kg: payload.price_per_kg ?? null,
     original_weight_grams: Number(payload.original_weight_grams),
     remaining_weight_grams: Number(payload.remaining_weight_grams),
     price_paid: payload.price_paid ?? null,
     min_weight_grams: Number(payload.min_weight_grams ?? 0),
     location: optionalText(payload.location),
-    notes: optionalText(payload.notes),
     active: true,
     updated_at: new Date().toISOString(),
   };
@@ -186,21 +180,7 @@ function isFilamentsSchemaError(error: unknown) {
     message.includes('schema cache') ||
     (message.includes('column') && message.includes('does not exist'));
 
-  return isMissingColumn && OPTIONAL_FILAMENT_COLUMNS.some((column) => message.includes(column));
-}
-
-function removeUnsupportedFilamentFields<T extends Record<string, unknown>>(data: T, error: unknown) {
-  if (!error || typeof error !== 'object') return data;
-  const message = 'message' in error ? String(error.message || '') : '';
-  const nextData = { ...data };
-
-  for (const column of OPTIONAL_FILAMENT_COLUMNS) {
-    if (message.includes(column)) {
-      delete nextData[column];
-    }
-  }
-
-  return nextData;
+  return isMissingColumn && FILAMENT_COLUMNS.some((column) => message.includes(column));
 }
 
 function filamentErrorResponse(error: unknown) {
@@ -208,6 +188,16 @@ function filamentErrorResponse(error: unknown) {
     error && typeof error === 'object' && 'code' in error
       ? String(error.code || '')
       : '';
+
+  if (isFilamentsSchemaError(error)) {
+    return NextResponse.json(
+      {
+        error:
+          'Baza Supabase wymaga aktualizacji. Uruchom najnowsze migracje materiałów i filamentów.',
+      },
+      { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '60' } }
+    );
+  }
 
   if (code === '23503') {
     return NextResponse.json(
@@ -234,32 +224,15 @@ async function saveFilament(
   payload: FilamentPayload,
   initialData: ReturnType<typeof buildFilamentData>
 ) {
-  let data: Record<string, unknown> = initialData;
-  let lastError: unknown = null;
+  const result = payload.id
+    ? await client.from('filaments').update(initialData).eq('id', payload.id).select('id').maybeSingle()
+    : await client.from('filaments').insert([initialData]).select('id').single();
 
-  for (let attempt = 0; attempt <= OPTIONAL_FILAMENT_COLUMNS.length; attempt += 1) {
-    const result = payload.id
-      ? await client.from('filaments').update(data).eq('id', payload.id).select('id').maybeSingle()
-      : await client.from('filaments').insert([data]).select('id').single();
-
-    if (!result.error) {
-      if (!result.data) {
-        throw new Error('Filament nie istnieje lub nie masz dostępu do tego rekordu.');
-      }
-      return result.data;
-    }
-
-    lastError = result.error;
-    if (!isFilamentsSchemaError(result.error)) throw result.error;
-
-    const reducedData = removeUnsupportedFilamentFields(data, result.error);
-    if (Object.keys(reducedData).length === Object.keys(data).length) {
-      throw result.error;
-    }
-    data = reducedData;
+  if (result.error) throw result.error;
+  if (!result.data) {
+    throw new Error('Filament nie istnieje lub nie masz dostępu do tego rekordu.');
   }
-
-  throw lastError || new Error('Nie udało się zapisać filamentu.');
+  return result.data;
 }
 
 export async function POST(request: NextRequest) {
@@ -310,23 +283,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     const deleteData = { active: false, updated_at: new Date().toISOString() };
-    let { data, error } = await context.client
+    const { data, error } = await context.client
       .from('filaments')
       .update(deleteData)
       .eq('id', id)
       .select('id')
       .maybeSingle();
-
-    if (error && isFilamentsSchemaError(error)) {
-      const retry = await context.client
-        .from('filaments')
-        .update(removeUnsupportedFilamentFields(deleteData, error))
-        .eq('id', id)
-        .select('id')
-        .maybeSingle();
-      data = retry.data;
-      error = retry.error;
-    }
 
     if (error) throw error;
     if (!data) {
@@ -340,9 +302,6 @@ export async function DELETE(request: NextRequest) {
     }
 
     console.error('Admin filament delete error:', error);
-    return NextResponse.json(
-      { error: 'Nie udało się usunąć filamentu.' },
-      { status: 500 }
-    );
+    return filamentErrorResponse(error);
   }
 }

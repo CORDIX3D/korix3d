@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
-import { createServiceRoleClient } from '@/lib/supabase/service-client';
+import {
+  adminApiUnavailableResponse,
+  requireAdminApiContext,
+} from '@/lib/api/admin-context';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { isSupabaseConfigurationError } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type MaterialPayload = {
+  id?: unknown;
+  name?: unknown;
+  description?: unknown;
+  available?: unknown;
+};
 
 function slugify(value: string) {
   return value
@@ -15,214 +29,218 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, '');
 }
 
-function isLegacyMaterialsSchemaError(error: unknown) {
-  if (!error || typeof error !== 'object') return false;
-  const message = 'message' in error ? String(error.message || '') : '';
-  return ['price_per_kg', 'properties', 'slug', 'available', 'updated_at'].some((column) =>
-    message.includes(column)
+function getDatabaseErrorDetails(error: unknown) {
+  if (!error || typeof error !== 'object') return { code: '', message: '' };
+  return {
+    code: 'code' in error ? String(error.code || '') : '',
+    message: 'message' in error ? String(error.message || '') : '',
+  };
+}
+
+function isMaterialsSchemaError(error: unknown) {
+  const { code, message } = getDatabaseErrorDetails(error);
+  return (
+    ['42P01', '42703', 'PGRST204', 'PGRST205'].includes(code) ||
+    message.includes('schema cache') ||
+    (message.includes('column') && message.includes('does not exist'))
   );
 }
 
-function removeUnsupportedMaterialFields<T extends Record<string, unknown>>(data: T, error: unknown) {
-  if (!error || typeof error !== 'object') return data;
-  const message = 'message' in error ? String(error.message || '') : '';
-  const nextData = { ...data };
+function materialErrorResponse(error: unknown, action: 'save' | 'update' | 'delete') {
+  const { code } = getDatabaseErrorDetails(error);
 
-  for (const column of ['price_per_kg', 'properties', 'slug', 'available', 'updated_at']) {
-    if (message.includes(column)) {
-      delete nextData[column];
-    }
+  if (isMaterialsSchemaError(error)) {
+    return NextResponse.json(
+      {
+        error:
+          'Baza Supabase wymaga aktualizacji. Uruchom najnowsze migracje materiałów i filamentów.',
+      },
+      { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '60' } }
+    );
   }
 
-  return nextData;
-}
-
-async function findExistingMaterial(
-  admin: SupabaseClient,
-  name: string,
-  id?: string
-) {
-  const baseQuery = id
-    ? admin.from('materials').select('id, slug').eq('id', id).maybeSingle()
-    : admin.from('materials').select('id, slug').ilike('name', name).limit(1).maybeSingle();
-
-  const { data, error } = await baseQuery;
-  if (!error) return { id: data?.id || '', slug: data?.slug || '' };
-  if (!isLegacyMaterialsSchemaError(error)) throw error;
-
-  const fallbackQuery = id
-    ? admin.from('materials').select('id').eq('id', id).maybeSingle()
-    : admin.from('materials').select('id').ilike('name', name).limit(1).maybeSingle();
-
-  const fallback = await fallbackQuery;
-  if (fallback.error) throw fallback.error;
-  return { id: fallback.data?.id || '', slug: '' };
-}
-
-async function getAdminSupabaseClient() {
-  const sessionClient = await createClient();
-  const { data: auth } = await sessionClient.auth.getUser();
-
-  if (!auth.user) {
-    return { error: NextResponse.json({ error: 'Zaloguj się ponownie.' }, { status: 401 }) };
+  if (code === '23503') {
+    return NextResponse.json(
+      { error: 'Nie można usunąć materiału używanego przez filament lub wycenę. Najpierw ukryj materiał.' },
+      { status: 409 }
+    );
   }
 
-  const { data: profile, error: profileError } = await sessionClient
-    .from('profiles')
-    .select('role')
-    .eq('id', auth.user.id)
+  if (code === '23505') {
+    return NextResponse.json(
+      { error: 'Materiał o tej nazwie już istnieje.' },
+      { status: 409 }
+    );
+  }
+
+  const messages = {
+    save: 'Nie udało się zapisać typu materiału.',
+    update: 'Nie udało się zaktualizować typu materiału.',
+    delete: 'Nie udało się usunąć typu materiału.',
+  };
+
+  return NextResponse.json({ error: messages[action] }, { status: 500 });
+}
+
+async function findMaterialByName(client: SupabaseClient, name: string) {
+  const { data, error } = await client
+    .from('materials')
+    .select('id')
+    .ilike('name', name)
+    .limit(1)
     .maybeSingle();
 
-  if (profileError || profile?.role !== 'admin') {
-    return { error: NextResponse.json({ error: 'Brak uprawnień administratora.' }, { status: 403 }) };
+  if (error) throw error;
+  return data?.id ? String(data.id) : '';
+}
+
+function normalizeMaterialPayload(body: MaterialPayload) {
+  const id = String(body.id || '').trim();
+  const name = String(body.name || '').trim().toUpperCase();
+  const description = String(body.description || '').trim();
+
+  if (id && !UUID_PATTERN.test(id)) {
+    return { error: 'Nieprawidłowy identyfikator materiału.' } as const;
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (url && serviceKey) {
-    return { client: createServiceRoleClient(url, serviceKey, auth.user.id) };
+  if (!name || name.length > 80) {
+    return { error: 'Rodzaj materiału musi mieć od 1 do 80 znaków.' } as const;
   }
 
-  return { client: sessionClient };
+  if (description.length > 2000) {
+    return { error: 'Opis materiału może mieć maksymalnie 2000 znaków.' } as const;
+  }
+
+  return { id, name, description: description || null } as const;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const context = await getAdminSupabaseClient();
-    if (context.error) return context.error;
+    const auth = await requireAdminApiContext();
+    if (auth.response) return auth.response;
 
-    const admin = context.client;
-    const form = await request.formData();
-    const id = String(form.get('id') || '').trim();
-    const name = String(form.get('name') || '').trim().toUpperCase();
-    const description = String(form.get('description') || '').trim() || null;
-
-    if (!name) {
-      return NextResponse.json({ error: 'Podaj rodzaj materiału, np. PLA, PETG albo ABS.' }, { status: 400 });
+    const normalized = normalizeMaterialPayload(
+      (await readJsonObject(request, 8 * 1024)) as MaterialPayload
+    );
+    if ('error' in normalized) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 });
     }
 
-    let materialId = id;
-    let existingSlug = '';
-
-    const existingMaterial = await findExistingMaterial(admin, name, materialId || undefined);
-    materialId = materialId || existingMaterial.id;
-    existingSlug = existingMaterial.slug;
+    const { adminClient } = auth.context;
+    const duplicateId = await findMaterialByName(adminClient, normalized.name);
+    if (duplicateId && duplicateId !== normalized.id) {
+      return NextResponse.json(
+        { error: 'Materiał o tej nazwie już istnieje.' },
+        { status: 409 }
+      );
+    }
 
     const materialData = {
-      name,
-      slug: existingSlug || slugify(name) || crypto.randomUUID().slice(0, 8),
-      description,
+      name: normalized.name,
+      slug: slugify(normalized.name) || crypto.randomUUID().slice(0, 8),
+      description: normalized.description,
       available: true,
       updated_at: new Date().toISOString(),
     };
 
-    if (materialId) {
-      let { error } = await admin.from('materials').update(materialData).eq('id', materialId);
-      if (error && isLegacyMaterialsSchemaError(error)) {
-        const retry = await admin
-          .from('materials')
-          .update(removeUnsupportedMaterialFields(materialData, error))
-          .eq('id', materialId);
-        error = retry.error;
-      }
-      if (error) throw error;
-    } else {
-      const insertData = {
-        ...materialData,
-        price_per_kg: 0,
-        properties: {},
-      };
-
-      let { data, error } = await admin
+    if (normalized.id) {
+      const { data, error } = await adminClient
         .from('materials')
-        .insert(insertData)
+        .update(materialData)
+        .eq('id', normalized.id)
         .select('id')
-        .single();
-
-      if (error && isLegacyMaterialsSchemaError(error)) {
-        const retry = await admin
-          .from('materials')
-          .insert(removeUnsupportedMaterialFields(insertData, error))
-          .select('id')
-          .single();
-        data = retry.data;
-        error = retry.error;
-      }
+        .maybeSingle();
 
       if (error) throw error;
-      if (!data) throw new Error('Supabase nie zwrócił identyfikatora zapisanego materiału.');
-      materialId = data.id;
+      if (!data) {
+        return NextResponse.json({ error: 'Materiał nie istnieje.' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true, materialId: data.id });
     }
 
-    return NextResponse.json({ success: true, materialId });
+    const { data, error } = await adminClient
+      .from('materials')
+      .insert({ ...materialData, price_per_kg: 0, properties: {} })
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json({ success: true, materialId: data.id });
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    if (isSupabaseConfigurationError(error)) return adminApiUnavailableResponse();
+
     console.error('Admin material save error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się zapisać typu materiału.' },
-      { status: 500 }
-    );
+    return materialErrorResponse(error, 'save');
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    const context = await getAdminSupabaseClient();
-    if (context.error) return context.error;
+    const auth = await requireAdminApiContext();
+    if (auth.response) return auth.response;
 
-    const { id, available } = await request.json();
+    const body = (await readJsonObject(request, 4 * 1024)) as MaterialPayload;
+    const id = String(body.id || '').trim();
 
-    if (!id || typeof available !== 'boolean') {
+    if (!UUID_PATTERN.test(id) || typeof body.available !== 'boolean') {
       return NextResponse.json({ error: 'Brak poprawnych danych materiału.' }, { status: 400 });
     }
 
-    const updateData = { available, updated_at: new Date().toISOString() };
-    let { error } = await context.client
+    const { data, error } = await auth.context.adminClient
       .from('materials')
-      .update(updateData)
-      .eq('id', id);
-
-    if (error && isLegacyMaterialsSchemaError(error)) {
-      const retry = await context.client
-        .from('materials')
-        .update(removeUnsupportedMaterialFields(updateData, error))
-        .eq('id', id);
-      error = retry.error;
-    }
+      .update({ available: body.available, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id')
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      return NextResponse.json({ error: 'Materiał nie istnieje.' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    if (isSupabaseConfigurationError(error)) return adminApiUnavailableResponse();
+
     console.error('Admin material update error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się zaktualizować typu materiału.' },
-      { status: 500 }
-    );
+    return materialErrorResponse(error, 'update');
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const context = await getAdminSupabaseClient();
-    if (context.error) return context.error;
+    const auth = await requireAdminApiContext();
+    if (auth.response) return auth.response;
 
-    const id = request.nextUrl.searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json({ error: 'Brak identyfikatora materiału.' }, { status: 400 });
+    const id = request.nextUrl.searchParams.get('id') || '';
+    if (!UUID_PATTERN.test(id)) {
+      return NextResponse.json({ error: 'Nieprawidłowy identyfikator materiału.' }, { status: 400 });
     }
 
-    const { error } = await context.client.from('materials').delete().eq('id', id);
+    const { data, error } = await auth.context.adminClient
+      .from('materials')
+      .delete()
+      .eq('id', id)
+      .select('id')
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      return NextResponse.json({ error: 'Materiał nie istnieje.' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isSupabaseConfigurationError(error)) return adminApiUnavailableResponse();
+
     console.error('Admin material delete error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się usunąć typu materiału.' },
-      { status: 500 }
-    );
+    return materialErrorResponse(error, 'delete');
   }
 }

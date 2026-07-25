@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, CheckCircle2, Loader2, Package, ShoppingCart, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useCart } from '@/lib/cart-provider';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/providers';
 import {
   DEFAULT_DELIVERY_OPTIONS,
   IGNORED_SHIPPING_SETTING_KEYS,
@@ -32,12 +33,17 @@ function normalizeCheckoutError(message: string) {
 
 export default function CheckoutPage() {
   const { items, subtotal, hydrated } = useCart();
+  const { profile } = useAuth();
+  const formRef = useRef<HTMLFormElement>(null);
+  const appliedProfileId = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(DEFAULT_DELIVERY_OPTIONS);
   const [deliveryType, setDeliveryType] = useState(DEFAULT_DELIVERY_OPTIONS[0].value);
   const [deliveryError, setDeliveryError] = useState('');
   const [paymentNotice, setPaymentNotice] = useState('');
+  const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
+  const [invoiceType, setInvoiceType] = useState<'individual' | 'company'>('individual');
   const selectedDelivery = deliveryOptions.find((option) => option.value === deliveryType) || deliveryOptions[0];
   const total = subtotal + (selectedDelivery?.price || 0);
 
@@ -80,6 +86,32 @@ export default function CheckoutPage() {
       setDeliveryType(deliveryOptions[0].value);
     }
   }, [deliveryOptions, deliveryType]);
+
+  useEffect(() => {
+    if (!profile?.id || appliedProfileId.current === profile.id || !formRef.current) return;
+
+    const fillEmpty = (name: string, value: string | null | undefined) => {
+      if (!value) return;
+      const field = formRef.current?.elements.namedItem(name);
+      if (field instanceof HTMLInputElement && !field.value.trim()) field.value = value;
+    };
+
+    fillEmpty('name', profile.full_name);
+    fillEmpty('email', profile.email);
+    fillEmpty('phone', profile.phone);
+    fillEmpty('street', profile.address_street);
+    fillEmpty('postalCode', profile.address_zip);
+    fillEmpty('city', profile.address_city);
+    fillEmpty('billingName', profile.full_name);
+    fillEmpty('billingCompany', profile.company);
+    fillEmpty('billingNip', profile.nip);
+    fillEmpty('billingStreet', profile.address_street);
+    fillEmpty('billingPostalCode', profile.address_zip);
+    fillEmpty('billingCity', profile.address_city);
+
+    if (profile.company || profile.nip) setInvoiceType('company');
+    appliedProfileId.current = profile.id;
+  }, [profile]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -136,6 +168,31 @@ export default function CheckoutPage() {
     setSubmitting(true);
     setError('');
     const form = new FormData(event.currentTarget);
+    const formValue = (name: string) => String(form.get(name) || '').trim();
+    const shippingAddress = {
+      street: formValue('street'),
+      postalCode: formValue('postalCode'),
+      city: formValue('city'),
+      country: 'PL' as const,
+    };
+    const billingAddress = billingSameAsShipping
+      ? {
+          invoiceType,
+          name: formValue('name'),
+          company: invoiceType === 'company' ? formValue('billingCompany') : '',
+          nip: invoiceType === 'company' ? formValue('billingNip') : '',
+          ...shippingAddress,
+        }
+      : {
+          invoiceType,
+          name: formValue('billingName'),
+          company: invoiceType === 'company' ? formValue('billingCompany') : '',
+          nip: invoiceType === 'company' ? formValue('billingNip') : '',
+          street: formValue('billingStreet'),
+          postalCode: formValue('billingPostalCode'),
+          city: formValue('billingCity'),
+          country: 'PL' as const,
+        };
     let pendingPayment: { orderId: string; paymentToken: string } | null = null;
 
     try {
@@ -144,16 +201,12 @@ export default function CheckoutPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer: {
-            name: form.get('name'),
-            email: form.get('email'),
-            phone: form.get('phone'),
+            name: formValue('name'),
+            email: formValue('email'),
+            phone: formValue('phone'),
           },
-          shippingAddress: {
-            street: form.get('street'),
-            postalCode: form.get('postalCode'),
-            city: form.get('city'),
-            country: 'PL',
-          },
+          shippingAddress,
+          billingAddress,
           deliveryType,
           items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
         }),
@@ -232,7 +285,7 @@ export default function CheckoutPage() {
   }
 
   return (
-    <form onSubmit={submitOrder} className="mx-auto min-h-screen max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <form ref={formRef} onSubmit={submitOrder} className="mx-auto min-h-screen max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <div className="mb-8">
         <p className="mb-2 text-sm font-medium text-primary">Bezpieczna płatność online</p>
         <h1 className="text-3xl font-bold sm:text-4xl">Finalizacja zamówienia</h1>
@@ -298,6 +351,149 @@ export default function CheckoutPage() {
                 <Label htmlFor="checkout-city">Miasto</Label>
                 <Input id="checkout-city" name="city" autoComplete="address-level2" required minLength={2} placeholder="Warszawa" />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Dane do faktury</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setInvoiceType('individual')}
+                  aria-pressed={invoiceType === 'individual'}
+                  className={`rounded-xl border p-4 text-left transition-all ${
+                    invoiceType === 'individual'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <p className="font-semibold">Osoba fizyczna</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Faktura imienna bez NIP</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceType('company')}
+                  aria-pressed={invoiceType === 'company'}
+                  className={`rounded-xl border p-4 text-left transition-all ${
+                    invoiceType === 'company'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <p className="font-semibold">Firma</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Faktura firmowa z NIP</p>
+                </button>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Adres jest wymagany dla obu rodzajów faktury. Możesz użyć adresu wysyłki albo podać osobny adres fakturowy.
+              </p>
+
+              {invoiceType === 'company' && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="checkout-billing-company">Nazwa firmy</Label>
+                    <Input
+                      id="checkout-billing-company"
+                      name="billingCompany"
+                      autoComplete="organization"
+                      required
+                      minLength={2}
+                      maxLength={160}
+                      defaultValue={profile?.company || ''}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="checkout-billing-nip">NIP</Label>
+                    <Input
+                      id="checkout-billing-nip"
+                      name="billingNip"
+                      inputMode="numeric"
+                      required
+                      pattern="[0-9]{10}"
+                      minLength={10}
+                      maxLength={10}
+                      placeholder="1234567890"
+                      defaultValue={profile?.nip || ''}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4">
+                <input
+                  type="checkbox"
+                  checked={billingSameAsShipping}
+                  onChange={(event) => setBillingSameAsShipping(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-border accent-primary"
+                />
+                <span>
+                  <span className="block font-medium">Adres faktury taki sam jak adres wysyłki</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">
+                    Odznacz, jeśli faktura ma zawierać inny adres.
+                  </span>
+                </span>
+              </label>
+
+              {!billingSameAsShipping && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="checkout-billing-name">
+                      {invoiceType === 'company' ? 'Osoba kontaktowa' : 'Imię i nazwisko'}
+                    </Label>
+                    <Input
+                      id="checkout-billing-name"
+                      name="billingName"
+                      autoComplete="name"
+                      required
+                      minLength={2}
+                      maxLength={120}
+                      defaultValue={profile?.full_name || ''}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="checkout-billing-street">Ulica i numer</Label>
+                    <Input
+                      id="checkout-billing-street"
+                      name="billingStreet"
+                      autoComplete="billing street-address"
+                      required
+                      minLength={3}
+                      maxLength={160}
+                      defaultValue={profile?.address_street || ''}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="checkout-billing-postal">Kod pocztowy</Label>
+                    <Input
+                      id="checkout-billing-postal"
+                      name="billingPostalCode"
+                      autoComplete="billing postal-code"
+                      required
+                      pattern="[0-9]{2}-[0-9]{3}"
+                      maxLength={6}
+                      placeholder="00-000"
+                      defaultValue={profile?.address_zip || ''}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="checkout-billing-city">Miasto</Label>
+                    <Input
+                      id="checkout-billing-city"
+                      name="billingCity"
+                      autoComplete="billing address-level2"
+                      required
+                      minLength={2}
+                      maxLength={100}
+                      defaultValue={profile?.address_city || ''}
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground sm:col-span-2">Kraj: Polska</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

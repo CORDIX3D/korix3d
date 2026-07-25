@@ -8,15 +8,43 @@ import {
 import { DEFAULT_DELIVERY_OPTIONS, IGNORED_SHIPPING_SETTING_KEYS } from '@/lib/shipping';
 import { createCheckoutToken } from '@/lib/checkout-token';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 
 export const dynamic = 'force-dynamic';
+
+const billingAddressSchema = z.object({
+  invoiceType: z.enum(['individual', 'company']),
+  name: z.string().trim().min(2).max(120),
+  company: z.string().trim().max(160),
+  nip: z.string().trim().max(10),
+  street: z.string().trim().min(3).max(160),
+  postalCode: z.string().trim().regex(/^\d{2}-\d{3}$/),
+  city: z.string().trim().min(2).max(100),
+  country: z.literal('PL'),
+}).superRefine((address, context) => {
+  if (address.invoiceType !== 'company') return;
+  if (address.company.length < 2) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['company'],
+      message: 'Podaj nazwę firmy',
+    });
+  }
+  if (!/^\d{10}$/.test(address.nip)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['nip'],
+      message: 'Podaj 10-cyfrowy NIP',
+    });
+  }
+});
 
 const orderSchema = z.object({
   customer: z.object({
     name: z.string().trim().min(2).max(120),
     email: z.string().trim().email().max(160),
-    phone: z.string().trim().min(7).max(30),
+    phone: z.string().trim().min(7).max(30).regex(/^[+\d\s()-]+$/),
   }),
   shippingAddress: z.object({
     street: z.string().trim().min(3).max(160),
@@ -24,12 +52,43 @@ const orderSchema = z.object({
     city: z.string().trim().min(2).max(100),
     country: z.literal('PL'),
   }),
+  billingAddress: billingAddressSchema,
   deliveryType: z.string().trim().min(1).max(80),
   items: z.array(z.object({
     id: z.string().uuid(),
     quantity: z.number().int().min(1).max(99),
   })).min(1).max(50),
 });
+
+async function releaseAbandonedReservations(
+  admin: ReturnType<typeof createServiceRoleClient>
+) {
+  const staleBefore = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { data: abandoned, error } = await admin
+    .from('store_orders')
+    .select('id')
+    .eq('status', 'pending')
+    .is('stripe_session_id', null)
+    .lt('created_at', staleBefore)
+    .limit(25);
+
+  if (error) {
+    console.warn('Abandoned checkout lookup failed:', error.code || 'unknown');
+    return;
+  }
+
+  await Promise.all(
+    (abandoned || []).map(async (order) => {
+      const { error: cancellationError } = await admin.rpc(
+        'cancel_store_order_and_restore_stock',
+        { p_order_id: order.id }
+      );
+      if (cancellationError) {
+        console.warn('Abandoned checkout cleanup failed:', cancellationError.code || 'unknown');
+      }
+    })
+  );
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,7 +103,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: auth } = await supabase.auth.getUser();
 
-    let admin;
+    let admin: ReturnType<typeof createServiceRoleClient>;
     try {
       const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
       admin = createServiceRoleClient(url, serviceRoleKey, auth.user?.id);
@@ -54,6 +113,26 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       );
     }
+
+    const rateLimit = await checkPublicRateLimit(request, {
+      scope: 'store_order_create',
+      limit: 5,
+      windowSeconds: 60 * 60,
+      userId: auth.user?.id,
+      consumePersistent: async (args) => {
+        const { data, error } = await admin.rpc('consume_public_api_rate_limit', args);
+        return { data: data === true, error };
+      },
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(
+        'Osiągnięto limit nowych zamówień. Spróbuj ponownie później.',
+        rateLimit.retryAfter
+      );
+    }
+
+    await releaseAbandonedReservations(admin);
 
     const orderNumber = `SK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
     const { data: shippingSettings, error: shippingError } = await admin
@@ -102,11 +181,12 @@ export async function POST(request: NextRequest) {
       p_customer_name: parsed.data.customer.name,
       p_shipping_address: {
         ...parsed.data.shippingAddress,
+        name: parsed.data.customer.name,
         phone: parsed.data.customer.phone,
         delivery_type: parsed.data.deliveryType,
         delivery_label: deliverySetting?.label || deliverySetting?.key || defaultDelivery?.label,
       },
-      p_billing_address: parsed.data.shippingAddress,
+      p_billing_address: parsed.data.billingAddress,
       p_shipping_cost: shippingCost,
       p_items: parsed.data.items,
     });

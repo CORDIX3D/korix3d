@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         metadata: { order_id: order.id, order_number: order.order_number },
         success_url: `${origin}/checkout/sukces?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/checkout?cancelled=1&order=${encodeURIComponent(order.id)}`,
-        billing_address_collection: 'required',
+        billing_address_collection: 'auto',
         locale: 'pl',
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       },

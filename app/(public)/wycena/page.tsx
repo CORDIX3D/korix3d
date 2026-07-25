@@ -50,17 +50,21 @@ type AutomaticQuote = {
   slicing_status: string;
   printing_time_hours: number | null;
   filament_used_grams: number | null;
-  costs: {
-    material: number | null;
-    printing: number | null;
-    electricity: number | null;
-    packaging: number | null;
-    delivery: number | null;
-    margin: number | null;
-    vat: number | null;
-  } | null;
+  net_price: number | null;
   final_price: number | null;
+  sliced_at?: string | null;
 };
+
+const slicingProgress: Record<string, { label: string; value: number }> = {
+  not_started: { label: 'Przygotowujemy plik', value: 10 },
+  pending: { label: 'Model czeka na analizę Creality Print', value: 30 },
+  processing: { label: 'Creality Print oblicza czas i zużycie materiału', value: 70 },
+  completed: { label: 'Obliczamy końcową cenę', value: 95 },
+};
+
+function formatPrice(value: number | null | undefined) {
+  return `${Number(value || 0).toFixed(2)} zł`;
+}
 
 const infillOptions = [
   { value: '10', label: '10%', description: 'Bardzo lekki, niska wytrzymałość' },
@@ -115,6 +119,7 @@ function QuotePageContent() {
   const [submittedOrderId, setSubmittedOrderId] = useState('');
   const [automaticQuote, setAutomaticQuote] = useState<AutomaticQuote | null>(null);
   const [quotePollingError, setQuotePollingError] = useState('');
+  const [quoteRefreshKey, setQuoteRefreshKey] = useState(0);
 
   const {
     register,
@@ -306,7 +311,7 @@ function QuotePageContent() {
       active = false;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [submittedOrderId]);
+  }, [submittedOrderId, quoteRefreshKey]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -500,6 +505,8 @@ function QuotePageContent() {
   if (submitted) {
     const quoteReady = automaticQuote?.state === 'ready' && Number(automaticQuote.final_price || 0) > 0;
     const manualReview = automaticQuote?.state === 'manual_review';
+    const currentProgress = slicingProgress[automaticQuote?.slicing_status || 'not_started']
+      || slicingProgress.not_started;
 
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
@@ -530,11 +537,32 @@ function QuotePageContent() {
               Numer zlecenia: <strong className="text-foreground">{submittedOrderNumber}</strong>
             </p>
 
+            {!quoteReady && !manualReview && (
+              <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 p-4 text-left">
+                <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-medium text-foreground">{currentProgress.label}</span>
+                  <span className="text-muted-foreground">{currentProgress.value}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-500"
+                    style={{ width: `${currentProgress.value}%` }}
+                  />
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Nie musisz odświeżać strony. Gotowa cena pojawi się tutaj automatycznie.
+                </p>
+              </div>
+            )}
+
             {quoteReady && (
               <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/10 p-5">
                 <p className="text-sm text-muted-foreground">Cena końcowa brutto</p>
                 <p className="mt-1 text-4xl font-bold text-primary">
-                  {Number(automaticQuote.final_price).toFixed(2)} zł
+                  {formatPrice(automaticQuote.final_price)}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Netto: <span className="font-semibold text-foreground">{formatPrice(automaticQuote.net_price)}</span>
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-lg bg-background/60 p-3">
@@ -542,7 +570,7 @@ function QuotePageContent() {
                     <p className="font-semibold">{Number(automaticQuote.printing_time_hours || 0).toFixed(2)} h</p>
                   </div>
                   <div className="rounded-lg bg-background/60 p-3">
-                    <p className="text-muted-foreground">Filament</p>
+                    <p className="text-muted-foreground">Waga produktu</p>
                     <p className="font-semibold">{Number(automaticQuote.filament_used_grams || 0).toFixed(2)} g</p>
                   </div>
                 </div>
@@ -550,9 +578,18 @@ function QuotePageContent() {
             )}
 
             {quotePollingError && !manualReview && !quoteReady && (
-              <p className="mb-5 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-muted-foreground">
-                {quotePollingError} Ponawiamy sprawdzanie automatycznie.
-              </p>
+              <div className="mb-5 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-muted-foreground">
+                <p>{quotePollingError} Ponawiamy sprawdzanie automatycznie.</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setQuoteRefreshKey((value) => value + 1)}
+                >
+                  Sprawdź cenę teraz
+                </Button>
+              </div>
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -568,6 +605,8 @@ function QuotePageContent() {
                   setSubmitted(false);
                   setSubmittedOrderId('');
                   setAutomaticQuote(null);
+                  setQuotePollingError('');
+                  setQuoteRefreshKey(0);
                 }}
                 className="flex-1"
               >
@@ -1097,7 +1136,7 @@ function QuotePageContent() {
                         Proces wyceny
                       </h4>
                       <p className="text-sm text-muted-foreground">
-                        Po przesłaniu model zostanie automatycznie przeliczony przez Creality Print. Gotowa cena pojawi się na ekranie po zakończeniu analizy.
+                        Po przesłaniu model zostanie automatycznie przeliczony przez Creality Print. Cena netto i brutto pojawi się na tym ekranie bez udziału administratora, od razu po zakończeniu analizy.
                         Termin realizacji potwierdzimy razem z wyceną. Wycena jest bezpłatna i niezobowiązująca.
                       </p>
                     </div>
@@ -1158,7 +1197,7 @@ function QuotePageContent() {
                         Wysyłanie...
                       </>
                     ) : (
-                      user ? 'Prześlij i oblicz cenę' : 'Zaloguj się, aby wysłać'
+                      user ? 'Oblicz dokładną cenę' : 'Zaloguj się, aby wycenić'
                     )}
                   </Button>
                 </div>

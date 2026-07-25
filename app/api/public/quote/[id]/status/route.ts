@@ -8,6 +8,18 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HEADERS = { 'Cache-Control': 'no-store' } as const;
 
+function readVatRate(slicingResult: unknown) {
+  if (!slicingResult || typeof slicingResult !== 'object' || Array.isArray(slicingResult)) {
+    return 23;
+  }
+
+  const pricing = (slicingResult as Record<string, unknown>).pricing;
+  if (!pricing || typeof pricing !== 'object' || Array.isArray(pricing)) return 23;
+
+  const rate = Number((pricing as Record<string, unknown>).vat_rate);
+  return Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : 23;
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -36,7 +48,7 @@ export async function GET(
     const { data: order, error } = await supabase
       .from('orders_3d')
       .select(
-        'id, order_number, status, slicing_status, printing_time_hours, filament_used_grams, material_cost, electricity_cost, printing_cost, packaging_cost, margin_amount, vat_amount, delivery_cost, final_price, sliced_at'
+        'id, order_number, status, slicing_status, printing_time_hours, filament_used_grams, final_price, slicing_result, sliced_at'
       )
       .eq('id', id)
       .eq('user_id', auth.user.id)
@@ -53,6 +65,10 @@ export async function GET(
     const ready = order.status === 'quoted' && Number(order.final_price || 0) > 0;
     const manualReview = ['failed', 'partial_failed'].includes(order.slicing_status)
       || (order.slicing_status === 'completed' && !ready);
+    const vatRate = readVatRate(order.slicing_result);
+    const netPrice = ready
+      ? Math.round((Number(order.final_price) / (1 + vatRate / 100)) * 100) / 100
+      : null;
 
     return NextResponse.json(
       {
@@ -61,17 +77,7 @@ export async function GET(
         slicing_status: order.slicing_status,
         printing_time_hours: order.printing_time_hours,
         filament_used_grams: order.filament_used_grams,
-        costs: ready
-          ? {
-              material: order.material_cost,
-              printing: order.printing_cost,
-              electricity: order.electricity_cost,
-              packaging: order.packaging_cost,
-              delivery: order.delivery_cost,
-              margin: order.margin_amount,
-              vat: order.vat_amount,
-            }
-          : null,
+        net_price: netPrice,
         final_price: ready ? order.final_price : null,
         sliced_at: order.sliced_at,
       },

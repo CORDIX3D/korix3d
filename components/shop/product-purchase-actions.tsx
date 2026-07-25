@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/lib/cart-provider';
 import type { Product } from '@/lib/types/database';
+import { WishlistButton } from '@/components/shop/wishlist-button';
 
 export function ProductPurchaseActions({ product }: { product: Product }) {
   const { addToCart } = useCart();
@@ -27,5 +28,6 @@ export function ProductPurchaseActions({ product }: { product: Product }) {
         <MessageCircle className="mr-2 h-4 w-4" />Zapytaj o produkt
       </Link>
     </Button>
+    <WishlistButton productId={product.id} productName={product.name} />
   </div>;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { MouseEvent, Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,6 +36,7 @@ import { supabase } from '@/lib/supabase/client';
 import { Category, Product } from '@/lib/types/database';
 import { useCart } from '@/lib/cart-provider';
 import { toast } from 'sonner';
+import { WishlistButton } from '@/components/shop/wishlist-button';
 
 const sortOptions = [
   { value: 'newest', label: 'Najnowsze' },
@@ -438,9 +439,7 @@ function ProductCard({
   const images = Array.isArray(product.images) ? product.images as string[] : [];
   const mainImage = images[0] || null;
   const canAddToCart = canAddProductToCart(product);
-  const addProductToCart = (event: MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const addProductToCart = () => {
     if (!canAddToCart) {
       toast.error('Nie można dodać produktu', { description: 'Produkt jest niedostępny albo ma nieprawidłową cenę.' });
       return;
@@ -451,10 +450,10 @@ function ProductCard({
 
   if (viewMode === 'list') {
     return (
-      <Link href={`/sklep/${product.slug}`}>
-        <Card className="bg-card border-border hover:border-primary/50 transition-all overflow-hidden">
-          <CardContent className="p-0 flex flex-col sm:flex-row">
-            <div className="w-full aspect-video sm:aspect-auto sm:w-48 sm:h-48 bg-secondary flex-shrink-0 relative">
+      <Card className="bg-card border-border hover:border-primary/50 transition-all overflow-hidden">
+        <CardContent className="p-0 flex flex-col sm:flex-row">
+          <div className="w-full aspect-video sm:aspect-auto sm:w-48 sm:h-48 bg-secondary flex-shrink-0 relative">
+            <Link href={`/sklep/${product.slug}`} className="block h-full w-full">
               {mainImage ? (
                 <OptimizedImage
                   src={mainImage}
@@ -466,42 +465,50 @@ function ProductCard({
                   <Package className="w-16 h-16 text-muted-foreground" />
                 </div>
               )}
-            </div>
-            <div className="flex-1 p-4 sm:p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">
+            </Link>
+            <WishlistButton
+              productId={product.id}
+              productName={product.name}
+              compact
+              className="absolute right-3 top-3 bg-background/90"
+            />
+          </div>
+          <div className="flex-1 p-4 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  <Link href={`/sklep/${product.slug}`} className="hover:text-primary">
                     {product.name}
-                  </h3>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {product.short_description || product.description}
+                  </Link>
+                </h3>
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {product.short_description || product.description}
+                </p>
+              </div>
+              <div className="text-left sm:text-right">
+                <p className="text-xl sm:text-2xl font-bold text-primary">
+                  {Number(product.price).toFixed(2)} zł
+                </p>
+                {product.compare_price && (
+                  <p className="text-sm text-muted-foreground line-through">
+                    {Number(product.compare_price).toFixed(2)} zł
                   </p>
-                </div>
-                <div className="text-left sm:text-right">
-                  <p className="text-xl sm:text-2xl font-bold text-primary">
-                    {Number(product.price).toFixed(2)} zł
-                  </p>
-                  {product.compare_price && (
-                    <p className="text-sm text-muted-foreground line-through">
-                      {Number(product.compare_price).toFixed(2)} zł
-                    </p>
-                  )}
-                  <Button size="sm" className="mt-3" disabled={!canAddToCart} onClick={addProductToCart}><ShoppingCart className="mr-2 h-4 w-4" />Do koszyka</Button>
-                </div>
+                )}
+                <Button size="sm" className="mt-3" disabled={!canAddToCart} onClick={addProductToCart}><ShoppingCart className="mr-2 h-4 w-4" />Do koszyka</Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </Link>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <Link href={`/sklep/${product.slug}`}>
-      <Card
-        className="bg-card border-border hover:border-primary/50 transition-all overflow-hidden group"
-      >
-        <div className="relative aspect-square bg-secondary overflow-hidden">
+    <Card
+      className="bg-card border-border hover:border-primary/50 transition-all overflow-hidden group"
+    >
+      <div className="relative aspect-square bg-secondary overflow-hidden">
+        <Link href={`/sklep/${product.slug}`} className="block h-full w-full">
           {mainImage ? (
             <OptimizedImage
               src={mainImage}
@@ -513,59 +520,67 @@ function ProductCard({
               <Package className="w-16 h-16 text-muted-foreground" />
             </div>
           )}
+        </Link>
 
-          {/* Quick Actions */}
-          <div
-            className="absolute inset-x-0 bottom-0 flex gap-2 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-          >
-            <button type="button" disabled={!canAddToCart} onClick={addProductToCart} className="flex-1 rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {canAddToCart ? 'Dodaj do koszyka' : product.stock_quantity > 0 ? 'Niedostępny' : 'Brak w magazynie'}
-            </button>
-          </div>
-
-          {/* Badges */}
-          <div className="absolute top-4 left-4 flex flex-col gap-2">
-            {product.featured && (
-              <span className="px-2 py-1 bg-primary text-white text-xs rounded font-medium">
-                Polecane
-              </span>
-            )}
-            {product.compare_price && (
-              <span className="px-2 py-1 bg-destructive text-white text-xs rounded font-medium">
-                Promocja
-              </span>
-            )}
-          </div>
+        {/* Quick Actions */}
+        <div
+          className="absolute inset-x-0 bottom-0 flex gap-2 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+        >
+          <button type="button" disabled={!canAddToCart} onClick={addProductToCart} className="flex-1 rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">
+            {canAddToCart ? 'Dodaj do koszyka' : product.stock_quantity > 0 ? 'Niedostępny' : 'Brak w magazynie'}
+          </button>
         </div>
 
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-foreground mb-1 line-clamp-1">
-            {product.name}
-          </h3>
-          {product.short_description && (
-            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-              {product.short_description}
-            </p>
+        {/* Badges */}
+        <div className="absolute top-4 left-4 flex flex-col gap-2">
+          {product.featured && (
+            <span className="px-2 py-1 bg-primary text-white text-xs rounded font-medium">
+              Polecane
+            </span>
           )}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-lg font-bold text-primary">
-                {Number(product.price).toFixed(2)} zł
+          {product.compare_price && (
+            <span className="px-2 py-1 bg-destructive text-white text-xs rounded font-medium">
+              Promocja
+            </span>
+          )}
+        </div>
+        <WishlistButton
+          productId={product.id}
+          productName={product.name}
+          compact
+          className="absolute right-4 top-4 bg-background/90"
+        />
+      </div>
+
+      <CardContent className="p-4">
+        <h3 className="font-semibold text-foreground mb-1 line-clamp-1">
+          <Link href={`/sklep/${product.slug}`} className="hover:text-primary">
+            {product.name}
+          </Link>
+        </h3>
+        {product.short_description && (
+          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+            {product.short_description}
+          </p>
+        )}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-lg font-bold text-primary">
+              {Number(product.price).toFixed(2)} zł
+            </p>
+            {product.compare_price && (
+              <p className="text-xs text-muted-foreground line-through">
+                {Number(product.compare_price).toFixed(2)} zł
               </p>
-              {product.compare_price && (
-                <p className="text-xs text-muted-foreground line-through">
-                  {Number(product.compare_price).toFixed(2)} zł
-                </p>
-              )}
-            </div>
-            {product.stock_quantity > 0 ? (
-              <span className="text-xs text-green-400">W magazynie</span>
-            ) : (
-              <span className="text-xs text-destructive">Brak</span>
             )}
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+          {product.stock_quantity > 0 ? (
+            <span className="text-xs text-green-400">W magazynie</span>
+          ) : (
+            <span className="text-xs text-destructive">Brak</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

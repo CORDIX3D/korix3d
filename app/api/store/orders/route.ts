@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import {
+  getRequiredSupabaseServiceEnv,
+  isSupabaseConfigurationError,
+} from '@/lib/supabase/env';
 import { DEFAULT_DELIVERY_OPTIONS, IGNORED_SHIPPING_SETTING_KEYS } from '@/lib/shipping';
 import { createCheckoutToken } from '@/lib/checkout-token';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +33,7 @@ const orderSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const parsed = orderSchema.safeParse(await request.json());
+    const parsed = orderSchema.safeParse(await readJsonObject(request, 64 * 1024));
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Sprawdź dane kontaktowe, adres i zawartość koszyka.' },
@@ -156,6 +160,23 @@ export async function POST(request: NextRequest) {
       total: typeof order === 'object' && order !== null && 'total' in order ? Number(order.total) : undefined,
     });
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    if (isSupabaseConfigurationError(error)) {
+      return NextResponse.json(
+        { error: 'Składanie zamówień jest chwilowo niedostępne.' },
+        {
+          status: 503,
+          headers: {
+            'Cache-Control': 'no-store',
+            'Retry-After': '60',
+          },
+        }
+      );
+    }
+
     console.error('Store order API error:', error);
     return NextResponse.json(
       { error: 'Nie udało się złożyć zamówienia.' },

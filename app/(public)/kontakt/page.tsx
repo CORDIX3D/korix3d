@@ -80,9 +80,12 @@ function ContactPageContent() {
         description: 'Odpowiemy najszybciej jak to możliwe',
       });
       setSubmitted(true);
-    } catch {
+    } catch (error) {
       toast.error('Błąd', {
-        description: 'Wystąpił błąd podczas wysyłania wiadomości. Spróbuj ponownie za chwilę.',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Wystąpił błąd podczas wysyłania wiadomości. Spróbuj ponownie za chwilę.',
       });
     } finally {
       setSubmitting(false);

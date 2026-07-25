@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import {
+  getRequiredSupabaseServiceEnv,
+  isSupabaseConfigurationError,
+} from '@/lib/supabase/env';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +31,7 @@ function validateContact(data: Record<string, unknown>) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await readJsonObject(request, 16 * 1024);
     const validationError = validateContact(body);
 
     if (validationError) {
@@ -51,6 +55,23 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    if (isSupabaseConfigurationError(error)) {
+      return NextResponse.json(
+        { error: 'Formularz kontaktowy jest chwilowo niedostępny.' },
+        {
+          status: 503,
+          headers: {
+            'Cache-Control': 'no-store',
+            'Retry-After': '60',
+          },
+        }
+      );
+    }
+
     console.error('Contact form submit error:', error);
     return NextResponse.json(
       { error: 'Nie udało się wysłać wiadomości. Spróbuj ponownie za chwilę.' },

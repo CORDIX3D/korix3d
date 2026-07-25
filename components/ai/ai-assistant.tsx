@@ -63,7 +63,7 @@ export function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  const [sessionId] = useState(() => `session_${crypto.randomUUID()}`);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [settings, setSettings] = useState<AISettings>(DEFAULT_AI_SETTINGS);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -254,6 +254,7 @@ ${messageContent}`;
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('sessionId', sessionId);
       if (conversationId) {
         formData.append('conversationId', conversationId);
       }

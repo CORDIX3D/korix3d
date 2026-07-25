@@ -46,15 +46,17 @@ function parseSTL(buffer: Buffer): { triangles: number[][][]; boundingBox: { min
 
   if (isBinary) {
     // Binary STL format
+    if (buffer.length < 84) throw new Error('Niepełny nagłówek pliku STL.');
     const numTriangles = buffer.readUInt32LE(80);
+    if (numTriangles < 1 || numTriangles > 100000) {
+      throw new Error('Model jest zbyt złożony do szybkiej analizy.');
+    }
+    if (84 + numTriangles * 50 > buffer.length) {
+      throw new Error('Plik STL jest niepełny lub uszkodzony.');
+    }
     let offset = 84;
 
-    for (let i = 0; i < Math.min(numTriangles, 100000); i++) {
-      const normal = [
-        buffer.readFloatLE(offset),
-        buffer.readFloatLE(offset + 4),
-        buffer.readFloatLE(offset + 8)
-      ];
+    for (let i = 0; i < numTriangles; i++) {
       offset += 12;
 
       const v1 = [buffer.readFloatLE(offset), buffer.readFloatLE(offset + 4), buffer.readFloatLE(offset + 8)];
@@ -64,7 +66,6 @@ function parseSTL(buffer: Buffer): { triangles: number[][][]; boundingBox: { min
       const v3 = [buffer.readFloatLE(offset), buffer.readFloatLE(offset + 4), buffer.readFloatLE(offset + 8)];
       offset += 12;
 
-      const attr = buffer.readUInt16LE(offset);
       offset += 2;
 
       triangles.push([v1, v2, v3]);
@@ -83,6 +84,7 @@ function parseSTL(buffer: Buffer): { triangles: number[][][]; boundingBox: { min
     const content = buffer.toString('utf8');
     const vertexRegex = /vertex\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)/g;
     let match;
+    let currentTriangle: number[][] = [];
 
     while ((match = vertexRegex.exec(content)) !== null) {
       const v = [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3])];
@@ -92,8 +94,18 @@ function parseSTL(buffer: Buffer): { triangles: number[][][]; boundingBox: { min
       maxX = Math.max(maxX, v[0]);
       maxY = Math.max(maxY, v[1]);
       maxZ = Math.max(maxZ, v[2]);
+      currentTriangle.push(v);
+      if (currentTriangle.length === 3) {
+        triangles.push(currentTriangle);
+        currentTriangle = [];
+        if (triangles.length > 100000) {
+          throw new Error('Model jest zbyt złożony do szybkiej analizy.');
+        }
+      }
     }
   }
+
+  if (triangles.length === 0) throw new Error('Plik STL nie zawiera trójkątów.');
 
   return {
     triangles,
@@ -143,7 +155,7 @@ function estimateFilamentUsage(volume: number, infillPercentage: number = 0.2): 
   const weightGrams = (effectiveVolume / 1000) * density;
 
   // Add 10% for support and brim
-  return Math.round(weightGrams * 1.1);
+  return Math.round(weightGrams * 1.1 * 10) / 10;
 }
 
 function recommendMaterials(boundingBox: number[]): { materials: string[]; layerHeight: number } {
@@ -209,12 +221,10 @@ function hasValidBoundingBox(boundingBox: { min: number[]; max: number[] }) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const conversationId = formData.get('conversationId') as string | null;
+    const conversationId = String(formData.get('conversationId') || '').trim();
+    const sessionId = String(formData.get('sessionId') || '').trim();
 
     if (!file) {
       return new Response(JSON.stringify({ error: 'Brak pliku' }), {
@@ -223,9 +233,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check file size (max 50MB)
-    if (file.size > 50 * 1024 * 1024) {
-      return new Response(JSON.stringify({ error: 'Plik zbyt duży (max 50MB)' }), {
+    // Szybka analiza bota ma niższy limit niż właściwy formularz wyceny.
+    if (file.size > 10 * 1024 * 1024) {
+      return new Response(JSON.stringify({ error: 'Plik zbyt duży do szybkiej analizy (max 10MB)' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -290,17 +300,41 @@ export async function POST(request: NextRequest) {
     };
 
     // Store analysis result
-    if (conversationId) {
-      await getSupabaseAdmin()
-        .from('ai_file_uploads')
-        .insert({
-          conversation_id: conversationId,
-          user_id: user?.id || null,
-          file_name: file.name,
-          file_type: 'stl',
-          file_size: file.size,
-          analysis_result: analysis
-        });
+    if (
+      conversationId
+      && /^[0-9a-f-]{36}$/i.test(conversationId)
+      && /^session_[a-f0-9-]{36}$/.test(sessionId)
+    ) {
+      try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        const admin = getSupabaseAdmin();
+        const { data: conversation } = await admin
+          .from('ai_conversations')
+          .select('id, user_id')
+          .eq('id', conversationId)
+          .eq('session_id', sessionId)
+          .maybeSingle();
+        const ownsConversation = conversation && (
+          conversation.user_id === (user?.id || null)
+          || (conversation.user_id === null && !user)
+        );
+
+        if (ownsConversation) {
+          await admin
+            .from('ai_file_uploads')
+            .insert({
+              conversation_id: conversation.id,
+              user_id: user?.id || null,
+              file_name: file.name,
+              file_type: 'stl',
+              file_size: file.size,
+              analysis_result: analysis
+            });
+        }
+      } catch (historyError) {
+        console.warn('STL analysis completed without saving history:', historyError);
+      }
     }
 
     return new Response(JSON.stringify(analysis), {

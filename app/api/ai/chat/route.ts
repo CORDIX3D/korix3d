@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,6 @@ type DatabaseContext = {
     remaining_weight_grams: number;
     min_weight_grams: number | null;
     price_per_kg: number | null;
-    location: string | null;
     active: boolean | null;
   }>;
   products: Array<{
@@ -28,13 +28,6 @@ type DatabaseContext = {
     min_stock_quantity: number | null;
     active: boolean;
   }>;
-  warehouseItems: Array<{
-    sku: string | null;
-    name: string;
-    quantity: number;
-    min_quantity: number | null;
-    warehouse_location: string | null;
-  }>;
   productionQueue: number;
   estimatedProductionDays: number | null;
 };
@@ -44,7 +37,6 @@ function createEmptyContext(): DatabaseContext {
     materials: [],
     filaments: [],
     products: [],
-    warehouseItems: [],
     productionQueue: 0,
     estimatedProductionDays: null,
   };
@@ -57,7 +49,7 @@ function getSupabaseAdmin() {
 
 async function getDatabaseContext(): Promise<DatabaseContext> {
   const supabaseAdmin = getSupabaseAdmin();
-  const [materialsResult, filamentsResult, productsResult, warehouseResult, ordersResult] = await Promise.all([
+  const [materialsResult, filamentsResult, productsResult, ordersResult] = await Promise.all([
     supabaseAdmin
       .from('materials')
       .select('name, available')
@@ -65,17 +57,13 @@ async function getDatabaseContext(): Promise<DatabaseContext> {
       .order('name'),
     supabaseAdmin
       .from('filaments')
-      .select('brand, material_name, color, color_hex, remaining_weight_grams, min_weight_grams, price_per_kg, location, active')
+      .select('brand, material_name, color, color_hex, remaining_weight_grams, min_weight_grams, price_per_kg, active')
       .eq('active', true)
       .order('material_name'),
     supabaseAdmin
       .from('products')
       .select('id, sku, name, slug, price, stock_quantity, min_stock_quantity, active')
       .eq('active', true)
-      .order('name'),
-    supabaseAdmin
-      .from('warehouse_items')
-      .select('sku, name, quantity, min_quantity, warehouse_location')
       .order('name'),
     supabaseAdmin
       .from('orders_3d')
@@ -90,7 +78,6 @@ async function getDatabaseContext(): Promise<DatabaseContext> {
     materials: materialsResult.data || [],
     filaments: filamentsResult.data || [],
     products: productsResult.data || [],
-    warehouseItems: warehouseResult.data || [],
     productionQueue: orders.length,
     estimatedProductionDays: totalHours > 0 ? Math.ceil(totalHours / 8) : null,
   };
@@ -149,30 +136,11 @@ function findMatchingProducts(question: string, context: DatabaseContext) {
     .map((entry) => entry.product);
 }
 
-function findWarehouseItemForProduct(product: DatabaseContext['products'][number], context: DatabaseContext) {
-  const productSku = normalizeText(product.sku);
-  const productName = normalizeText(product.name);
-
-  return context.warehouseItems.find((item) => {
-    const itemSku = normalizeText(item.sku);
-    const itemName = normalizeText(item.name);
-    return Boolean(
-      (productSku && itemSku && productSku === itemSku) ||
-      (productName && itemName && (itemName.includes(productName) || productName.includes(itemName)))
-    );
-  });
-}
-
-function formatProductStock(product: DatabaseContext['products'][number], context: DatabaseContext) {
-  const warehouseItem = findWarehouseItemForProduct(product, context);
+function formatProductStock(product: DatabaseContext['products'][number]) {
   const quantity = Number(product.stock_quantity || 0);
-  const minimum = product.min_stock_quantity ?? warehouseItem?.min_quantity ?? null;
+  const minimum = product.min_stock_quantity ?? null;
   const status = stockStatusLabel(quantity, minimum);
-  const warehouseDetails = warehouseItem
-    ? ` Magazyn pokazuje ${warehouseItem.quantity} szt.${warehouseItem.warehouse_location ? `, lokalizacja: ${warehouseItem.warehouse_location}.` : '.'}`
-    : '';
-
-  return `${product.name}${product.sku ? ` (${product.sku})` : ''}: ${status}, stan sklepu: ${quantity} szt., cena: ${Number(product.price).toFixed(2)} zł.${warehouseDetails}`;
+  return `${product.name}${product.sku ? ` (${product.sku})` : ''}: ${status}, stan sklepu: ${quantity} szt., cena: ${Number(product.price).toFixed(2)} zł.`;
 }
 
 function scoreFilamentMatch(question: string, filament: DatabaseContext['filaments'][number]) {
@@ -191,11 +159,10 @@ function formatFilamentStock(filament: DatabaseContext['filaments'][number]) {
   const remaining = Number(filament.remaining_weight_grams || 0);
   const minimum = filament.min_weight_grams ?? null;
   const status = stockStatusLabel(remaining, minimum);
-  const location = filament.location ? ` Lokalizacja: ${filament.location}.` : '';
   const colorHex = filament.color_hex ? ` Próbka koloru: ${filament.color_hex}.` : '';
   const price = filament.price_per_kg ? ` Cena materiału: ${Number(filament.price_per_kg).toFixed(2)} zł/kg.` : '';
 
-  return `${filament.material_name} ${filament.color} (${filament.brand}): ${status}, zostało ${remaining} g.${minimum ? ` Minimum: ${minimum} g.` : ''}${price}${location}${colorHex}`;
+  return `${filament.material_name} ${filament.color} (${filament.brand}): ${status}, zostało ${remaining} g.${price}${colorHex}`;
 }
 
 function findMatchingMaterials(question: string, context: DatabaseContext) {
@@ -245,7 +212,7 @@ function buildFreeResponse(question: string, context: DatabaseContext): string {
   if (asksAboutStock && matchingProducts.length > 0) {
     return matchingProducts
       .slice(0, 5)
-      .map((product) => formatProductStock(product, context))
+      .map(formatProductStock)
       .join('\n');
   }
 
@@ -347,25 +314,38 @@ function createEventStream(content: string, conversationId?: string | null) {
   );
 }
 
+const chatRequestSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().trim().min(1).max(2000),
+  })).min(1).max(20),
+  sessionId: z.string().trim().regex(/^session_[a-f0-9-]{36}$/),
+});
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const body = await request.json();
-    const { messages, conversationId, sessionId } = body;
-
-    if (!messages || !Array.isArray(messages)) {
+    const parsed = chatRequestSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return new Response(JSON.stringify({ error: 'Brak wiadomości' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
+    const { messages, sessionId } = parsed.data;
     const userMessage = messages[messages.length - 1];
-    const question = typeof userMessage?.content === 'string' ? userMessage.content : '';
+    if (userMessage.role !== 'user') {
+      return new Response(JSON.stringify({ error: 'Ostatnia wiadomość musi pochodzić od użytkownika.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const question = userMessage.content;
 
     let userId: string | null = null;
-    let convId = conversationId || null;
+    let convId: string | null = null;
     let supabaseAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
     let context = createEmptyContext();
 
@@ -376,26 +356,30 @@ export async function POST(request: NextRequest) {
       supabaseAdmin = getSupabaseAdmin();
       context = await getDatabaseContext();
 
-      if (!convId && sessionId) {
-        const { data: existingConversation } = await supabaseAdmin
+      const { data: existingConversations } = await supabaseAdmin
           .from('ai_conversations')
-          .select('id')
+          .select('id, user_id')
           .eq('session_id', sessionId)
-          .maybeSingle();
+          .order('created_at', { ascending: false })
+          .limit(1);
+      const existingConversation = existingConversations?.[0];
+      const ownsConversation = existingConversation && (
+        existingConversation.user_id === userId
+        || (existingConversation.user_id === null && userId === null)
+      );
 
-        if (existingConversation) {
-          convId = existingConversation.id;
-        } else {
-          const { data: newConversation } = await supabaseAdmin
-            .from('ai_conversations')
-            .insert({
-              session_id: sessionId,
-              user_id: userId,
-            })
-            .select('id')
-            .single();
-          convId = newConversation?.id || null;
-        }
+      if (ownsConversation) {
+        convId = existingConversation.id;
+      } else if (!existingConversation) {
+        const { data: newConversation } = await supabaseAdmin
+          .from('ai_conversations')
+          .insert({
+            session_id: sessionId,
+            user_id: userId,
+          })
+          .select('id')
+          .single();
+        convId = newConversation?.id || null;
       }
 
       if (convId && question) {

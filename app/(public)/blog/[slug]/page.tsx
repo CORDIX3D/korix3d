@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const supabase = await createClient();
-  const { data: post } = await supabase.from('blog_posts').select('title, excerpt').eq('slug', slug).eq('published', true).maybeSingle();
+  const { data: post, error } = await supabase.from('blog_posts').select('title, excerpt').eq('slug', slug).eq('published', true).maybeSingle();
+  if (error) throw new Error('Nie udało się pobrać metadanych artykułu.');
   if (!post) notFound();
   return { title: post.title, description: post.excerpt || undefined };
 }

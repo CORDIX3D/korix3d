@@ -6,20 +6,26 @@ import { createClient } from '@/lib/supabase/server';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
 export const dynamic = 'force-dynamic';
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
+  if (!UUID_PATTERN.test(id)) notFound();
   const supabase = await createClient();
-  const { data: item } = await supabase.from('portfolio_items').select('title, description').eq('id', id).eq('active', true).maybeSingle();
+  const { data: item, error } = await supabase.from('portfolio_items').select('title, description').eq('id', id).eq('active', true).maybeSingle();
+  if (error) throw new Error('Nie udało się pobrać metadanych realizacji.');
   if (!item) notFound();
   return { title: item.title, description: item.description || undefined };
 }
 
 export default async function PortfolioDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!UUID_PATTERN.test(id)) notFound();
   const supabase = await createClient();
   const { data: item, error } = await supabase.from('portfolio_items').select('*').eq('id', id).eq('active', true).maybeSingle();
-  if (error || !item) notFound();
+  if (error) throw new Error('Nie udało się pobrać realizacji.');
+  if (!item) notFound();
   const images = Array.isArray(item.images) ? item.images as string[] : [];
   const mainImage = item.image_url || images[0];
 

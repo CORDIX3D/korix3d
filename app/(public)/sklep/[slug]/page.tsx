@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const supabase = await createClient();
-  const { data: product } = await supabase.from('products').select('name, short_description, description').eq('slug', slug).eq('active', true).maybeSingle();
+  const { data: product, error } = await supabase.from('products').select('name, short_description, description').eq('slug', slug).eq('active', true).maybeSingle();
+  if (error) throw new Error('Nie udało się pobrać danych produktu.');
   if (!product) notFound();
   return { title: product.name, description: product.short_description || product.description || undefined };
 }
@@ -21,10 +22,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const supabase = await createClient();
   const { data, error } = await supabase.from('products').select('*').eq('slug', slug).eq('active', true).maybeSingle();
-  if (error || !data) notFound();
+  if (error) throw new Error('Nie udało się pobrać produktu.');
+  if (!data) notFound();
   const product = data as Product;
   const images = Array.isArray(product.images) ? product.images as string[] : [];
-  const { data: category } = product.category_id ? await supabase.from('categories').select('name').eq('id', product.category_id).maybeSingle() : { data: null };
+  const categoryResult = product.category_id
+    ? await supabase.from('categories').select('name').eq('id', product.category_id).maybeSingle()
+    : { data: null, error: null };
+  if (categoryResult.error) {
+    throw new Error('Nie udało się pobrać kategorii produktu.');
+  }
+  const category = categoryResult.data;
 
   return <div className="mx-auto min-h-screen max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
     <Link href="/sklep" className="mb-8 inline-flex items-center gap-2 text-muted-foreground hover:text-primary"><ArrowLeft className="h-4 w-4" />Wróć do sklepu</Link>

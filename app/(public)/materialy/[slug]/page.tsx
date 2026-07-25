@@ -72,8 +72,9 @@ async function fetchMaterialForPage(slug: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const { data: material } = await fetchMaterialForMetadata(slug);
+  const { data: material, error } = await fetchMaterialForMetadata(slug);
 
+  if (error) throw new Error('Nie udało się pobrać metadanych materiału.');
   if (!material) notFound();
 
   return { title: material.name, description: material.description || undefined };
@@ -87,13 +88,16 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
   if (error) throw new Error('Nie udało się pobrać materiału.');
   if (!material) notFound();
 
-  const { data: filaments } = await supabase
+  const { data: filaments, error: filamentsError } = await supabase
     .from('filaments')
     .select('id, brand, color, color_hex, remaining_weight_grams')
     .eq('material_id', material.id)
     .eq('active', true)
     .gt('remaining_weight_grams', 0)
     .order('color');
+  if (filamentsError) {
+    throw new Error('Nie udało się pobrać dostępnych filamentów.');
+  }
 
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-4 py-12">

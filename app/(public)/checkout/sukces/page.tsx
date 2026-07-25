@@ -79,7 +79,7 @@ export default async function CheckoutSuccessPage({
           </h1>
           <p className="mb-7 text-muted-foreground">
             {paid
-              ? 'Potwierdzenie zamówienia wyślemy na podany adres e-mail.'
+              ? 'Zamówienie zostało zapisane. Zalogowani klienci mogą śledzić jego status i powiadomienia w panelu klienta.'
               : processing
                 ? 'Status zamówienia zostanie zaktualizowany automatycznie po potwierdzeniu przez Stripe.'
                 : 'Sprawdź historię zamówień. Jeśli płatność została pobrana, skontaktuj się z nami.'}

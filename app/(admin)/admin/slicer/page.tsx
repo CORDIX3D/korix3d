@@ -40,7 +40,7 @@ const statusLabels: Record<SlicerJob['status'], string> = {
   pending: 'Oczekuje',
   processing: 'Przetwarzanie',
   completed: 'Gotowe',
-  failed: 'BĹ‚Ä…d',
+  failed: 'Błąd',
   cancelled: 'Anulowane',
 };
 
@@ -61,11 +61,11 @@ export default function AdminSlicerPage() {
     try {
       const response = await fetch('/api/admin/slicer', { cache: 'no-store' });
       const result = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(result?.error || 'Nie udaĹ‚o siÄ™ pobraÄ‡ kolejki slicera.');
+      if (!response.ok) throw new Error(result?.error || 'Nie udało się pobrać kolejki slicera.');
       setData(result as SlicerResponse);
     } catch (loadError) {
       setData(null);
-      setError(loadError instanceof Error ? loadError.message : 'Nie udaĹ‚o siÄ™ pobraÄ‡ kolejki slicera.');
+      setError(loadError instanceof Error ? loadError.message : 'Nie udało się pobrać kolejki slicera.');
     } finally {
       setLoading(false);
     }
@@ -85,11 +85,11 @@ export default function AdminSlicerPage() {
         body: JSON.stringify({ action: 'retry', job_id: jobId }),
       });
       const result = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(result?.error || 'Nie udaĹ‚o siÄ™ ponowiÄ‡ zadania.');
-      toast.success('Zadanie wrĂłciĹ‚o do kolejki');
+      if (!response.ok) throw new Error(result?.error || 'Nie udało się ponowić zadania.');
+      toast.success('Zadanie wróciło do kolejki');
       await load();
     } catch (retryError) {
-      toast.error('Nie udaĹ‚o siÄ™ ponowiÄ‡ zadania', {
+      toast.error('Nie udało się ponowić zadania', {
         description: retryError instanceof Error ? retryError.message : undefined,
       });
     } finally {
@@ -106,12 +106,12 @@ export default function AdminSlicerPage() {
         <div>
           <h1 className="text-2xl font-bold sm:text-3xl">Slicer Creality Print</h1>
           <p className="mt-1 text-muted-foreground">
-            Automatyczna analiza czasu druku i zuĹĽycia filamentu na zdalnym workerze.
+            Automatyczna analiza czasu druku i zużycia filamentu na zdalnym workerze.
           </p>
         </div>
         <Button variant="outline" onClick={load}>
           <RefreshCw className="mr-2 h-4 w-4" />
-          OdĹ›wieĹĽ
+          Odśwież
         </Button>
       </div>
 
@@ -124,11 +124,11 @@ export default function AdminSlicerPage() {
           )}
           <div>
             <p className="font-semibold">
-              {data.configured ? 'PoĹ‚Ä…czenie API jest skonfigurowane' : 'Brakuje tokenu zdalnego workera'}
+              {data.configured ? 'Połączenie API jest skonfigurowane' : 'Brakuje tokenu zdalnego workera'}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {data.configured
-                ? 'Zadania mogÄ… byÄ‡ pobierane przez serwer z uruchomionym Creality Print.'
+                ? 'Zadania mogą być pobierane przez serwer z uruchomionym Creality Print.'
                 : 'Dodaj CREALITY_SLICER_WORKER_TOKEN w Netlify i ten sam token na serwerze slicera.'}
             </p>
           </div>
@@ -140,7 +140,7 @@ export default function AdminSlicerPage() {
           ['Oczekuje', data.counts.pending || 0],
           ['Przetwarzanie', data.counts.processing || 0],
           ['Gotowe', data.counts.completed || 0],
-          ['BĹ‚Ä™dy', data.counts.failed || 0],
+          ['Błędy', data.counts.failed || 0],
         ].map(([label, value]) => (
           <Card key={String(label)}>
             <CardContent className="p-5">
@@ -161,7 +161,7 @@ export default function AdminSlicerPage() {
         <CardContent>
           {data.jobs.length === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Kolejka jest pusta. Zadanie pojawi siÄ™ po wysĹ‚aniu nowej wyceny z plikiem 3D.
+              Kolejka jest pusta. Zadanie pojawi się po wysłaniu nowej wyceny z plikiem 3D.
             </div>
           ) : (
             <div className="space-y-3">
@@ -177,12 +177,12 @@ export default function AdminSlicerPage() {
                           <Badge variant="outline">{statusLabels[job.status]}</Badge>
                         </div>
                         <p className="mt-1 truncate text-sm text-muted-foreground">
-                          {job.input_file?.name || `Plik ${job.file_index + 1}`} Â· {job.material_name || 'MateriaĹ‚'} Â· {job.color || 'Kolor'} Â· wypeĹ‚nienie {job.infill_percent}%
+                          {job.input_file?.name || `Plik ${job.file_index + 1}`} · {job.material_name || 'Materiał'} · {job.color || 'Kolor'} · wypełnienie {job.infill_percent}%
                         </p>
                         {job.status === 'completed' && (
                           <p className="mt-2 text-sm">
-                            {(seconds / 3600).toFixed(2)} h Â· {grams.toFixed(2)} g
-                            {job.slicer_version ? ` Â· Creality Print ${job.slicer_version}` : ''}
+                            {(seconds / 3600).toFixed(2)} h · {grams.toFixed(2)} g
+                            {job.slicer_version ? ` · Creality Print ${job.slicer_version}` : ''}
                           </p>
                         )}
                         {job.error_message && (
@@ -190,7 +190,7 @@ export default function AdminSlicerPage() {
                         )}
                         <p className="mt-2 text-xs text-muted-foreground">
                           {new Date(job.requested_at).toLocaleString('pl-PL')}
-                          {job.worker_id ? ` Â· worker ${job.worker_id}` : ''}
+                          {job.worker_id ? ` · worker ${job.worker_id}` : ''}
                         </p>
                       </div>
                       {(job.status === 'failed' || job.status === 'cancelled') && (
@@ -205,7 +205,7 @@ export default function AdminSlicerPage() {
                           ) : (
                             <RotateCcw className="mr-2 h-4 w-4" />
                           )}
-                          PonĂłw
+                          Ponów
                         </Button>
                       )}
                     </div>

@@ -40,7 +40,7 @@ export function requireSlicerWorker(request: NextRequest) {
     !timingSafeEqual(digest(configuredToken), digest(suppliedToken))
   ) {
     return NextResponse.json(
-      { error: 'NieprawidĹ‚owe uwierzytelnienie workera.' },
+      { error: 'Nieprawidłowe uwierzytelnienie workera.' },
       { status: 401, headers: SLICER_RESPONSE_HEADERS }
     );
   }
@@ -50,7 +50,7 @@ export function requireSlicerWorker(request: NextRequest) {
 
 export function slicerUnavailableResponse() {
   return NextResponse.json(
-    { error: 'UsĹ‚uga zdalnego slicera jest chwilowo niedostÄ™pna.' },
+    { error: 'Usługa zdalnego slicera jest chwilowo niedostępna.' },
     {
       status: 503,
       headers: {

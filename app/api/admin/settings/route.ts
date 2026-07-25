@@ -48,6 +48,8 @@ const NON_NEGATIVE_NUMBER_SETTINGS = new Set([
   'default_margin',
   'vat_rate',
   'minimum_order_value',
+  'express_surcharge',
+  'urgent_surcharge',
   'free_shipping_threshold',
 ]);
 

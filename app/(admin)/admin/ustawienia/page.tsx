@@ -338,6 +338,28 @@ export default function AdminSettingsPage() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <label className="form-label">Dopłata Express (zł)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={getValue('express_surcharge')}
+                    onChange={(e) => setValue('express_surcharge', e.target.value)}
+                    className="h-11 bg-secondary border-border"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="form-label">Dopłata Pilne (zł)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={getValue('urgent_surcharge')}
+                    onChange={(e) => setValue('urgent_surcharge', e.target.value)}
+                    className="h-11 bg-secondary border-border"
+                  />
+                </div>
+
                 <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl">
                   <p className="text-sm text-muted-foreground">
                     Te wartości są używane automatycznie w kalkulatorze wycen.

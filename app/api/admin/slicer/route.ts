@@ -80,7 +80,7 @@ export async function PATCH(request: NextRequest) {
     if (jobError) throw jobError;
     if (!job) {
       return NextResponse.json(
-        { error: 'Zadanie nie istnieje albo nie moĹĽna go teraz ponowiÄ‡.' },
+        { error: 'Zadanie nie istnieje albo nie można go teraz ponowić.' },
         { status: 409, headers: HEADERS }
       );
     }

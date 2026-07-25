@@ -44,6 +44,23 @@ const quoteSchema = z.object({
 
 type QuoteFormValues = z.infer<typeof quoteSchema>;
 type DeliveryOption = { value: string; label: string; price: number };
+type AutomaticQuote = {
+  state: 'calculating' | 'ready' | 'manual_review';
+  order_number: string;
+  slicing_status: string;
+  printing_time_hours: number | null;
+  filament_used_grams: number | null;
+  costs: {
+    material: number | null;
+    printing: number | null;
+    electricity: number | null;
+    packaging: number | null;
+    delivery: number | null;
+    margin: number | null;
+    vat: number | null;
+  } | null;
+  final_price: number | null;
+};
 
 const infillOptions = [
   { value: '10', label: '10%', description: 'Bardzo lekki, niska wytrzymałość' },
@@ -95,6 +112,9 @@ function QuotePageContent() {
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 });
   const [submitted, setSubmitted] = useState(false);
   const [submittedOrderNumber, setSubmittedOrderNumber] = useState('');
+  const [submittedOrderId, setSubmittedOrderId] = useState('');
+  const [automaticQuote, setAutomaticQuote] = useState<AutomaticQuote | null>(null);
+  const [quotePollingError, setQuotePollingError] = useState('');
 
   const {
     register,
@@ -251,6 +271,43 @@ function QuotePageContent() {
     }
   }, [deliveryOptions, setValue, watchDelivery]);
 
+  useEffect(() => {
+    if (!submittedOrderId) return;
+
+    let active = true;
+    let timeoutId: number | undefined;
+
+    const checkQuote = async () => {
+      try {
+        const response = await fetch(`/api/public/quote/${submittedOrderId}/status`, {
+          cache: 'no-store',
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(result?.error || 'Nie udało się pobrać wyniku wyceny.');
+        }
+        if (!active) return;
+
+        setAutomaticQuote(result as AutomaticQuote);
+        setQuotePollingError('');
+        if (result.state === 'ready' || result.state === 'manual_review') return;
+      } catch (error) {
+        if (!active) return;
+        setQuotePollingError(
+          error instanceof Error ? error.message : 'Nie udało się pobrać wyniku wyceny.'
+        );
+      }
+
+      if (active) timeoutId = window.setTimeout(checkQuote, 2500);
+    };
+
+    void checkQuote();
+    return () => {
+      active = false;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [submittedOrderId]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -316,6 +373,8 @@ function QuotePageContent() {
     }
 
     setSubmitting(true);
+    setAutomaticQuote(null);
+    setQuotePollingError('');
     setUploadProgress({ completed: 0, total: uploadedFiles.length });
     const orderId = crypto.randomUUID();
     const uploadedPaths: string[] = [];
@@ -341,6 +400,7 @@ function QuotePageContent() {
           infill_percent: Number(data.infill),
           quantity: data.quantity,
           priority: data.priority,
+          delivery_type: data.delivery_type,
           notes: configurationNotes,
         }),
       });
@@ -400,10 +460,11 @@ function QuotePageContent() {
       }
 
       toast.success('Zlecenie przyjęte', {
-        description: 'Przeanalizujemy Twój projekt i wyślemy wycenę',
+        description: 'Creality Print rozpoczął automatyczne obliczanie ceny',
       });
 
       setSubmittedOrderNumber(createdOrder?.order_number || orderId.slice(0, 8).toUpperCase());
+      setSubmittedOrderId(orderId);
       reset();
       setUploadedFiles([]);
       setColors([]);
@@ -437,28 +498,82 @@ function QuotePageContent() {
   };
 
   if (submitted) {
+    const quoteReady = automaticQuote?.state === 'ready' && Number(automaticQuote.final_price || 0) > 0;
+    const manualReview = automaticQuote?.state === 'manual_review';
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <Card className="bg-card border-border max-w-md w-full text-center">
+        <Card className="bg-card border-border max-w-lg w-full text-center">
           <CardContent className="pt-8 pb-8">
-            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle2 className="w-10 h-10 text-green-400" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${
+              quoteReady ? 'bg-green-500/20' : manualReview ? 'bg-yellow-500/20' : 'bg-primary/15'
+            }`}>
+              {quoteReady ? (
+                <CheckCircle2 className="w-10 h-10 text-green-400" />
+              ) : manualReview ? (
+                <AlertCircle className="w-10 h-10 text-yellow-500" />
+              ) : (
+                <Loader2 className="w-10 h-10 animate-spin text-primary" />
+              )}
             </div>
             <h2 className="text-2xl font-bold text-foreground mb-3">
-              Zlecenie przyjęte!
+              {quoteReady ? 'Twoja wycena jest gotowa' : manualReview ? 'Potrzebna dodatkowa kontrola' : 'Obliczamy dokładną cenę'}
             </h2>
             <p className="text-muted-foreground mb-6">
-              Przeanalizujemy przesłane pliki i wyślemy wycenę na podany adres email.
+              {quoteReady
+                ? 'Creality Print zakończył analizę modelu, a kalkulator uwzględnił wszystkie ustawione koszty.'
+                : manualReview
+                  ? 'Model wymaga ręcznego sprawdzenia. Zlecenie pozostaje zapisane i pojawi się w panelu klienta.'
+                  : 'Creality Print analizuje model. Cena pojawi się tutaj automatycznie po obliczeniu czasu i zużycia filamentu.'}
             </p>
-            <p className="text-sm text-muted-foreground mb-6">
+            <p className="text-sm text-muted-foreground mb-4">
               Numer zlecenia: <strong className="text-foreground">{submittedOrderNumber}</strong>
             </p>
-            <Button
-              onClick={() => (window.location.href = '/panel')}
-              className="bg-gradient-primary hover:shadow-glow transition-shadow"
-            >
-              Przejdź do panelu klienta
-            </Button>
+
+            {quoteReady && (
+              <div className="mb-6 rounded-2xl border border-primary/30 bg-primary/10 p-5">
+                <p className="text-sm text-muted-foreground">Cena końcowa brutto</p>
+                <p className="mt-1 text-4xl font-bold text-primary">
+                  {Number(automaticQuote.final_price).toFixed(2)} zł
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg bg-background/60 p-3">
+                    <p className="text-muted-foreground">Czas druku</p>
+                    <p className="font-semibold">{Number(automaticQuote.printing_time_hours || 0).toFixed(2)} h</p>
+                  </div>
+                  <div className="rounded-lg bg-background/60 p-3">
+                    <p className="text-muted-foreground">Filament</p>
+                    <p className="font-semibold">{Number(automaticQuote.filament_used_grams || 0).toFixed(2)} g</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {quotePollingError && !manualReview && !quoteReady && (
+              <p className="mb-5 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-muted-foreground">
+                {quotePollingError} Ponawiamy sprawdzanie automatycznie.
+              </p>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button
+                onClick={() => (window.location.href = `/panel/zamowienia/${submittedOrderId}`)}
+                className="flex-1 bg-gradient-primary hover:shadow-glow transition-shadow"
+              >
+                {quoteReady ? 'Zobacz i zaakceptuj wycenę' : 'Otwórz zlecenie'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSubmitted(false);
+                  setSubmittedOrderId('');
+                  setAutomaticQuote(null);
+                }}
+                className="flex-1"
+              >
+                Nowa wycena
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -840,7 +955,7 @@ function QuotePageContent() {
                           <span className="font-semibold text-foreground">{option.label}</span>
                           {option.price > 0 && (
                             <span className="text-sm text-primary font-medium">
-                              +{option.price}%
+                              +{option.price.toFixed(2)} zł
                             </span>
                           )}
                         </div>
@@ -982,7 +1097,7 @@ function QuotePageContent() {
                         Proces wyceny
                       </h4>
                       <p className="text-sm text-muted-foreground">
-                        Po przesłaniu zlecenia, nasz zespół przeanalizuje pliki i przygotuje szczegółową wycenę.
+                        Po przesłaniu model zostanie automatycznie przeliczony przez Creality Print. Gotowa cena pojawi się na ekranie po zakończeniu analizy.
                         Termin realizacji potwierdzimy razem z wyceną. Wycena jest bezpłatna i niezobowiązująca.
                       </p>
                     </div>
@@ -1043,7 +1158,7 @@ function QuotePageContent() {
                         Wysyłanie...
                       </>
                     ) : (
-                      user ? 'Wyślij zlecenie' : 'Zaloguj się, aby wysłać'
+                      user ? 'Prześlij i oblicz cenę' : 'Zaloguj się, aby wysłać'
                     )}
                   </Button>
                 </div>

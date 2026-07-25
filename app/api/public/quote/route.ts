@@ -6,6 +6,10 @@ import {
 } from '@/lib/supabase/env';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import {
+  DEFAULT_DELIVERY_OPTIONS,
+  IGNORED_SHIPPING_SETTING_KEYS,
+} from '@/lib/shipping';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +94,7 @@ export async function POST(request: NextRequest) {
       const infillPercent = Number(body.infill_percent);
       const quantity = Number(body.quantity);
       const priority = cleanString(body.priority);
+      const deliveryType = cleanString(body.delivery_type);
       const notes = cleanString(body.notes) || null;
 
       if (
@@ -101,30 +106,39 @@ export async function POST(request: NextRequest) {
         !Number.isInteger(quantity) ||
         quantity < 1 ||
         quantity > 1000 ||
-        !PRIORITIES.has(priority)
+        !PRIORITIES.has(priority) ||
+        !/^[a-z0-9_-]{1,80}$/.test(deliveryType)
       ) {
         return NextResponse.json({ error: 'Niepoprawne dane wyceny.' }, { status: 400 });
       }
 
-      const [{ data: material, error: materialError }, { data: filament, error: filamentError }] =
+      const [
+        { data: material, error: materialError },
+        { data: filament, error: filamentError },
+        { data: shippingSettings, error: shippingError },
+      ] =
         await Promise.all([
           admin
             .from('materials')
-            .select('id, name')
+            .select('id, name, price_per_kg')
             .eq('id', materialId)
             .eq('available', true)
             .maybeSingle(),
           admin
             .from('filaments')
-            .select('id, material_id, brand, color, color_hex, active, remaining_weight_grams')
+            .select('id, material_id, brand, color, color_hex, active, remaining_weight_grams, price_per_kg')
             .eq('id', filamentId)
             .maybeSingle(),
+          admin
+            .from('settings')
+            .select('key, label, value')
+            .eq('category', 'shipping'),
         ]);
 
-      if (materialError || filamentError) {
-        console.error('Quote configuration lookup error:', materialError || filamentError);
+      if (materialError || filamentError || shippingError) {
+        console.error('Quote configuration lookup error:', materialError || filamentError || shippingError);
         return NextResponse.json(
-          { error: 'Nie udaĹ‚o siÄ™ sprawdziÄ‡ wybranego materiaĹ‚u i koloru.' },
+          { error: 'Nie udało się sprawdzić wybranych parametrów wyceny.' },
           { status: 500 }
         );
       }
@@ -134,11 +148,40 @@ export async function POST(request: NextRequest) {
         !filament ||
         filament.material_id !== material.id ||
         filament.active !== true ||
-        Number(filament.remaining_weight_grams || 0) <= 0
+        Number(filament.remaining_weight_grams || 0) <= 0 ||
+        Math.max(Number(filament.price_per_kg || 0), Number(material.price_per_kg || 0)) <= 0
       ) {
         return NextResponse.json(
-          { error: 'Wybrany materiaĹ‚ lub kolor nie jest juĹĽ dostÄ™pny.' },
+          { error: 'Wybrany filament jest niedostępny albo nie ma ustawionej ceny za kilogram.' },
           { status: 409 }
+        );
+      }
+
+      const availableShippingSettings = (shippingSettings || []).filter(
+        (setting) => setting.key && !IGNORED_SHIPPING_SETTING_KEYS.has(setting.key)
+      );
+      const deliverySetting = availableShippingSettings.find((setting) =>
+        setting.key === deliveryType || setting.key.replace(/_price$/, '') === deliveryType
+      );
+      const defaultDelivery = availableShippingSettings.length === 0
+        ? DEFAULT_DELIVERY_OPTIONS.find((option) => option.value === deliveryType)
+        : undefined;
+
+      if (!deliverySetting && !defaultDelivery) {
+        return NextResponse.json(
+          { error: 'Wybrana metoda dostawy nie jest już dostępna.' },
+          { status: 409 }
+        );
+      }
+
+      const deliveryCost = deliverySetting
+        ? Number(String(deliverySetting.value ?? '0').replace(',', '.'))
+        : Number(defaultDelivery?.price ?? 0);
+
+      if (!Number.isFinite(deliveryCost) || deliveryCost < 0 || deliveryCost > 10_000) {
+        return NextResponse.json(
+          { error: 'Koszt wybranej dostawy jest nieprawidłowy.' },
+          { status: 500 }
         );
       }
 
@@ -163,6 +206,8 @@ export async function POST(request: NextRequest) {
             layer_height: 0.2,
             quantity,
             priority,
+            delivery_type: deliveryType,
+            delivery_cost: deliveryCost,
             notes,
             status: 'new',
             files: [],

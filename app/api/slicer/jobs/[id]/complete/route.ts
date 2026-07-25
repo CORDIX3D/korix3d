@@ -57,7 +57,7 @@ export async function POST(
 
       if (printingTimeSeconds === null || filamentUsedGrams === null) {
         return NextResponse.json(
-          { error: 'Wynik slicera nie zawiera poprawnego czasu i zuĹĽycia filamentu.' },
+          { error: 'Wynik slicera nie zawiera poprawnego czasu i zużycia filamentu.' },
           { status: 400, headers: SLICER_RESPONSE_HEADERS }
         );
       }
@@ -76,7 +76,7 @@ export async function POST(
     } else if (status === 'failed') {
       errorMessage =
         optionalString(body.error_message, 1000) ||
-        'Creality Print nie ukoĹ„czyĹ‚ analizy pliku.';
+        'Creality Print nie ukończył analizy pliku.';
     } else {
       return NextResponse.json(
         { error: 'Niepoprawny status wyniku.' },
@@ -97,7 +97,7 @@ export async function POST(
     if (error) throw error;
     if (!data) {
       return NextResponse.json(
-        { error: 'Zadanie nie istnieje albo zostaĹ‚o juĹĽ zakoĹ„czone.' },
+        { error: 'Zadanie nie istnieje albo zostało już zakończone.' },
         { status: 409, headers: SLICER_RESPONSE_HEADERS }
       );
     }

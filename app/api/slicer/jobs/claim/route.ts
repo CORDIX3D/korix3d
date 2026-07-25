@@ -66,12 +66,12 @@ export async function POST(request: NextRequest) {
         p_job_id: job.id,
         p_status: 'failed',
         p_result: null,
-        p_error_message: 'Niepoprawna lokalizacja pliku wejĹ›ciowego.',
+        p_error_message: 'Niepoprawna lokalizacja pliku wejściowego.',
         p_slicer_name: 'Creality Print',
         p_slicer_version: null,
       });
       return NextResponse.json(
-        { error: 'Zadanie zawiera niepoprawny plik wejĹ›ciowy.' },
+        { error: 'Zadanie zawiera niepoprawny plik wejściowy.' },
         { status: 409, headers: SLICER_RESPONSE_HEADERS }
       );
     }

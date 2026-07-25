@@ -260,6 +260,8 @@ export interface Database {
           infill_percent: number;
           quantity: number;
           priority: 'standard' | 'express' | 'urgent';
+          delivery_type: string | null;
+          delivery_cost: number | null;
           notes: string | null;
           status: 'new' | 'quoted' | 'accepted' | 'queued' | 'printing' | 'post_processing' | 'packed' | 'shipped' | 'completed' | 'cancelled';
           files: Json;
@@ -297,6 +299,8 @@ export interface Database {
           infill_percent?: number;
           quantity?: number;
           priority?: 'standard' | 'express' | 'urgent';
+          delivery_type?: string | null;
+          delivery_cost?: number | null;
           notes?: string | null;
           status?: 'new' | 'quoted' | 'accepted' | 'queued' | 'printing' | 'post_processing' | 'packed' | 'shipped' | 'completed' | 'cancelled';
           files?: Json;
@@ -334,6 +338,8 @@ export interface Database {
           infill_percent?: number;
           quantity?: number;
           priority?: 'standard' | 'express' | 'urgent';
+          delivery_type?: string | null;
+          delivery_cost?: number | null;
           notes?: string | null;
           status?: 'new' | 'quoted' | 'accepted' | 'queued' | 'printing' | 'post_processing' | 'packed' | 'shipped' | 'completed' | 'cancelled';
           files?: Json;

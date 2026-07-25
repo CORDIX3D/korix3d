@@ -17,13 +17,13 @@ export default function Page() {
         allowCreate: false,
         searchKeys: ['name', 'email', 'subject', 'message'],
         fields: [
-          { key: 'name', label: 'Nazwa / osoba', required: true },
-          { key: 'email', label: 'Email', type: 'email', required: true },
-          { key: 'phone', label: 'Telefon', type: 'tel' },
-          { key: 'subject', label: 'Temat' },
-          { key: 'message', label: 'Treść', type: 'textarea', required: true },
+          { key: 'name', label: 'Nazwa / osoba', required: true, readOnlyOnEdit: true },
+          { key: 'email', label: 'Email', type: 'email', required: true, readOnlyOnEdit: true },
+          { key: 'phone', label: 'Telefon', type: 'tel', readOnlyOnEdit: true },
+          { key: 'subject', label: 'Temat', readOnlyOnEdit: true },
+          { key: 'message', label: 'Treść klienta', type: 'textarea', required: true, readOnlyOnEdit: true },
           { key: 'read', label: 'Przeczytane', type: 'boolean', defaultValue: false },
-          { key: 'replied', label: 'Odpowiedziano', type: 'boolean', defaultValue: false },
+          { key: 'admin_reply', label: 'Odpowiedź dla klienta', type: 'textarea', placeholder: 'Wpisz odpowiedź widoczną w panelu klienta.' },
         ],
         columns: [
           { key: 'name', label: 'Nadawca' },
@@ -31,6 +31,7 @@ export default function Page() {
           { key: 'subject', label: 'Temat' },
           { key: 'read', label: 'Przeczytane', type: 'boolean' },
           { key: 'replied', label: 'Odpowiedziano', type: 'boolean' },
+          { key: 'replied_at', label: 'Data odpowiedzi', type: 'date' },
           { key: 'created_at', label: 'Data', type: 'date' },
         ],
       }}

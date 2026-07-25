@@ -6,6 +6,7 @@ import {
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
+import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,8 +58,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
+    const authClient = await createClient();
+    const { data: authData } = await authClient.auth.getUser();
+
     const { error } = await supabase.from('contact_submissions').insert([
       {
+        user_id: authData.user?.id || null,
         name: String(body.name || '').trim(),
         email: String(body.email || '').trim().toLowerCase(),
         phone: String(body.phone || '').trim() || null,

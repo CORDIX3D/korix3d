@@ -987,6 +987,7 @@ export interface Database {
       contact_submissions: {
         Row: {
           id: string;
+          user_id: string | null;
           name: string;
           email: string;
           phone: string | null;
@@ -994,10 +995,13 @@ export interface Database {
           message: string;
           read: boolean | null;
           replied: boolean | null;
+          admin_reply: string | null;
+          replied_at: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
+          user_id?: string | null;
           name: string;
           email: string;
           phone?: string | null;
@@ -1005,10 +1009,13 @@ export interface Database {
           message: string;
           read?: boolean | null;
           replied?: boolean | null;
+          admin_reply?: string | null;
+          replied_at?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
+          user_id?: string | null;
           name?: string;
           email?: string;
           phone?: string | null;
@@ -1016,6 +1023,8 @@ export interface Database {
           message?: string;
           read?: boolean | null;
           replied?: boolean | null;
+          admin_reply?: string | null;
+          replied_at?: string | null;
           created_at?: string;
         };
       };

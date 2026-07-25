@@ -272,6 +272,7 @@ export interface Database {
           sliced_at: string | null;
           printing_time_hours: number | null;
           filament_used_grams: number | null;
+          filament_reserved_grams: number;
           material_cost: number | null;
           electricity_cost: number | null;
           printing_cost: number | null;
@@ -311,6 +312,7 @@ export interface Database {
           sliced_at?: string | null;
           printing_time_hours?: number | null;
           filament_used_grams?: number | null;
+          filament_reserved_grams?: number;
           material_cost?: number | null;
           electricity_cost?: number | null;
           printing_cost?: number | null;
@@ -350,6 +352,7 @@ export interface Database {
           sliced_at?: string | null;
           printing_time_hours?: number | null;
           filament_used_grams?: number | null;
+          filament_reserved_grams?: number;
           material_cost?: number | null;
           electricity_cost?: number | null;
           printing_cost?: number | null;

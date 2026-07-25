@@ -83,11 +83,23 @@ export default function OrderDetailsPage() {
     if (!order || order.status !== 'quoted' || accepting) return;
     setAccepting(true);
     try {
-      const { data: accepted, error: updateError } = await supabase.rpc('accept_order_quote', { p_order_id: order.id });
-      if (updateError || !accepted) toast.error('Nie udało się zaakceptować wyceny');
-      else { setOrder({ ...order, status: 'accepted' }); toast.success('Wycena została zaakceptowana'); }
+      const response = await fetch(`/api/public/quote/${order.id}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error(result?.error || 'Nie udało się zaakceptować wyceny.');
+        return;
+      }
+
+      setOrder((current) => current ? { ...current, status: 'accepted' } : current);
+      toast.success('Wycena została zaakceptowana', {
+        description: 'Zlecenie trafiło do realizacji.',
+      });
     } catch {
-      toast.error('Nie udało się połączyć z Supabase podczas akceptowania wyceny');
+      toast.error('Nie udało się połączyć podczas akceptowania wyceny.');
     } finally {
       setAccepting(false);
     }

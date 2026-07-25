@@ -6,6 +6,7 @@ import {
 } from '@/lib/supabase/env';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
 import {
   DEFAULT_DELIVERY_OPTIONS,
   IGNORED_SHIPPING_SETTING_KEYS,
@@ -89,6 +90,47 @@ export async function POST(request: NextRequest) {
     const orderId = cleanString(body.order_id);
 
     if (action === 'create') {
+      const rateLimit = await checkPublicRateLimit(request, {
+        scope: 'quote_create',
+        limit: 5,
+        windowSeconds: 60 * 60,
+        userId: auth.user.id,
+        consumePersistent: async (args) => {
+          const { data, error } = await admin.rpc('consume_public_api_rate_limit', args);
+          return { data: data === true, error };
+        },
+      });
+
+      if (!rateLimit.allowed) {
+        return rateLimitResponse(
+          'Osiągnięto limit nowych wycen. Spróbuj ponownie później.',
+          rateLimit.retryAfter
+        );
+      }
+
+      const { count: activeQuoteCount, error: activeQuoteError } = await admin
+        .from('orders_3d')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.user.id)
+        .eq('status', 'new');
+
+      if (activeQuoteError) {
+        console.error('Active quote count error:', activeQuoteError);
+        return NextResponse.json(
+          { error: 'Nie udało się sprawdzić aktywnych wycen.' },
+          { status: 500 }
+        );
+      }
+
+      if ((activeQuoteCount || 0) >= 5) {
+        return NextResponse.json(
+          {
+            error: 'Masz już 5 wycen oczekujących na analizę. Poczekaj na ich zakończenie przed dodaniem kolejnej.',
+          },
+          { status: 409 }
+        );
+      }
+
       const materialId = cleanString(body.material_id);
       const filamentId = cleanString(body.filament_id);
       const infillPercent = Number(body.infill_percent);

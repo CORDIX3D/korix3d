@@ -41,7 +41,9 @@ function requestAddress(request: Request) {
 
 function fingerprint(request: Request, scope: string, userId?: string | null) {
   const salt = process.env.SUPABASE_SERVICE_ROLE_KEY || 'korix3d-local-rate-limit';
-  const identity = `${userId || 'anonymous'}:${requestAddress(request)}`;
+  const identity = userId
+    ? `user:${userId}`
+    : `anonymous:${requestAddress(request)}`;
   return createHash('sha256').update(`${salt}:${scope}:${identity}`).digest('hex');
 }
 

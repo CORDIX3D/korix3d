@@ -1,21 +1,10 @@
-import { Download } from 'lucide-react';
-import { UnavailableModule } from '@/components/customer/unavailable-module';
+import { CustomerFiles } from '@/components/customer/customer-files';
 
 export const metadata = {
   title: 'Pliki | Panel klienta KORIX3D',
-  description: 'Modele i dokumenty powiązane z zamówieniami klienta KORIX3D.',
+  description: 'Modele przesłane do wyceny i powiązane ze zleceniami klienta KORIX3D.',
 };
 
 export default function FilesPage() {
-  return (
-    <UnavailableModule
-      title="Pliki"
-      description="Modele i dokumenty powiązane z zamówieniami."
-      icon={Download}
-      emptyTitle="Brak plików do pobrania"
-      emptyDescription="Pliki produkcyjne i dokumenty będą widoczne tutaj po ich przypisaniu do zrealizowanego zamówienia."
-      actionLabel="Zobacz zamówienia"
-      actionHref="/panel/zamowienia"
-    />
-  );
+  return <CustomerFiles />;
 }

@@ -31,10 +31,9 @@ function normalizeCheckoutError(message: string) {
 }
 
 export default function CheckoutPage() {
-  const { items, subtotal, hydrated, clearCart } = useCart();
+  const { items, subtotal, hydrated } = useCart();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [orderNumber, setOrderNumber] = useState('');
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(DEFAULT_DELIVERY_OPTIONS);
   const [deliveryType, setDeliveryType] = useState(DEFAULT_DELIVERY_OPTIONS[0].value);
   const [deliveryError, setDeliveryError] = useState('');
@@ -137,6 +136,7 @@ export default function CheckoutPage() {
     setSubmitting(true);
     setError('');
     const form = new FormData(event.currentTarget);
+    let pendingPayment: { orderId: string; paymentToken: string } | null = null;
 
     try {
       const response = await fetch('/api/store/orders', {
@@ -164,40 +164,40 @@ export default function CheckoutPage() {
         throw new Error(normalizeCheckoutError(result.error));
       }
 
-      if (!result.orderNumber) {
-        throw new Error('Zamówienie zostało zapisane, ale nie udało się odczytać jego numeru. Skontaktuj się z nami, jeśli nie otrzymasz potwierdzenia.');
+      if (!result.orderNumber || !result.orderId || !result.paymentToken) {
+        throw new Error('Nie udało się bezpiecznie przygotować zamówienia do płatności.');
       }
 
-      if (result.orderId && result.paymentToken) {
-        const paymentResponse = await fetch('/api/stripe/create-checkout-session', {
+      pendingPayment = {
+        orderId: String(result.orderId),
+        paymentToken: String(result.paymentToken),
+      };
+      const paymentResponse = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pendingPayment),
+      });
+      const paymentResult = await paymentResponse.json().catch(() => ({}));
+
+      if (!paymentResponse.ok || !paymentResult.url) {
+        throw new Error(
+          paymentResult.error === 'stripe_not_configured'
+            ? 'Płatności online są chwilowo niedostępne. Spróbuj ponownie później.'
+            : paymentResult.error || 'Nie udało się przygotować płatności.'
+        );
+      }
+
+      window.sessionStorage.setItem('korix3d_pending_payment', JSON.stringify(pendingPayment));
+      window.location.assign(paymentResult.url);
+      return;
+    } catch (submitError) {
+      if (pendingPayment) {
+        await fetch('/api/stripe/cancel-checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: result.orderId, paymentToken: result.paymentToken }),
-        });
-        const paymentResult = await paymentResponse.json().catch(() => ({}));
-
-        if (paymentResponse.ok && paymentResult.url) {
-          window.sessionStorage.setItem(
-            'korix3d_pending_payment',
-            JSON.stringify({ orderId: result.orderId, paymentToken: result.paymentToken })
-          );
-          window.location.assign(paymentResult.url);
-          return;
-        }
-
-        if (paymentResult.error !== 'stripe_not_configured') {
-          await fetch('/api/stripe/cancel-checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: result.orderId, paymentToken: result.paymentToken }),
-          }).catch(() => null);
-          throw new Error(paymentResult.error || 'Nie udało się przygotować płatności.');
-        }
+          body: JSON.stringify(pendingPayment),
+        }).catch(() => null);
       }
-
-      setOrderNumber(String(result.orderNumber));
-      clearCart();
-    } catch (submitError) {
       setError(
         submitError instanceof Error
           ? normalizeCheckoutError(submitError.message)
@@ -212,27 +212,6 @@ export default function CheckoutPage() {
     return (
       <div className="flex min-h-[70vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" aria-label="Ładowanie koszyka" />
-      </div>
-    );
-  }
-
-  if (orderNumber) {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center px-4 py-16">
-        <Card className="w-full max-w-xl text-center">
-          <CardContent className="p-8">
-            <CheckCircle2 className="mx-auto mb-5 h-16 w-16 text-green-500" />
-            <h1 className="mb-3 text-3xl font-bold">Zamówienie zostało przyjęte</h1>
-            <p className="mb-2 text-muted-foreground">Numer zamówienia:</p>
-            <p className="mb-5 text-xl font-semibold">{orderNumber}</p>
-            <p className="mb-7 text-sm text-muted-foreground">
-              Potwierdzimy dostępność produktów oraz sposób płatności wiadomością e-mail.
-            </p>
-            <Button asChild>
-              <Link href="/sklep">Wróć do sklepu</Link>
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     );
   }

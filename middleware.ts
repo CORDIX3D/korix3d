@@ -1,6 +1,49 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+function createUnavailableResponse(
+  request: NextRequest,
+  options: { api: boolean; returnTo?: string }
+) {
+  if (options.api) {
+    return NextResponse.json(
+      { error: 'Usługa administracyjna jest chwilowo niedostępna.' },
+      {
+        status: 503,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Retry-After': '60',
+        },
+      }
+    );
+  }
+
+  const unavailableUrl = request.nextUrl.clone();
+  unavailableUrl.pathname = '/api/service-unavailable';
+  unavailableUrl.search = '';
+  unavailableUrl.searchParams.set('returnTo', options.returnTo || request.nextUrl.pathname);
+
+  return NextResponse.rewrite(unavailableUrl, {
+    status: 503,
+    headers: {
+      'Cache-Control': 'no-store',
+      'Retry-After': '60',
+    },
+  });
+}
+
+function isAuthenticationServiceError(error: {
+  name?: string;
+  status?: number;
+} | null) {
+  return Boolean(
+    error &&
+      ((error.status ?? 0) >= 500 ||
+        error.name === 'AuthRetryableFetchError' ||
+        error.name === 'AuthUnknownError')
+  );
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAdminRoute = pathname.startsWith('/admin');
@@ -10,6 +53,11 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/admin') ||
     pathname.startsWith('/api/accounting') ||
     pathname.startsWith('/api/executive');
+  const isAuthRoute =
+    pathname.startsWith('/logowanie') ||
+    pathname.startsWith('/rejestracja') ||
+    pathname.startsWith('/odzyskaj-haslo') ||
+    pathname.startsWith('/reset-password');
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -19,38 +67,13 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next({ request });
     }
 
-    if (isPrivateApiRoute) {
-      return NextResponse.json(
-        { error: 'Usługa administracyjna jest chwilowo niedostępna.' },
-        {
-          status: 503,
-          headers: {
-            'Cache-Control': 'no-store',
-            'Retry-After': '60',
-          },
-        }
-      );
-    }
-
-    if (isProtectedPage) {
-      const unavailableUrl = request.nextUrl.clone();
-      unavailableUrl.pathname = '/serwis-niedostepny';
-      unavailableUrl.search = '';
-      unavailableUrl.searchParams.set('returnTo', pathname);
-
-      return NextResponse.rewrite(unavailableUrl, {
-        status: 503,
-        headers: {
-          'Cache-Control': 'no-store',
-          'Retry-After': '60',
-        },
+    if (isPrivateApiRoute || isProtectedPage || isAuthRoute) {
+      return createUnavailableResponse(request, {
+        api: isPrivateApiRoute,
+        returnTo: pathname,
       });
     }
 
-    return NextResponse.next({ request });
-  }
-
-  if (pathname === '/api/health' || pathname === '/serwis-niedostepny') {
     return NextResponse.next({ request });
   }
 
@@ -85,16 +108,26 @@ export async function middleware(request: NextRequest) {
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let authResult;
+  try {
+    authResult = await supabase.auth.getUser();
+  } catch (error) {
+    console.error('Supabase authentication check failed:', error);
+    return createUnavailableResponse(request, {
+      api: isPrivateApiRoute,
+      returnTo: pathname,
+    });
+  }
 
-  // Protected routes
-  const isAuthRoute = pathname.startsWith('/logowanie') ||
-                     pathname.startsWith('/rejestracja') ||
-                     pathname.startsWith('/odzyskaj-haslo') ||
-                     pathname.startsWith('/auth/callback') ||
-                     pathname.startsWith('/reset-password');
+  if (isAuthenticationServiceError(authResult.error)) {
+    console.error('Supabase authentication service error:', authResult.error);
+    return createUnavailableResponse(request, {
+      api: isPrivateApiRoute,
+      returnTo: pathname,
+    });
+  }
+
+  const user = authResult.data.user;
 
   // Redirect unauthenticated users from protected routes
   if (!user && (isAdminRoute || isCustomerRoute)) {
@@ -107,11 +140,19 @@ export async function middleware(request: NextRequest) {
   // Redirect authenticated users away from auth routes
   if (user && isAuthRoute && !pathname.startsWith('/auth/callback') && !pathname.startsWith('/reset-password')) {
     // Check if user has admin role by fetching profile
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
+
+    if (profileError) {
+      console.error('Supabase profile lookup failed:', profileError);
+      return createUnavailableResponse(request, {
+        api: false,
+        returnTo: pathname,
+      });
+    }
 
     const role = profile?.role || 'customer';
 
@@ -126,11 +167,19 @@ export async function middleware(request: NextRequest) {
 
   // Check admin access
   if (user && isAdminRoute) {
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
+
+    if (profileError) {
+      console.error('Supabase profile lookup failed:', profileError);
+      return createUnavailableResponse(request, {
+        api: false,
+        returnTo: pathname,
+      });
+    }
 
     const role = profile?.role || 'customer';
 
@@ -146,14 +195,14 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     * - api routes that don't need auth
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/admin/:path*',
+    '/panel/:path*',
+    '/logowanie',
+    '/rejestracja',
+    '/odzyskaj-haslo',
+    '/reset-password',
+    '/api/admin/:path*',
+    '/api/accounting/:path*',
+    '/api/executive/:path*',
   ],
 };

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "outDir": ".test-build",
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": [
+    "lib/cart.ts",
+    "lib/checkout-token.ts",
+    "lib/order-3d-status.ts",
+    "lib/quote-files.ts",
+    "lib/types/database.ts",
+    "tests/core.test.ts"
+  ]
+}

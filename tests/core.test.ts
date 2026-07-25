@@ -1,0 +1,141 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  addCartItem,
+  getCartSummary,
+  sanitizeCart,
+  updateCartItemQuantity,
+} from '../lib/cart';
+import {
+  createCheckoutToken,
+  verifyCheckoutToken,
+} from '../lib/checkout-token';
+import {
+  canTransitionOrder3DStatus,
+  getAllowedOrder3DStatuses,
+} from '../lib/order-3d-status';
+import { validateQuoteFiles } from '../lib/quote-files';
+import type { Product } from '../lib/types/database';
+
+function product(overrides: Partial<Product> = {}): Product {
+  return {
+    id: '00000000-0000-4000-8000-000000000001',
+    name: 'Próbka',
+    slug: 'probka',
+    sku: 'TEST-1',
+    short_description: null,
+    description: null,
+    price: 10,
+    compare_price: null,
+    cost_price: null,
+    category_id: null,
+    stock_quantity: 10,
+    min_stock_quantity: 2,
+    weight_grams: null,
+    dimensions: null,
+    images: [],
+    active: true,
+    featured: false,
+    stripe_price_id: null,
+    meta_title: null,
+    meta_description: null,
+    created_at: new Date(0).toISOString(),
+    updated_at: new Date(0).toISOString(),
+    ...overrides,
+  };
+}
+
+test('koszyk odrzuca uszkodzone dane, łączy duplikaty i respektuje stan', () => {
+  const items = sanitizeCart([
+    { id: 'a', name: 'A', price: 12.5, quantity: 7, stockQuantity: 8 },
+    { id: 'a', name: 'A', price: 12.5, quantity: 7, stockQuantity: 8 },
+    { id: 'b', name: 'B', price: -1, quantity: 1, stockQuantity: 2 },
+  ]);
+
+  assert.equal(items.length, 1);
+  assert.equal(items[0].quantity, 8);
+  assert.equal(items[0].slug, 'a');
+});
+
+test('dodawanie i edycja koszyka nie przekraczają dostępnego stanu', () => {
+  let items = addCartItem([], product(), 7);
+  items = addCartItem(items, product({ price: 15 }), 7);
+
+  assert.equal(items[0].quantity, 10);
+  assert.equal(items[0].price, 15);
+
+  items = updateCartItemQuantity(items, items[0].id, 50);
+  assert.equal(items[0].quantity, 10);
+
+  items = updateCartItemQuantity(items, items[0].id, 0);
+  assert.deepEqual(items, []);
+});
+
+test('podsumowanie koszyka liczy sztuki i wartość', () => {
+  const items = sanitizeCart([
+    { id: 'a', name: 'A', price: 10, quantity: 2, stockQuantity: 5 },
+    { id: 'b', name: 'B', price: 5.5, quantity: 3, stockQuantity: 5 },
+  ]);
+
+  assert.deepEqual(getCartSummary(items), { itemCount: 5, subtotal: 36.5 });
+});
+
+test('token płatności jest unikalny i nie akceptuje zmienionej wartości', () => {
+  const first = createCheckoutToken();
+  const second = createCheckoutToken();
+
+  assert.match(first.token, /^[a-f0-9]{64}$/);
+  assert.notEqual(first.token, second.token);
+  assert.equal(verifyCheckoutToken(first.token, first.hash), true);
+  const changedLastCharacter = first.token.endsWith('0') ? '1' : '0';
+  assert.equal(
+    verifyCheckoutToken(`${first.token.slice(0, -1)}${changedLastCharacter}`, first.hash),
+    false
+  );
+  assert.equal(verifyCheckoutToken(first.token, null), false);
+});
+
+test('status zlecenia nie może pominąć etapów ani wrócić po wysyłce', () => {
+  assert.equal(canTransitionOrder3DStatus('new', 'quoted'), true);
+  assert.equal(canTransitionOrder3DStatus('new', 'printing'), false);
+  assert.equal(canTransitionOrder3DStatus('shipped', 'printing'), false);
+  assert.deepEqual(getAllowedOrder3DStatuses('invalid'), []);
+});
+
+test('metadane poprawnego prywatnego pliku wyceny są akceptowane', () => {
+  const userId = '00000000-0000-4000-8000-000000000001';
+  const orderId = '00000000-0000-4000-8000-000000000002';
+  const result = validateQuoteFiles(
+    [
+      {
+        name: 'model.stl',
+        size: 1024,
+        type: 'stl',
+        bucket: 'quote-files',
+        storage_path: `${userId}/${orderId}/1-model-00000000-0000-4000-8000-000000000003.stl`,
+      },
+    ],
+    userId,
+    orderId
+  );
+
+  assert.equal(result, null);
+});
+
+test('pliki wyceny odrzucają obcego właściciela, zły typ, duży plik i duplikat', () => {
+  const userId = '00000000-0000-4000-8000-000000000001';
+  const orderId = '00000000-0000-4000-8000-000000000002';
+  const path = `${userId}/${orderId}/model.stl`;
+  const valid = {
+    name: 'model.stl',
+    size: 1024,
+    type: 'stl',
+    bucket: 'quote-files',
+    storage_path: path,
+  };
+
+  assert.match(validateQuoteFiles([{ ...valid, storage_path: `other/${orderId}/model.stl` }], userId, orderId) || '', /metadane/);
+  assert.match(validateQuoteFiles([{ ...valid, type: 'exe', storage_path: `${userId}/${orderId}/model.exe` }], userId, orderId) || '', /metadane/);
+  assert.match(validateQuoteFiles([{ ...valid, size: 50 * 1024 * 1024 + 1 }], userId, orderId) || '', /metadane/);
+  assert.match(validateQuoteFiles([valid, valid], userId, orderId) || '', /metadane/);
+});

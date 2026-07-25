@@ -11,6 +11,7 @@ import {
   DEFAULT_DELIVERY_OPTIONS,
   IGNORED_SHIPPING_SETTING_KEYS,
 } from '@/lib/shipping';
+import { validateQuoteFiles } from '@/lib/quote-files';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,57 +21,8 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const COLOR_HEX_PATTERN = /^#[0-9a-f]{6}$/i;
 
-type StoredQuoteFile = {
-  name?: string;
-  size?: number;
-  type?: string;
-  bucket?: string;
-  storage_path?: string;
-};
-
 function cleanString(value: unknown) {
   return String(value || '').trim();
-}
-
-function validateFiles(files: unknown, userId: string, orderId: string) {
-  if (!Array.isArray(files) || files.length < 1 || files.length > 10) {
-    return 'Niepoprawna liczba plików.';
-  }
-
-  const prefix = `${userId}/${orderId}/`;
-  let totalSize = 0;
-  const uniquePaths = new Set<string>();
-
-  for (const file of files as StoredQuoteFile[]) {
-    const size = Number(file.size);
-    const type = cleanString(file.type).toLowerCase();
-    const path = cleanString(file.storage_path);
-    const name = cleanString(file.name);
-
-    if (
-      cleanString(file.bucket) !== 'quote-files' ||
-      !path.startsWith(prefix) ||
-      path.length > 1024 ||
-      !name ||
-      name.length > 255 ||
-      !['stl', 'step', 'stp', 'obj', '3mf'].includes(type) ||
-      !Number.isFinite(size) ||
-      size < 1 ||
-      size > 50 * 1024 * 1024 ||
-      uniquePaths.has(path)
-    ) {
-      return 'Niepoprawne metadane pliku.';
-    }
-
-    uniquePaths.add(path);
-    totalSize += size;
-  }
-
-  if (totalSize > 200 * 1024 * 1024) {
-    return 'Przekroczono łączny limit plików.';
-  }
-
-  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -274,7 +226,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Brak identyfikatora zlecenia.' }, { status: 400 });
       }
 
-      const validationError = validateFiles(body.files, auth.user.id, orderId);
+      const validationError = validateQuoteFiles(body.files, auth.user.id, orderId);
       if (validationError) {
         return NextResponse.json({ error: validationError }, { status: 400 });
       }

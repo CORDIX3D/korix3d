@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.tests.json && node --test .test-build/tests/core.test.js",
     "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {

@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     const workerId = boundedString(body.worker_id, 120);
     const printerProfile = boundedString(body.printer_profile, 240) || null;
     const processProfile = boundedString(body.process_profile, 240) || null;
+    const slicerVersion = boundedString(body.slicer_version, 120) || null;
 
     if (!workerId) {
       return NextResponse.json(
@@ -41,6 +42,25 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = getSlicerServiceClient();
+    const { error: heartbeatError } = await admin.from('slicer_workers').upsert(
+      {
+        id: workerId,
+        slicer_name: 'Creality Print',
+        slicer_version: slicerVersion,
+        printer_profile: printerProfile,
+        process_profile: processProfile,
+        last_seen_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+
+    if (
+      heartbeatError
+      && !['42P01', 'PGRST205'].includes(String(heartbeatError.code || ''))
+    ) {
+      throw heartbeatError;
+    }
+
     const { data, error } = await admin.rpc('claim_slicing_job', {
       p_worker_id: workerId,
       p_printer_profile: printerProfile,

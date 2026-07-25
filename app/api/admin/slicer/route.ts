@@ -8,23 +8,46 @@ export const dynamic = 'force-dynamic';
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HEADERS = { 'Cache-Control': 'no-store' } as const;
+const MISSING_HEARTBEAT_TABLE_CODES = new Set(['42P01', 'PGRST205']);
+const WORKER_ONLINE_WINDOW_MS = 90_000;
 
 export async function GET() {
   const result = await requireAdminApiContext();
   if (result.response) return result.response;
 
   try {
-    const { data, error } = await result.context.adminClient
-      .from('slicing_jobs')
-      .select(
-        'id, order_id, file_index, input_file, material_name, color, infill_percent, status, attempt_count, worker_id, printer_profile, process_profile, slicer_name, slicer_version, result, error_message, requested_at, started_at, completed_at, orders_3d(order_number)'
-      )
-      .order('requested_at', { ascending: false })
-      .limit(100);
+    const [jobsResult, workersResult] = await Promise.all([
+      result.context.adminClient
+        .from('slicing_jobs')
+        .select(
+          'id, order_id, file_index, input_file, material_name, color, infill_percent, status, attempt_count, worker_id, printer_profile, process_profile, slicer_name, slicer_version, result, error_message, requested_at, started_at, completed_at, orders_3d(order_number)'
+        )
+        .order('requested_at', { ascending: false })
+        .limit(100),
+      result.context.adminClient
+        .from('slicer_workers')
+        .select('id, slicer_name, slicer_version, printer_profile, process_profile, last_seen_at')
+        .order('last_seen_at', { ascending: false })
+        .limit(20),
+    ]);
 
-    if (error) throw error;
+    if (jobsResult.error) throw jobsResult.error;
 
-    const jobs = data || [];
+    const heartbeatAvailable = !workersResult.error;
+    if (
+      workersResult.error
+      && !MISSING_HEARTBEAT_TABLE_CODES.has(String(workersResult.error.code || ''))
+    ) {
+      throw workersResult.error;
+    }
+
+    const jobs = jobsResult.data || [];
+    const workers = heartbeatAvailable ? workersResult.data || [] : [];
+    const now = Date.now();
+    const activeWorkers = workers.filter((worker) => {
+      const lastSeen = new Date(worker.last_seen_at).getTime();
+      return Number.isFinite(lastSeen) && now - lastSeen <= WORKER_ONLINE_WINDOW_MS;
+    });
     const counts = jobs.reduce<Record<string, number>>((accumulator, job) => {
       accumulator[job.status] = (accumulator[job.status] || 0) + 1;
       return accumulator;
@@ -33,8 +56,12 @@ export async function GET() {
     return NextResponse.json(
       {
         configured: Boolean(process.env.CREALITY_SLICER_WORKER_TOKEN?.trim()),
+        heartbeat_available: heartbeatAvailable,
+        worker_online: activeWorkers.length > 0,
+        workers,
         counts,
         jobs,
+        checked_at: new Date(now).toISOString(),
       },
       { headers: HEADERS }
     );

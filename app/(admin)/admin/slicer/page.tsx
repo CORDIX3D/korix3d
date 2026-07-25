@@ -32,8 +32,19 @@ type SlicerJob = {
 
 type SlicerResponse = {
   configured: boolean;
+  heartbeat_available: boolean;
+  worker_online: boolean;
+  workers: Array<{
+    id: string;
+    slicer_name: string;
+    slicer_version: string | null;
+    printer_profile: string | null;
+    process_profile: string | null;
+    last_seen_at: string;
+  }>;
   counts: Record<string, number>;
   jobs: SlicerJob[];
+  checked_at: string;
 };
 
 const statusLabels: Record<SlicerJob['status'], string> = {
@@ -100,6 +111,31 @@ export default function AdminSlicerPage() {
   if (loading) return <PanelLoading label="Pobieranie kolejki Creality Print..." />;
   if (error || !data) return <PanelError message={error} onRetry={load} />;
 
+  const connectionState = !data.configured
+    ? {
+        ready: false,
+        title: 'Brakuje tokenu zdalnego workera',
+        description: 'Dodaj CREALITY_SLICER_WORKER_TOKEN w Netlify i ten sam token na serwerze slicera.',
+      }
+    : !data.heartbeat_available
+      ? {
+          ready: false,
+          title: 'Brakuje migracji monitorowania workera',
+          description: 'Zastosuj najnowsze migracje Supabase, aby panel mógł potwierdzić aktywne połączenie.',
+        }
+      : data.worker_online
+        ? {
+            ready: true,
+            title: 'Creality Print jest aktywny',
+            description: 'Worker regularnie odpytuje kolejkę i może automatycznie przygotowywać wyceny.',
+          }
+        : {
+            ready: false,
+            title: 'Worker Creality Print jest offline',
+            description: 'Token jest ustawiony, ale w ciągu ostatnich 90 sekund nie odebrano sygnału z workera.',
+          };
+  const latestWorker = data.workers[0];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -115,22 +151,25 @@ export default function AdminSlicerPage() {
         </Button>
       </div>
 
-      <Card className={data.configured ? 'border-green-500/30' : 'border-amber-500/30'}>
+      <Card className={connectionState.ready ? 'border-green-500/30' : 'border-amber-500/30'}>
         <CardContent className="flex gap-3 p-5">
-          {data.configured ? (
+          {connectionState.ready ? (
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
           ) : (
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           )}
           <div>
-            <p className="font-semibold">
-              {data.configured ? 'Połączenie API jest skonfigurowane' : 'Brakuje tokenu zdalnego workera'}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {data.configured
-                ? 'Zadania mogą być pobierane przez serwer z uruchomionym Creality Print.'
-                : 'Dodaj CREALITY_SLICER_WORKER_TOKEN w Netlify i ten sam token na serwerze slicera.'}
-            </p>
+            <p className="font-semibold">{connectionState.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{connectionState.description}</p>
+            {latestWorker && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {latestWorker.id}
+                {latestWorker.slicer_version ? ` · Creality Print ${latestWorker.slicer_version}` : ''}
+                {latestWorker.printer_profile ? ` · profil ${latestWorker.printer_profile}` : ''}
+                {' · ostatni sygnał '}
+                {new Date(latestWorker.last_seen_at).toLocaleString('pl-PL')}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -54,6 +54,7 @@ async function claimJob() {
       worker_id: workerId,
       printer_profile: printerProfile,
       process_profile: processProfile,
+      slicer_version: slicerVersion,
     }),
   });
   return response.job || null;

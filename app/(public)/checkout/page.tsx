@@ -38,6 +38,7 @@ export default function CheckoutPage() {
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(DEFAULT_DELIVERY_OPTIONS);
   const [deliveryType, setDeliveryType] = useState(DEFAULT_DELIVERY_OPTIONS[0].value);
   const [deliveryError, setDeliveryError] = useState('');
+  const [paymentNotice, setPaymentNotice] = useState('');
   const selectedDelivery = deliveryOptions.find((option) => option.value === deliveryType) || deliveryOptions[0];
   const total = subtotal + (selectedDelivery?.price || 0);
 
@@ -80,6 +81,40 @@ export default function CheckoutPage() {
       setDeliveryType(deliveryOptions[0].value);
     }
   }, [deliveryOptions, deliveryType]);
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get('cancelled') !== '1') return;
+
+    const rawPendingPayment = window.sessionStorage.getItem('korix3d_pending_payment');
+    window.history.replaceState({}, '', window.location.pathname);
+    if (!rawPendingPayment) {
+      setPaymentNotice('Płatność została przerwana. Koszyk pozostaje bez zmian.');
+      return;
+    }
+
+    void (async () => {
+      try {
+        const pendingPayment = JSON.parse(rawPendingPayment) as {
+          orderId?: string;
+          paymentToken?: string;
+        };
+        if (!pendingPayment.orderId || !pendingPayment.paymentToken) throw new Error('invalid payment');
+
+        const response = await fetch('/api/stripe/cancel-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pendingPayment),
+        });
+        if (!response.ok) throw new Error('cancellation failed');
+        setPaymentNotice('Płatność została anulowana, a produkty wróciły do dostępnego stanu.');
+      } catch {
+        setPaymentNotice('Płatność została przerwana. Jeśli nie możesz spróbować ponownie, skontaktuj się z nami.');
+      } finally {
+        window.sessionStorage.removeItem('korix3d_pending_payment');
+      }
+    })();
+  }, []);
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -142,6 +177,10 @@ export default function CheckoutPage() {
         const paymentResult = await paymentResponse.json().catch(() => ({}));
 
         if (paymentResponse.ok && paymentResult.url) {
+          window.sessionStorage.setItem(
+            'korix3d_pending_payment',
+            JSON.stringify({ orderId: result.orderId, paymentToken: result.paymentToken })
+          );
           window.location.assign(paymentResult.url);
           return;
         }
@@ -217,6 +256,12 @@ export default function CheckoutPage() {
           Po wysłaniu zamówienia potwierdzimy dostawę i płatność e-mailem.
         </p>
       </div>
+
+      {paymentNotice && (
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-foreground">
+          {paymentNotice}
+        </div>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">

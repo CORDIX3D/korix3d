@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, Clock3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getStripeServer } from '@/lib/stripe';
+import { CheckoutSuccessCart } from '@/components/shop/checkout-success-cart';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,7 @@ export default async function CheckoutSuccessPage({
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4 py-16">
+      <CheckoutSuccessCart clear={paid || processing} />
       <Card className="w-full max-w-xl text-center">
         <CardContent className="p-8">
           {paid ? (

@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 const DEFAULT_MAX_BYTES = 64 * 1024;
 

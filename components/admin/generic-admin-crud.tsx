@@ -53,6 +53,12 @@ export type AdminCrudConfig = {
 
 type DbRow = Record<string, any>;
 
+const IMAGE_EXTENSIONS = new Map([
+  ['image/jpeg', 'jpg'],
+  ['image/png', 'png'],
+  ['image/webp', 'webp'],
+]);
+
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -179,15 +185,15 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     event.target.value = '';
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Wybierz plik graficzny');
-      setSaving(false);
+    if (!IMAGE_EXTENSIONS.has(file.type)) {
+      toast.error('Nieobsługiwany format zdjęcia', {
+        description: 'Wybierz plik JPG, PNG lub WebP.',
+      });
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Zdjęcie jest za duże', { description: 'Maksymalny rozmiar pliku to 5 MB.' });
-      setSaving(false);
       return;
     }
 
@@ -213,7 +219,9 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   };
 
   const uploadImage = async (file: File) => {
-    const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const extension = IMAGE_EXTENSIONS.get(file.type);
+    if (!extension) throw new Error('Nieobsługiwany format zdjęcia.');
+
     const fileName = `admin-${config.table}/${crypto.randomUUID()}.${extension}`;
     const { error } = await supabase.storage.from('product-images').upload(fileName, file, {
       cacheControl: '3600',
@@ -221,13 +229,51 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       upsert: false,
     });
     if (error) throw error;
-    return supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl;
+    return {
+      path: fileName,
+      publicUrl: supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl,
+    };
+  };
+
+  const getManagedImagePath = (value: unknown) => {
+    if (typeof value !== 'string' || !value) return null;
+
+    try {
+      const url = new URL(value);
+      const marker = '/storage/v1/object/public/product-images/';
+      const markerIndex = url.pathname.indexOf(marker);
+      if (markerIndex < 0) return null;
+
+      const path = decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
+      return path.startsWith(`admin-${config.table}/`) ? path : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const removeStoredImages = async (paths: string[]) => {
+    const uniquePaths = [...new Set(paths.filter(Boolean))];
+    if (uniquePaths.length === 0) return;
+
+    try {
+      const { error } = await supabase.storage.from('product-images').remove(uniquePaths);
+      if (error) {
+        console.error('Admin image cleanup error:', error);
+      }
+    } catch (error) {
+      console.error('Admin image cleanup error:', error);
+    }
   };
 
   const handleSubmit = async () => {
     if (saving) return;
 
-    const missing = config.fields.find((field) => field.required && !String(formData[field.key] ?? '').trim());
+    const missing = config.fields.find(
+      (field) =>
+        field.required &&
+        !String(formData[field.key] ?? '').trim() &&
+        !(field.type === 'image' && imageFiles[field.key] instanceof File)
+    );
     if (missing) {
       toast.error('Uzupełnij wymagane pole', { description: missing.label });
       return;
@@ -235,13 +281,18 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
 
     setSaving(true);
     const payload: DbRow = editingRow ? {} : { ...(config.defaultInsert || {}) };
+    const uploadedImagePaths: string[] = [];
+    const successfullyChangedImageFields = new Set<string>();
 
     try {
       for (const field of config.fields) {
         if (editingRow && field.readOnlyOnEdit) continue;
         if (field.type === 'image' && imageFiles[field.key]) {
           try {
-            payload[field.key] = await uploadImage(imageFiles[field.key] as File);
+            const uploaded = await uploadImage(imageFiles[field.key] as File);
+            payload[field.key] = uploaded.publicUrl;
+            uploadedImagePaths.push(uploaded.path);
+            successfullyChangedImageFields.add(field.key);
           } catch (error) {
             if (field.required) throw error;
             payload[field.key] = normalizeValue(field, formData[field.key]);
@@ -251,9 +302,17 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
           }
         } else {
           payload[field.key] = normalizeValue(field, formData[field.key]);
+          if (
+            field.type === 'image' &&
+            Object.prototype.hasOwnProperty.call(imageFiles, field.key) &&
+            imageFiles[field.key] === null
+          ) {
+            successfullyChangedImageFields.add(field.key);
+          }
         }
       }
     } catch (error) {
+      await removeStoredImages(uploadedImagePaths);
       setSaving(false);
       toast.error('Błąd przesyłania zdjęcia', {
         description: error instanceof Error ? error.message : 'Nie udało się przesłać zdjęcia.',
@@ -265,7 +324,9 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     if ('title' in payload && !payload.slug) payload.slug = slugify(String(payload.title));
     if (config.table === 'products' && !payload.sku) payload.sku = `KORIX-${Date.now().toString().slice(-8)}`;
     if (config.table === 'warehouse_items' && !payload.sku) payload.sku = `MAG-${Date.now().toString().slice(-8)}`;
-    if (['products', 'warehouse_items', 'portfolio_items'].includes(config.table) && payload.image_url && !payload.images) payload.images = [payload.image_url];
+    if (config.table === 'portfolio_items' && 'image_url' in payload) {
+      payload.images = payload.image_url ? [payload.image_url] : [];
+    }
     if (config.table === 'blog_posts' && payload.published && !payload.published_at) payload.published_at = new Date().toISOString();
     if ('updated_at' in (editingRow || {}) || ['products', 'materials', 'orders_3d', 'filaments', 'warehouse_items', 'store_orders', 'blog_posts', 'faq_items', 'settings'].includes(config.table)) {
       payload.updated_at = new Date().toISOString();
@@ -285,16 +346,29 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       const result = await response.json().catch(() => null);
 
       if (!response.ok) {
+        await removeStoredImages(uploadedImagePaths);
         setSaving(false);
         toast.error('Błąd zapisu', { description: result?.error || 'Nie udało się zapisać pozycji.' });
         return;
       }
     } catch (error) {
+      await removeStoredImages(uploadedImagePaths);
       setSaving(false);
       toast.error('Nie udało się zapisać pozycji', {
         description: error instanceof Error ? error.message : 'Nieoczekiwany błąd zapisu.',
       });
       return;
+    }
+
+    if (editingRow) {
+      const replacedImagePaths = config.fields
+        .filter(
+          (field) =>
+            field.type === 'image' && successfullyChangedImageFields.has(field.key)
+        )
+        .map((field) => getManagedImagePath(editingRow[field.key]))
+        .filter((path): path is string => Boolean(path));
+      await removeStoredImages(replacedImagePaths);
     }
 
     toast.success(editingRow ? 'Zapisano zmiany' : 'Dodano pozycję');

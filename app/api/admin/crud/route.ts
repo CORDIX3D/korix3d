@@ -29,7 +29,7 @@ const ALLOWED_TABLES = new Set([
 
 const ALLOWED_SOFT_DELETE_FIELDS = new Set(['active', 'published']);
 const NON_DELETABLE_TABLES = new Set(['orders_3d', 'profiles', 'store_orders']);
-const EMPLOYEE_CRUD_FIELDS: Record<string, ReadonlySet<string>> = {
+const PROTECTED_ORDER_FIELDS: Record<string, ReadonlySet<string>> = {
   orders_3d: new Set([
     'status',
     'priority',
@@ -48,6 +48,8 @@ const EMPLOYEE_CRUD_FIELDS: Record<string, ReadonlySet<string>> = {
     'updated_at',
   ]),
 };
+const EMPLOYEE_CRUD_FIELDS = PROTECTED_ORDER_FIELDS;
+const NON_CREATABLE_TABLES = new Set(Object.keys(PROTECTED_ORDER_FIELDS));
 const STORE_ORDER_TRANSITIONS: Record<string, ReadonlySet<string>> = {
   pending: new Set(['pending']),
   paid: new Set(['paid', 'processing']),
@@ -55,6 +57,7 @@ const STORE_ORDER_TRANSITIONS: Record<string, ReadonlySet<string>> = {
   shipped: new Set(['shipped', 'delivered']),
   delivered: new Set(['delivered']),
   cancelled: new Set(['cancelled']),
+  refunded: new Set(['refunded']),
 };
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -174,9 +177,10 @@ function authorizePayload(
   table: string,
   payload: AdminCrudPayload
 ) {
-  if (role === 'admin') return payload;
-
-  const allowedFields = EMPLOYEE_CRUD_FIELDS[table];
+  const allowedFields = role === 'admin'
+    ? PROTECTED_ORDER_FIELDS[table]
+    : EMPLOYEE_CRUD_FIELDS[table];
+  if (role === 'admin' && !allowedFields) return payload;
   if (
     !allowedFields ||
     Object.keys(payload).some((field) => !allowedFields.has(field))
@@ -298,6 +302,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Pracownik może aktualizować istniejące pozycje, ale nie tworzyć ich ręcznie.' },
         { status: 403 }
+      );
+    }
+
+    if (!id && NON_CREATABLE_TABLES.has(table)) {
+      return NextResponse.json(
+        {
+          error:
+            table === 'store_orders'
+              ? 'Zamówienie sklepu może utworzyć wyłącznie prawidłowo zakończony checkout.'
+              : 'Zlecenie 3D może utworzyć wyłącznie formularz klienta.',
+        },
+        { status: 409 }
       );
     }
 

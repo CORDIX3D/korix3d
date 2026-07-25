@@ -18,9 +18,9 @@ export default function Page() {
         allowDelete: false,
         searchKeys: ['order_number', 'material_name', 'status', 'assigned_to'],
         fields: [
-          { key: 'material_name', label: 'Materiał' },
-          { key: 'color', label: 'Kolor' },
-          { key: 'quantity', label: 'Ilość', type: 'number', defaultValue: 1 },
+          { key: 'material_name', label: 'Materiał', readOnlyOnEdit: true },
+          { key: 'color', label: 'Kolor', readOnlyOnEdit: true },
+          { key: 'quantity', label: 'Ilość', type: 'number', defaultValue: 1, readOnlyOnEdit: true },
           {
             key: 'status',
             label: 'Status',
@@ -34,6 +34,18 @@ export default function Page() {
               { label: 'Gotowe', value: 'completed' },
               { label: 'Anulowane', value: 'cancelled' },
             ],
+            allowedTransitions: {
+              new: ['new', 'cancelled'],
+              quoted: ['quoted', 'accepted', 'cancelled'],
+              accepted: ['accepted', 'quoted', 'queued', 'printing', 'cancelled'],
+              queued: ['queued', 'accepted', 'quoted', 'printing', 'cancelled'],
+              printing: ['printing', 'post_processing', 'packed', 'completed', 'cancelled'],
+              post_processing: ['post_processing', 'printing', 'packed', 'completed', 'cancelled'],
+              packed: ['packed', 'post_processing', 'shipped', 'completed', 'cancelled'],
+              shipped: ['shipped', 'completed'],
+              completed: ['completed'],
+              cancelled: ['cancelled'],
+            },
           },
           {
             key: 'priority',

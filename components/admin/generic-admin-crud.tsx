@@ -22,6 +22,7 @@ export type CrudField = {
   defaultValue?: string | number | boolean | null;
   options?: Array<{ label: string; value: string }>;
   readOnlyOnEdit?: boolean;
+  allowedTransitions?: Record<string, string[]>;
 };
 
 export type CrudColumn = {
@@ -415,6 +416,19 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     }
   };
 
+  const getFieldOptions = (field: CrudField) => {
+    if (!field.options || !editingRow || !field.allowedTransitions) {
+      return field.options || [];
+    }
+
+    const currentValue = String(editingRow[field.key] ?? '');
+    const allowedValues = new Set(
+      field.allowedTransitions[currentValue] || [currentValue]
+    );
+    allowedValues.add(currentValue);
+    return field.options.filter((option) => allowedValues.has(option.value));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -465,7 +479,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                           disabled={Boolean(editingRow && field.readOnlyOnEdit)}
                           className="h-11 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
                         >
-                          {field.options.map((option) => (
+                          {getFieldOptions(field).map((option) => (
                             <option key={option.value} value={option.value}>
                               {option.label}
                             </option>

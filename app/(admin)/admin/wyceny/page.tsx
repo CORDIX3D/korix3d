@@ -18,9 +18,9 @@ export default function Page() {
         allowDelete: false,
         searchKeys: ['order_number', 'material_name', 'status', 'notes'],
         fields: [
-          { key: 'material_name', label: 'Materiał' },
-          { key: 'color', label: 'Kolor' },
-          { key: 'quantity', label: 'Ilość', type: 'number', defaultValue: 1 },
+          { key: 'material_name', label: 'Materiał', readOnlyOnEdit: true },
+          { key: 'color', label: 'Kolor', readOnlyOnEdit: true },
+          { key: 'quantity', label: 'Ilość', type: 'number', defaultValue: 1, readOnlyOnEdit: true },
           {
             key: 'priority',
             label: 'Priorytet',
@@ -53,7 +53,7 @@ export default function Page() {
           { key: 'filament_used_grams', label: 'Zużycie g', type: 'number' },
           { key: 'material_cost', label: 'Koszt materiału', type: 'number' },
           { key: 'final_price', label: 'Cena końcowa', type: 'number' },
-          { key: 'notes', label: 'Notatki klienta', type: 'textarea' },
+          { key: 'notes', label: 'Notatki klienta', type: 'textarea', readOnlyOnEdit: true },
           { key: 'admin_notes', label: 'Notatki admina', type: 'textarea' },
         ],
         defaultInsert: { files: [], user_id: '00000000-0000-0000-0000-000000000000' },

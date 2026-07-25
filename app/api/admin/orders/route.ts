@@ -4,21 +4,15 @@ import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isStaffRole } from '@/lib/admin-access';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { isSupabaseConfigurationError } from '@/lib/supabase/env';
+import {
+  canTransitionOrder3DStatus,
+  getAllowedOrder3DStatuses,
+  isOrder3DStatus,
+  ORDER_3D_STATUS_LABELS,
+} from '@/lib/order-3d-status';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_STATUSES = new Set([
-  'new',
-  'quoted',
-  'accepted',
-  'queued',
-  'printing',
-  'post_processing',
-  'packed',
-  'shipped',
-  'completed',
-  'cancelled',
-]);
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -73,6 +67,18 @@ function positiveNumber(value: unknown) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
+function isOrderTransitionDatabaseError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? String(error.code || '') : '';
+  const message = 'message' in error ? String(error.message || '') : '';
+  return code === '23514' && (
+    message.includes('order 3d status transition')
+    || message.includes('quote pricing is incomplete')
+    || message.includes('must start with status new')
+    || message.includes('quote terms are immutable')
+  );
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();
@@ -88,20 +94,49 @@ export async function PATCH(request: NextRequest) {
 
     if (action === 'status') {
       const status = String(body.status || '').trim();
-      if (!ALLOWED_STATUSES.has(status)) {
+      if (!isOrder3DStatus(status)) {
         return NextResponse.json({ error: 'Niepoprawny status zamówienia.' }, { status: 400 });
+      }
+
+      const { data: currentOrder, error: currentOrderError } = await context.client
+        .from('orders_3d')
+        .select('status')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (currentOrderError) throw currentOrderError;
+      if (!currentOrder) {
+        return NextResponse.json({ error: 'Nie znaleziono zamówienia.' }, { status: 404 });
+      }
+
+      if (!canTransitionOrder3DStatus(currentOrder.status, status)) {
+        const allowedLabels = getAllowedOrder3DStatuses(currentOrder.status)
+          .filter((value) => value !== currentOrder.status)
+          .map((value) => ORDER_3D_STATUS_LABELS[value]);
+        return NextResponse.json(
+          {
+            error: allowedLabels.length > 0
+              ? `Z obecnego etapu można przejść tylko do: ${allowedLabels.join(', ')}.`
+              : 'To zamówienie ma już status końcowy.',
+          },
+          { status: 409 }
+        );
       }
 
       const { data, error } = await context.client
         .from('orders_3d')
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', id)
+        .eq('status', currentOrder.status)
         .select('id')
         .maybeSingle();
 
       if (error) throw error;
       if (!data) {
-        return NextResponse.json({ error: 'Nie znaleziono zamówienia.' }, { status: 404 });
+        return NextResponse.json(
+          { error: 'Status zamówienia zmienił się w międzyczasie. Odśwież listę.' },
+          { status: 409 }
+        );
       }
       return NextResponse.json({ success: true });
     }
@@ -129,12 +164,16 @@ export async function PATCH(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
+        .in('status', ['new', 'quoted'])
         .select('id')
         .maybeSingle();
 
       if (error) throw error;
       if (!data) {
-        return NextResponse.json({ error: 'Nie znaleziono zamówienia.' }, { status: 404 });
+        return NextResponse.json(
+          { error: 'Można wyceniać tylko nowe zlecenia lub poprawiać istniejącą wycenę.' },
+          { status: 409 }
+        );
       }
       return NextResponse.json({ success: true });
     }
@@ -147,6 +186,18 @@ export async function PATCH(request: NextRequest) {
 
     if (isSupabaseConfigurationError(error)) {
       return unavailableResponse();
+    }
+
+    if (isOrderTransitionDatabaseError(error)) {
+      return NextResponse.json(
+        {
+          error: error && typeof error === 'object' && 'message' in error
+            && String(error.message || '').includes('quote terms are immutable')
+            ? 'Nie można zmienić warunków zaakceptowanej wyceny.'
+            : 'Nie można pominąć wymaganego etapu realizacji zamówienia.',
+        },
+        { status: 409 }
+      );
     }
 
     console.error('Admin order update error:', error);

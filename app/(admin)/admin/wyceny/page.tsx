@@ -35,6 +35,7 @@ export default function Page() {
             key: 'status',
             label: 'Status',
             defaultValue: 'new',
+            readOnlyOnEdit: true,
             options: [
               { label: 'Nowa', value: 'new' },
               { label: 'Wycena w toku', value: 'quoted' },

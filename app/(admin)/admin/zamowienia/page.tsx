@@ -39,6 +39,10 @@ import { Order3D } from '@/lib/types/database';
 import { toast } from 'sonner';
 import { PanelError } from '@/components/customer/panel-state';
 import { OrderFileDownload, StoredOrderFile } from '@/components/customer/order-file-download';
+import {
+  getAllowedOrder3DStatuses,
+  ORDER_3D_STATUS_LABELS,
+} from '@/lib/order-3d-status';
 
 const statusOptions = [
   { value: 'all', label: 'Wszystkie statusy' },
@@ -280,6 +284,9 @@ export default function AdminOrdersPage() {
                 <tbody>
                   {orders.map((order) => {
                     const statusConfig = getStatusConfig(order.status);
+                    const allowedStatuses = getAllowedOrder3DStatuses(order.status)
+                      .filter((status) => status !== order.status)
+                      .filter((status) => !(order.status === 'new' && status === 'quoted'));
                     return (
                       <tr key={order.id}>
                         <td className="font-medium text-primary">
@@ -322,24 +329,27 @@ export default function AdminOrdersPage() {
                                 <Eye className="w-4 h-4" />
                               )}
                             </Button>
-                            <Select
-                              value={order.status}
-                              onValueChange={(value) => updateOrderStatus(order.id, value)}
-                              disabled={updatingOrderId === order.id}
-                            >
-                              <SelectTrigger className="w-8 h-8 p-0 bg-transparent border-0">
-                                <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-card border-border">
-                                {statusOptions
-                                  .filter((s) => s.value !== 'all')
-                                  .map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
+                            {allowedStatuses.length > 0 && (
+                              <Select
+                                value={order.status}
+                                onValueChange={(value) => updateOrderStatus(order.id, value)}
+                                disabled={updatingOrderId === order.id}
+                              >
+                                <SelectTrigger className="w-8 h-8 p-0 bg-transparent border-0" aria-label="Zmień status zamówienia">
+                                  <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-card border-border">
+                                  <SelectItem value={order.status} disabled>
+                                    Obecny: {statusConfig.label}
+                                  </SelectItem>
+                                  {allowedStatuses.map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                      {ORDER_3D_STATUS_LABELS[status]}
                                     </SelectItem>
                                   ))}
-                              </SelectContent>
-                            </Select>
+                                </SelectContent>
+                              </Select>
+                            )}
                           </div>
                         </td>
                       </tr>

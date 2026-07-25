@@ -4,6 +4,10 @@ import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { isSupabaseConfigurationError } from '@/lib/supabase/env';
 import { isStaffRole } from '@/lib/admin-access';
+import {
+  canTransitionOrder3DStatus,
+  isOrder3DStatus,
+} from '@/lib/order-3d-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,18 +48,6 @@ const EMPLOYEE_CRUD_FIELDS: Record<string, ReadonlySet<string>> = {
     'updated_at',
   ]),
 };
-const ORDER_3D_STATUSES = new Set([
-  'new',
-  'quoted',
-  'accepted',
-  'queued',
-  'printing',
-  'post_processing',
-  'packed',
-  'shipped',
-  'completed',
-  'cancelled',
-]);
 const STORE_ORDER_TRANSITIONS: Record<string, ReadonlySet<string>> = {
   pending: new Set(['pending']),
   paid: new Set(['paid', 'processing']),
@@ -203,7 +195,7 @@ function validateStatusValue(table: string, payload: AdminCrudPayload) {
   if (!Object.prototype.hasOwnProperty.call(payload, 'status')) return null;
   const status = String(payload.status || '').trim();
 
-  if (table === 'orders_3d' && !ORDER_3D_STATUSES.has(status)) {
+  if (table === 'orders_3d' && !isOrder3DStatus(status)) {
     return 'Niepoprawny status zamówienia 3D.';
   }
 
@@ -225,6 +217,29 @@ function databaseErrorResponse(error: unknown, action: 'zapisać' | 'usunąć') 
     error && typeof error === 'object' && 'code' in error
       ? String(error.code || '')
       : '';
+  const message =
+    error && typeof error === 'object' && 'message' in error
+      ? String(error.message || '')
+      : '';
+
+  if (
+    code === '23514'
+    && (
+      message.includes('order 3d status transition')
+      || message.includes('quote pricing is incomplete')
+      || message.includes('must start with status new')
+      || message.includes('quote terms are immutable')
+    )
+  ) {
+    return NextResponse.json(
+      {
+        error: message.includes('quote terms are immutable')
+          ? 'Nie można zmieniać parametrów zaakceptowanej wyceny. Najpierw cofnij zlecenie do etapu wyceny.'
+          : 'Nie można pominąć wymaganego etapu realizacji zamówienia 3D.',
+      },
+      { status: 409 }
+    );
+  }
 
   if (code === '23505') {
     return NextResponse.json(
@@ -324,6 +339,50 @@ export async function POST(request: NextRequest) {
           },
           { status: 409 }
         );
+      }
+    }
+
+    if (table === 'orders_3d' && id && 'status' in payload) {
+      const { data: currentOrder, error: currentOrderError } = await context.client
+        .from('orders_3d')
+        .select('status, final_price, printing_time_hours, filament_used_grams')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (currentOrderError) {
+        console.error('3D order status lookup error:', currentOrderError);
+        return databaseErrorResponse(currentOrderError, 'zapisać');
+      }
+      if (!currentOrder) {
+        return NextResponse.json(
+          { error: 'Nie znaleziono zamówienia do aktualizacji.' },
+          { status: 404 }
+        );
+      }
+
+      const currentStatus = String(currentOrder.status || '');
+      const nextStatus = String(payload.status || '');
+      if (!canTransitionOrder3DStatus(currentStatus, nextStatus)) {
+        return NextResponse.json(
+          { error: 'Nie można pominąć wymaganych etapów realizacji zamówienia 3D.' },
+          { status: 409 }
+        );
+      }
+
+      if (nextStatus === 'quoted') {
+        const finalPrice = Number(payload.final_price ?? currentOrder.final_price ?? 0);
+        const printingTime = Number(
+          payload.printing_time_hours ?? currentOrder.printing_time_hours ?? 0
+        );
+        const filamentGrams = Number(
+          payload.filament_used_grams ?? currentOrder.filament_used_grams ?? 0
+        );
+        if (finalPrice <= 0 || printingTime <= 0 || filamentGrams <= 0) {
+          return NextResponse.json(
+            { error: 'Przed wysłaniem wyceny uzupełnij cenę, czas druku i zużycie filamentu.' },
+            { status: 409 }
+          );
+        }
       }
     }
 

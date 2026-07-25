@@ -1048,21 +1048,21 @@ export interface Database {
       ai_conversations: {
         Row: {
           id: string;
-          user_id: string | null;
+          user_id: string;
           session_id: string;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
-          user_id?: string | null;
+          user_id: string;
           session_id: string;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          user_id?: string | null;
+          user_id?: string;
           session_id?: string;
           created_at?: string;
           updated_at?: string;
@@ -1123,7 +1123,7 @@ export interface Database {
       ai_logs: {
         Row: {
           id: string;
-          user_id: string | null;
+          user_id: string;
           conversation_id: string | null;
           question_type: string | null;
           query: string;
@@ -1136,7 +1136,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          user_id?: string | null;
+          user_id: string;
           conversation_id?: string | null;
           question_type?: string | null;
           query: string;
@@ -1149,7 +1149,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          user_id?: string | null;
+          user_id?: string;
           conversation_id?: string | null;
           question_type?: string | null;
           query?: string;
@@ -1191,7 +1191,7 @@ export interface Database {
         Row: {
           id: string;
           conversation_id: string;
-          user_id: string | null;
+          user_id: string;
           file_name: string;
           file_type: string;
           file_size: number | null;
@@ -1202,7 +1202,7 @@ export interface Database {
         Insert: {
           id?: string;
           conversation_id: string;
-          user_id?: string | null;
+          user_id: string;
           file_name: string;
           file_type: string;
           file_size?: number | null;
@@ -1213,13 +1213,36 @@ export interface Database {
         Update: {
           id?: string;
           conversation_id?: string;
-          user_id?: string | null;
+          user_id?: string;
           file_name?: string;
           file_type?: string;
           file_size?: number | null;
           file_url?: string | null;
           analysis_result?: Json;
           created_at?: string;
+        };
+      };
+      public_api_rate_limits: {
+        Row: {
+          scope: string;
+          key_hash: string;
+          window_started_at: string;
+          request_count: number;
+          last_seen_at: string;
+        };
+        Insert: {
+          scope: string;
+          key_hash: string;
+          window_started_at?: string;
+          request_count?: number;
+          last_seen_at?: string;
+        };
+        Update: {
+          scope?: string;
+          key_hash?: string;
+          window_started_at?: string;
+          request_count?: number;
+          last_seen_at?: string;
         };
       };
       accounting_reports: {
@@ -1532,6 +1555,15 @@ export interface Database {
       };
       discard_incomplete_quote: {
         Args: { p_order_id: string };
+        Returns: boolean;
+      };
+      consume_public_api_rate_limit: {
+        Args: {
+          p_scope: string;
+          p_key_hash: string;
+          p_limit: number;
+          p_window_seconds: number;
+        };
         Returns: boolean;
       };
     };

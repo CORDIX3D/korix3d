@@ -265,7 +265,11 @@ ${messageContent}`;
       });
 
       if (!response.ok) {
-        throw new Error('Nie udało się przeanalizować pliku. Na razie analiza w bocie obsługuje pliki STL.');
+        const errorBody = await response.json().catch(() => null);
+        throw new Error(
+          errorBody?.error
+          || 'Nie udało się przeanalizować pliku. Na razie analiza w bocie obsługuje pliki STL.'
+        );
       }
 
       const analysis = await response.json();

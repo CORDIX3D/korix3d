@@ -4,6 +4,10 @@ import { createClient } from '@/lib/supabase/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 import { z } from 'zod';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import {
+  checkPublicRateLimit,
+  rateLimitResponse,
+} from '@/lib/api/public-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,8 +52,9 @@ function getSupabaseAdmin() {
   return createSupabaseClient(url, serviceRoleKey);
 }
 
-async function getDatabaseContext(): Promise<DatabaseContext> {
-  const supabaseAdmin = getSupabaseAdmin();
+async function fetchDatabaseContext(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>
+): Promise<DatabaseContext> {
   const [materialsResult, filamentsResult, productsResult, ordersResult] = await Promise.all([
     supabaseAdmin
       .from('materials')
@@ -72,6 +77,14 @@ async function getDatabaseContext(): Promise<DatabaseContext> {
       .in('status', ['queued', 'printing', 'post_processing']),
   ]);
 
+  const contextError = [
+    materialsResult.error,
+    filamentsResult.error,
+    productsResult.error,
+    ordersResult.error,
+  ].find(Boolean);
+  if (contextError) throw contextError;
+
   const orders = ordersResult.data || [];
   const totalHours = orders.reduce((sum: number, order: any) => sum + Number(order.printing_time_hours || 0), 0);
 
@@ -82,6 +95,30 @@ async function getDatabaseContext(): Promise<DatabaseContext> {
     productionQueue: orders.length,
     estimatedProductionDays: totalHours > 0 ? Math.ceil(totalHours / 8) : null,
   };
+}
+
+let cachedDatabaseContext: { value: DatabaseContext; expiresAt: number } | null = null;
+let pendingDatabaseContext: Promise<DatabaseContext> | null = null;
+
+async function getDatabaseContext(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>
+): Promise<DatabaseContext> {
+  const now = Date.now();
+  if (cachedDatabaseContext && cachedDatabaseContext.expiresAt > now) {
+    return cachedDatabaseContext.value;
+  }
+
+  if (!pendingDatabaseContext) {
+    pendingDatabaseContext = fetchDatabaseContext(supabaseAdmin);
+  }
+
+  try {
+    const value = await pendingDatabaseContext;
+    cachedDatabaseContext = { value, expiresAt: Date.now() + 10_000 };
+    return value;
+  } finally {
+    pendingDatabaseContext = null;
+  }
 }
 
 function includesAny(text: string, words: string[]) {
@@ -363,46 +400,80 @@ export async function POST(request: NextRequest) {
       const supabase = await createClient();
       const authResult = await supabase.auth.getUser();
       userId = authResult.data.user?.id || null;
+    } catch (authError) {
+      console.warn('AI local session unavailable; continuing anonymously:', authError);
+    }
+
+    try {
       supabaseAdmin = getSupabaseAdmin();
-      context = await getDatabaseContext();
+    } catch (adminError) {
+      console.warn('AI local database unavailable; using static answers:', adminError);
+    }
 
-      const { data: existingConversations } = await supabaseAdmin
-          .from('ai_conversations')
-          .select('id, user_id')
-          .eq('session_id', sessionId)
-          .order('created_at', { ascending: false })
-          .limit(1);
-      const existingConversation = existingConversations?.[0];
-      const ownsConversation = existingConversation && (
-        existingConversation.user_id === userId
-        || (existingConversation.user_id === null && userId === null)
+    const rateLimit = await checkPublicRateLimit(request, {
+      scope: 'ai_chat',
+      limit: 30,
+      windowSeconds: 600,
+      userId,
+      consumePersistent: supabaseAdmin
+        ? async (args) => {
+            const { data, error } = await supabaseAdmin!.rpc(
+              'consume_public_api_rate_limit',
+              args
+            );
+            return { data: data === true, error };
+          }
+        : undefined,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(
+        'Wysłano zbyt wiele pytań. Spróbuj ponownie za kilka minut.',
+        rateLimit.retryAfter
       );
+    }
 
-      if (ownsConversation) {
-        convId = existingConversation.id;
-      } else if (!existingConversation) {
-        const { data: newConversation } = await supabaseAdmin
-          .from('ai_conversations')
-          .insert({
-            session_id: sessionId,
-            user_id: userId,
-          })
-          .select('id')
-          .single();
-        convId = newConversation?.id || null;
-      }
+    if (supabaseAdmin) {
+      try {
+        context = await getDatabaseContext(supabaseAdmin);
 
-      if (convId && question) {
-        await supabaseAdmin
-          .from('ai_messages')
-          .insert({
-            conversation_id: convId,
-            role: 'user',
-            content: safeQuestion,
-          });
+        if (userId) {
+          const { data: existingConversations } = await supabaseAdmin
+            .from('ai_conversations')
+            .select('id, user_id')
+            .eq('session_id', sessionId)
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          const existingConversation = existingConversations?.[0];
+
+          if (existingConversation) {
+            convId = existingConversation.id;
+          } else {
+            const { data: newConversation } = await supabaseAdmin
+              .from('ai_conversations')
+              .insert({
+                session_id: sessionId,
+                user_id: userId,
+              })
+              .select('id')
+              .single();
+            convId = newConversation?.id || null;
+          }
+
+          if (convId) {
+            await supabaseAdmin
+              .from('ai_messages')
+              .insert({
+                conversation_id: convId,
+                role: 'user',
+                content: safeQuestion,
+              });
+          }
+        }
+      } catch (contextError) {
+        console.warn('AI local context unavailable; answering without database context:', contextError);
       }
-    } catch (contextError) {
-      console.warn('AI local context unavailable; answering without database context:', contextError);
     }
 
     const answer = buildFreeResponse(safeQuestion, context);

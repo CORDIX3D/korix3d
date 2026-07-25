@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import {
+  checkPublicRateLimit,
+  rateLimitResponse,
+} from '@/lib/api/public-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -221,6 +225,43 @@ function hasValidBoundingBox(boundingBox: { min: number[]; max: number[] }) {
 
 export async function POST(request: NextRequest) {
   try {
+    let userId: string | null = null;
+    let admin: ReturnType<typeof getSupabaseAdmin> | null = null;
+
+    try {
+      const supabase = await createClient();
+      const { data: auth } = await supabase.auth.getUser();
+      userId = auth.user?.id || null;
+    } catch (authError) {
+      console.warn('STL analysis session unavailable; continuing anonymously:', authError);
+    }
+
+    try {
+      admin = getSupabaseAdmin();
+    } catch (adminError) {
+      console.warn('STL analysis database unavailable; history will not be saved:', adminError);
+    }
+
+    const rateLimit = await checkPublicRateLimit(request, {
+      scope: 'ai_stl_analysis',
+      limit: 5,
+      windowSeconds: 900,
+      userId,
+      consumePersistent: admin
+        ? async (args) => {
+            const { data, error } = await admin!.rpc('consume_public_api_rate_limit', args);
+            return { data: data === true, error };
+          }
+        : undefined,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(
+        'Osiągnięto limit szybkich analiz STL. Spróbuj ponownie później albo użyj formularza wyceny.',
+        rateLimit.retryAfter
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const conversationId = String(formData.get('conversationId') || '').trim();
@@ -301,31 +342,27 @@ export async function POST(request: NextRequest) {
 
     // Store analysis result
     if (
-      conversationId
+      userId
+      && admin
+      && conversationId
       && /^[0-9a-f-]{36}$/i.test(conversationId)
       && /^session_[a-f0-9-]{36}$/.test(sessionId)
     ) {
       try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        const admin = getSupabaseAdmin();
         const { data: conversation } = await admin
           .from('ai_conversations')
           .select('id, user_id')
           .eq('id', conversationId)
           .eq('session_id', sessionId)
+          .eq('user_id', userId)
           .maybeSingle();
-        const ownsConversation = conversation && (
-          conversation.user_id === (user?.id || null)
-          || (conversation.user_id === null && !user)
-        );
 
-        if (ownsConversation) {
+        if (conversation) {
           await admin
             .from('ai_file_uploads')
             .insert({
               conversation_id: conversation.id,
-              user_id: user?.id || null,
+              user_id: userId,
               file_name: file.name,
               file_type: 'stl',
               file_size: file.size,

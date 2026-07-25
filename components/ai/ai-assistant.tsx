@@ -10,8 +10,6 @@ import {
   Upload,
   FileText,
   Trash2,
-  ThumbsUp,
-  ThumbsDown,
   Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -425,16 +423,6 @@ ${messageContent}`;
                   <p className="text-sm whitespace-pre-wrap leading-relaxed">
                     {message.content || <Loader2 className="w-4 h-4 animate-spin" />}
                   </p>
-                  {message.role === 'assistant' && message.content && message.id !== 'greeting' && (
-                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/10">
-                      <button type="button" aria-label="Oceń odpowiedź pozytywnie" className="p-1 rounded hover:bg-white/10 transition-colors text-white/30 hover:text-green-400">
-                        <ThumbsUp className="w-3 h-3" />
-                      </button>
-                      <button type="button" aria-label="Oceń odpowiedź negatywnie" className="p-1 rounded hover:bg-white/10 transition-colors text-white/30 hover:text-red-400">
-                        <ThumbsDown className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             ))}

@@ -62,14 +62,14 @@ export function PublicHeader() {
           {/* Right Actions */}
           <div className="flex items-center gap-3">
             {/* Cart */}
-            <Link href="/koszyk" className="hidden sm:flex relative">
-              <Button variant="ghost" size="icon" className="relative">
+            <Button asChild variant="ghost" size="icon" className="relative hidden sm:flex">
+              <Link href="/koszyk">
                 <ShoppingCart className="h-5 w-5" />
                 <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-xs flex items-center justify-center text-white">
                   {itemCount > 99 ? '99+' : itemCount}
                 </span>
-              </Button>
-            </Link>
+              </Link>
+            </Button>
 
             {/* User Menu */}
             {user ? (
@@ -112,16 +112,16 @@ export function PublicHeader() {
               </DropdownMenu>
             ) : (
               <div className="flex items-center gap-2">
-                <Link href="/logowanie">
-                  <Button variant="ghost" size="sm">
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/logowanie">
                     Zaloguj się
-                  </Button>
-                </Link>
-                <Link href="/rejestracja" className="hidden sm:block">
-                  <Button size="sm" className="bg-gradient-primary hover:shadow-glow transition-shadow">
+                  </Link>
+                </Button>
+                <Button asChild size="sm" className="hidden bg-gradient-primary transition-shadow hover:shadow-glow sm:inline-flex">
+                  <Link href="/rejestracja">
                     Zarejestruj się
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             )}
 

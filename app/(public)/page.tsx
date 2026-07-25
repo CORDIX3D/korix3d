@@ -178,17 +178,17 @@ export default function HomePage() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up">
-            <Link href="/wycena">
-              <Button size="lg" className="bg-gradient-primary hover:shadow-glow-lg transition-all duration-300 text-lg px-8 h-14">
+            <Button asChild size="lg" className="bg-gradient-primary hover:shadow-glow-lg transition-all duration-300 text-lg px-8 h-14">
+              <Link href="/wycena">
                 Wyceń wydruk
                 <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
-            <Link href="/sklep">
-              <Button size="lg" variant="outline" className="border-border hover:border-primary hover:text-primary transition-colors text-lg px-8 h-14">
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="border-border hover:border-primary hover:text-primary transition-colors text-lg px-8 h-14">
+              <Link href="/sklep">
                 Przeglądaj sklep
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
 
           {/* Service facts */}
@@ -303,12 +303,12 @@ export default function HomePage() {
 
           {/* CTA */}
           <div className="text-center mt-12">
-            <Link href="/wycena">
-              <Button size="lg" className="bg-gradient-primary hover:shadow-glow transition-shadow">
+            <Button asChild size="lg" className="bg-gradient-primary hover:shadow-glow transition-shadow">
+              <Link href="/wycena">
                 Rozpocznij teraz
                 <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
@@ -363,12 +363,12 @@ export default function HomePage() {
 
           {/* View All Button */}
           <div className="text-center">
-            <Link href="/materialy">
-              <Button variant="outline" className="border-border hover:border-primary">
+            <Button asChild variant="outline" className="border-border hover:border-primary">
+              <Link href="/materialy">
                 Zobacz wszystkie materiały
                 <ChevronRight className="ml-1 w-4 h-4" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
@@ -478,12 +478,12 @@ export default function HomePage() {
 
           {/* View All Button */}
           <div className="text-center mt-8">
-            <Link href="/portfolio">
-              <Button variant="outline" className="border-border hover:border-primary">
+            <Button asChild variant="outline" className="border-border hover:border-primary">
+              <Link href="/portfolio">
                 Zobacz portfolio
                 <ChevronRight className="ml-1 w-4 h-4" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
@@ -504,17 +504,17 @@ export default function HomePage() {
                 Nasi specjaliści doradzą najlepsze rozwiązanie.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/wycena">
-                  <Button size="lg" className="bg-gradient-primary hover:shadow-glow-lg transition-all w-full sm:w-auto">
+                <Button asChild size="lg" className="bg-gradient-primary hover:shadow-glow-lg transition-all w-full sm:w-auto">
+                  <Link href="/wycena">
                     Wyceń wydruk za darmo
                     <ArrowRight className="ml-2 w-5 h-5" />
-                  </Button>
-                </Link>
-                <Link href="/kontakt">
-                  <Button size="lg" variant="outline" className="border-border hover:border-primary w-full sm:w-auto">
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="border-border hover:border-primary w-full sm:w-auto">
+                  <Link href="/kontakt">
                     Skontaktuj się
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             </div>
           </div>

@@ -172,11 +172,11 @@ export default function FAQPage() {
               <p className="text-muted-foreground mb-6">
                 Skontaktuj się z nami, chętnie odpowiemy na Twoje pytania
               </p>
-              <Link href="/kontakt">
-                <Button className="bg-gradient-primary hover:shadow-glow transition-shadow">
+              <Button asChild className="bg-gradient-primary hover:shadow-glow transition-shadow">
+                <Link href="/kontakt">
                   Skontaktuj się
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </div>

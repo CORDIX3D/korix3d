@@ -302,23 +302,23 @@ export default function CustomerDashboardPage() {
             <CardTitle className="text-lg font-semibold text-foreground">
               Ostatnie zamówienia
             </CardTitle>
-            <Link href="/panel/zamowienia">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+            <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+              <Link href="/panel/zamowienia">
                 Zobacz wszystkie
                 <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             {recentOrders.length === 0 ? (
               <div className="text-center py-8">
                 <ShoppingBag className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground">Brak zamówień</p>
-                <Link href="/wycena">
-                  <Button className="mt-4 bg-primary hover:bg-primary/90">
+                <Button asChild className="mt-4 bg-primary hover:bg-primary/90">
+                  <Link href="/wycena">
                     Złóż pierwsze zamówienie
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -351,12 +351,12 @@ export default function CustomerDashboardPage() {
             <CardTitle className="text-lg font-semibold text-foreground">
               Oczekujące wyceny
             </CardTitle>
-            <Link href="/panel/wyceny">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+            <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
+              <Link href="/panel/wyceny">
                 Zobacz wszystkie
                 <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             {recentQuotes.length === 0 ? (

@@ -87,11 +87,11 @@ export default function ForgotPasswordPage() {
             <p className="text-sm text-muted-foreground mb-6">
               Nie widzisz emaila? Sprawdź folder SPAM
             </p>
-            <Link href="/logowanie">
-              <Button className="bg-gradient-primary hover:shadow-glow transition-shadow">
+            <Button asChild className="bg-gradient-primary hover:shadow-glow transition-shadow">
+              <Link href="/logowanie">
                 Powrót do logowania
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

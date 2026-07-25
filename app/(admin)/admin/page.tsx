@@ -537,12 +537,12 @@ export default function AdminDashboardPage() {
                   </p>
                 </div>
               </div>
-              <Link href="/admin/raporty-executive">
-                <Button variant="outline" size="sm">
+              <Button asChild variant="outline" size="sm">
+                <Link href="/admin/raporty-executive">
                   Zobacz raport
                   <ArrowUpRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
 
             <div className="grid grid-cols-4 gap-4 mb-4">

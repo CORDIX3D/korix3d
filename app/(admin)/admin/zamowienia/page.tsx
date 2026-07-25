@@ -304,7 +304,12 @@ export default function AdminOrdersPage() {
                               variant="ghost"
                               onClick={() => {
                                 setSelectedOrder(order);
-                                setQuoteForm({ printing_time_hours: '', filament_used_grams: '', final_price: '', admin_notes: '' });
+                                setQuoteForm({
+                                  printing_time_hours: order.printing_time_hours?.toString() || '',
+                                  filament_used_grams: order.filament_used_grams?.toString() || '',
+                                  final_price: order.final_price?.toString() || '',
+                                  admin_notes: order.admin_notes || '',
+                                });
                                 setQuoteDialog(true);
                               }}
                             >
@@ -376,6 +381,22 @@ export default function AdminOrdersPage() {
                 <div className="p-3 bg-secondary rounded-lg">
                   <p className="text-xs text-muted-foreground">Ilość</p>
                   <p className="font-medium text-foreground">{selectedOrder.quantity} szt.</p>
+                </div>
+                <div className="p-3 bg-secondary rounded-lg">
+                  <p className="text-xs text-muted-foreground">Wypełnienie</p>
+                  <p className="font-medium text-foreground">{selectedOrder.infill_percent}%</p>
+                </div>
+                <div className="p-3 bg-secondary rounded-lg">
+                  <p className="text-xs text-muted-foreground">Creality Print</p>
+                  <p className="font-medium text-foreground">
+                    {selectedOrder.slicing_status === 'completed'
+                      ? 'Analiza gotowa'
+                      : selectedOrder.slicing_status === 'processing'
+                        ? 'Analizowanie'
+                        : selectedOrder.slicing_status === 'failed'
+                          ? 'Błąd analizy'
+                          : 'W kolejce'}
+                  </p>
                 </div>
               </div>
 

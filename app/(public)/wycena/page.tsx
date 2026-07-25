@@ -322,8 +322,6 @@ function QuotePageContent() {
 
     try {
       const deliveryLabel = deliveryOptions.find((option) => option.value === data.delivery_type)?.label;
-      const materialName = selectedMaterial?.name || materials.find((material) => material.id === data.material_id)?.name || 'Do ustalenia';
-      const selectedColor = colors.find((color) => color.id === data.color);
       const configurationNotes = [
         `Wypełnienie: ${data.infill}%`,
         `Dostawa: ${deliveryLabel ?? data.delivery_type}`,
@@ -339,9 +337,8 @@ function QuotePageContent() {
           action: 'create',
           order_id: orderId,
           material_id: data.material_id,
-          material_name: materialName,
-          color: selectedColor?.name || 'Do ustalenia',
-          color_hex: selectedColor?.hex,
+          filament_id: data.color,
+          infill_percent: Number(data.infill),
           quantity: data.quantity,
           priority: data.priority,
           notes: configurationNotes,

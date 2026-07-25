@@ -37,6 +37,15 @@ const statusProgress: Record<string, number> = {
   completed: 5,
 };
 
+const slicingStatusLabels: Record<string, string> = {
+  not_started: 'Oczekuje na pliki',
+  pending: 'W kolejce Creality Print',
+  processing: 'Creality Print analizuje model',
+  completed: 'Analiza Creality Print zakończona',
+  partial_failed: 'Część plików wymaga sprawdzenia',
+  failed: 'Analiza automatyczna nie powiodła się',
+};
+
 export default function OrderDetailsPage() {
   const params = useParams<{ id: string }>();
   const orderId = params.id;
@@ -116,7 +125,7 @@ export default function OrderDetailsPage() {
       </Card>
     )}
     {order.status === 'quoted' && <Card className="border-primary/30 bg-primary/5"><CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm text-muted-foreground">Przygotowana wycena</p><p className="text-2xl font-bold">{Number(order.final_price || 0).toFixed(2)} zł</p></div><Button onClick={acceptQuote} disabled={accepting}>{accepting ? 'Akceptowanie...' : <><CheckCircle2 className="mr-2 h-4 w-4" />Akceptuję wycenę</>}</Button></CardContent></Card>}
-    <div className="grid gap-6 lg:grid-cols-2"><Card><CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" />Parametry</CardTitle></CardHeader><CardContent className="grid grid-cols-2 gap-4 text-sm"><div><p className="text-muted-foreground">Materiał</p><p className="font-medium">{order.material_name || 'Do ustalenia'}</p></div><div><p className="text-muted-foreground">Kolor</p><p className="font-medium">{order.color || 'Do ustalenia'}</p></div><div><p className="text-muted-foreground">Liczba sztuk</p><p className="font-medium">{order.quantity}</p></div><div><p className="text-muted-foreground">Warstwa</p><p className="font-medium">{order.layer_height ? `${order.layer_height} mm` : 'Do ustalenia'}</p></div></CardContent></Card>
+    <div className="grid gap-6 lg:grid-cols-2"><Card><CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" />Parametry</CardTitle></CardHeader><CardContent className="grid grid-cols-2 gap-4 text-sm"><div><p className="text-muted-foreground">Materiał</p><p className="font-medium">{order.material_name || 'Do ustalenia'}</p></div><div><p className="text-muted-foreground">Kolor</p><p className="font-medium">{order.color || 'Do ustalenia'}</p></div><div><p className="text-muted-foreground">Liczba sztuk</p><p className="font-medium">{order.quantity}</p></div><div><p className="text-muted-foreground">Wypełnienie</p><p className="font-medium">{order.infill_percent}%</p></div><div className="col-span-2"><p className="text-muted-foreground">Analiza pliku</p><p className="font-medium">{slicingStatusLabels[order.slicing_status] || 'Oczekuje'}</p></div>{order.slicing_status === 'completed' && <><div><p className="text-muted-foreground">Czas druku</p><p className="font-medium">{Number(order.printing_time_hours || 0).toFixed(2)} h</p></div><div><p className="text-muted-foreground">Zużycie filamentu</p><p className="font-medium">{Number(order.filament_used_grams || 0).toFixed(2)} g</p></div></>}</CardContent></Card>
       <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileBox className="h-5 w-5 text-primary" />Pliki ({files.length})</CardTitle></CardHeader><CardContent>{files.length === 0 ? <p className="text-sm text-muted-foreground">Brak plików przypisanych do zamówienia.</p> : <div className="space-y-2">{files.map((file, index) => <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-lg bg-secondary p-3 text-sm"><div><p className="font-medium">{file.name || `Plik ${index + 1}`}</p>{file.size && <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>}</div><OrderFileDownload file={file} /></div>)}</div>}</CardContent></Card></div>
     {order.notes && <Card><CardHeader><CardTitle>Informacje dodatkowe</CardTitle></CardHeader><CardContent><p className="whitespace-pre-line text-sm text-muted-foreground">{order.notes}</p></CardContent></Card>}
   </div>;

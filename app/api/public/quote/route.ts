@@ -6,6 +6,7 @@ import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 export const dynamic = 'force-dynamic';
 
 const PRIORITIES = new Set(['standard', 'express', 'urgent']);
+const INFILL_VALUES = new Set([10, 20, 30, 50, 80, 100]);
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const COLOR_HEX_PATTERN = /^#[0-9a-f]{6}$/i;
@@ -78,9 +79,8 @@ export async function POST(request: NextRequest) {
 
     if (action === 'create') {
       const materialId = cleanString(body.material_id);
-      const materialName = cleanString(body.material_name) || 'Do ustalenia';
-      const color = cleanString(body.color) || 'Do ustalenia';
-      const colorHex = cleanString(body.color_hex) || null;
+      const filamentId = cleanString(body.filament_id);
+      const infillPercent = Number(body.infill_percent);
       const quantity = Number(body.quantity);
       const priority = cleanString(body.priority);
       const notes = cleanString(body.notes) || null;
@@ -88,9 +88,8 @@ export async function POST(request: NextRequest) {
       if (
         !UUID_PATTERN.test(orderId) ||
         !UUID_PATTERN.test(materialId) ||
-        materialName.length > 120 ||
-        color.length > 120 ||
-        (colorHex !== null && !COLOR_HEX_PATTERN.test(colorHex)) ||
+        !UUID_PATTERN.test(filamentId) ||
+        !INFILL_VALUES.has(infillPercent) ||
         (notes !== null && notes.length > 2000) ||
         !Number.isInteger(quantity) ||
         quantity < 1 ||
@@ -100,6 +99,48 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Niepoprawne dane wyceny.' }, { status: 400 });
       }
 
+      const [{ data: material, error: materialError }, { data: filament, error: filamentError }] =
+        await Promise.all([
+          supabase
+            .from('materials')
+            .select('id, name')
+            .eq('id', materialId)
+            .eq('available', true)
+            .maybeSingle(),
+          supabase
+            .from('filaments')
+            .select('id, material_id, brand, color, color_hex, active, remaining_weight_grams')
+            .eq('id', filamentId)
+            .maybeSingle(),
+        ]);
+
+      if (materialError || filamentError) {
+        console.error('Quote configuration lookup error:', materialError || filamentError);
+        return NextResponse.json(
+          { error: 'Nie udaĹ‚o siÄ™ sprawdziÄ‡ wybranego materiaĹ‚u i koloru.' },
+          { status: 500 }
+        );
+      }
+
+      if (
+        !material ||
+        !filament ||
+        filament.material_id !== material.id ||
+        filament.active !== true ||
+        Number(filament.remaining_weight_grams || 0) <= 0
+      ) {
+        return NextResponse.json(
+          { error: 'Wybrany materiaĹ‚ lub kolor nie jest juĹĽ dostÄ™pny.' },
+          { status: 409 }
+        );
+      }
+
+      const canonicalColor = `${filament.color}${filament.brand ? ` (${filament.brand})` : ''}`;
+      const canonicalColorHex =
+        cleanString(filament.color_hex) && COLOR_HEX_PATTERN.test(cleanString(filament.color_hex))
+          ? cleanString(filament.color_hex)
+          : null;
+
       const { data, error } = await supabase
         .from('orders_3d')
         .insert([
@@ -107,9 +148,11 @@ export async function POST(request: NextRequest) {
             id: orderId,
             user_id: auth.user.id,
             material_id: materialId,
-            material_name: materialName,
-            color,
-            color_hex: colorHex,
+            filament_id: filamentId,
+            material_name: material.name,
+            color: canonicalColor,
+            color_hex: canonicalColorHex,
+            infill_percent: infillPercent,
             layer_height: 0.2,
             quantity,
             priority,

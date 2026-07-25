@@ -34,7 +34,12 @@ export async function POST(request: NextRequest) {
 
     if (order.stripe_session_id) {
       const existing = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
-      if (existing.url) return NextResponse.json({ url: existing.url });
+      if (existing.status === 'open' && existing.url) {
+        return NextResponse.json({ url: existing.url });
+      }
+      if (existing.status === 'complete') {
+        return NextResponse.json({ error: 'Płatność dla tego zamówienia została już zakończona.' }, { status: 409 });
+      }
     }
 
     const { data: items, error: itemsError } = await admin
@@ -74,17 +79,21 @@ export async function POST(request: NextRequest) {
     }
 
     const origin = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      line_items: lineItems,
-      customer_email: order.customer_email,
-      client_reference_id: order.id,
-      metadata: { order_id: order.id, order_number: order.order_number },
-      success_url: `${origin}/checkout/sukces?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/checkout?cancelled=1&order=${encodeURIComponent(order.id)}`,
-      billing_address_collection: 'required',
-      locale: 'pl',
-    });
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: 'payment',
+        line_items: lineItems,
+        customer_email: order.customer_email,
+        client_reference_id: order.id,
+        metadata: { order_id: order.id, order_number: order.order_number },
+        success_url: `${origin}/checkout/sukces?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/checkout?cancelled=1&order=${encodeURIComponent(order.id)}`,
+        billing_address_collection: 'required',
+        locale: 'pl',
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      },
+      { idempotencyKey: `korix3d-checkout-${order.id}` }
+    );
 
     await admin.from('store_orders').update({ stripe_session_id: session.id }).eq('id', order.id);
     return NextResponse.json({ url: session.url });

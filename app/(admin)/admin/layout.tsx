@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AdminSidebar } from '@/components/layout/admin-sidebar';
 import { useAuth } from '@/lib/providers';
 import { Toaster } from '@/components/ui/sonner';
 import { AIWrapper } from '@/components/ai/ai-wrapper';
+import {
+  canAccessAdminPath,
+  getAdminHomePath,
+} from '@/lib/admin-access';
 
 export default function AdminLayout({
   children,
@@ -14,14 +18,18 @@ export default function AdminLayout({
 }) {
   const { user, profile, loading, isEmployee } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const canAccessPage = canAccessAdminPath(profile?.role, pathname);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/logowanie?redirect=/admin');
     } else if (!loading && user && !isEmployee) {
       router.push('/panel');
+    } else if (!loading && user && isEmployee && !canAccessPage) {
+      router.replace(getAdminHomePath(profile?.role));
     }
-  }, [user, loading, isEmployee, router]);
+  }, [user, profile?.role, loading, isEmployee, canAccessPage, router]);
 
   if (loading) {
     return (
@@ -34,7 +42,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!user || !isEmployee) {
+  if (!user || !isEmployee || !canAccessPage) {
     return null;
   }
 

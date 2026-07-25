@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { isStaffRole } from '@/lib/admin-access';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { isSupabaseConfigurationError } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +40,19 @@ const OPTIONAL_FILAMENT_COLUMNS = [
   'updated_at',
 ] as const;
 
+function unavailableResponse() {
+  return NextResponse.json(
+    { error: 'Magazyn filamentów jest chwilowo niedostępny.' },
+    {
+      status: 503,
+      headers: {
+        'Cache-Control': 'no-store',
+        'Retry-After': '60',
+      },
+    }
+  );
+}
+
 async function getAdminSupabaseClient() {
   const sessionClient = await createClient();
   const { data: auth } = await sessionClient.auth.getUser();
@@ -51,8 +67,13 @@ async function getAdminSupabaseClient() {
     .eq('id', auth.user.id)
     .maybeSingle();
 
-  if (profileError || profile?.role !== 'admin') {
-    return { error: NextResponse.json({ error: 'Brak uprawnień administratora.' }, { status: 403 }) };
+  if (profileError) {
+    console.error('Filament staff profile lookup error:', profileError);
+    return { error: unavailableResponse() };
+  }
+
+  if (!isStaffRole(profile?.role)) {
+    return { error: NextResponse.json({ error: 'Brak uprawnień pracownika.' }, { status: 403 }) };
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -181,6 +202,32 @@ function removeUnsupportedFilamentFields<T extends Record<string, unknown>>(data
   return nextData;
 }
 
+function filamentErrorResponse(error: unknown) {
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String(error.code || '')
+      : '';
+
+  if (code === '23503') {
+    return NextResponse.json(
+      { error: 'Wybrany materiał nie istnieje.' },
+      { status: 409 }
+    );
+  }
+
+  if (['23514', '22003', '22P02'].includes(code)) {
+    return NextResponse.json(
+      { error: 'Jedna z wartości filamentu ma niepoprawny format.' },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json(
+    { error: 'Nie udało się zapisać zmian w magazynie filamentów.' },
+    { status: 500 }
+  );
+}
+
 async function saveFilament(
   client: SupabaseClient,
   payload: FilamentPayload,
@@ -219,7 +266,7 @@ export async function POST(request: NextRequest) {
     const context = await getAdminSupabaseClient();
     if (context.error) return context.error;
 
-    const payload = (await request.json()) as FilamentPayload;
+    const payload = (await readJsonObject(request, 64 * 1024)) as FilamentPayload;
     if (payload.id && !UUID_REGEX.test(payload.id)) {
       return NextResponse.json({ error: 'Nieprawidłowy identyfikator filamentu.' }, { status: 400 });
     }
@@ -238,11 +285,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, id: savedFilament.id });
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    if (isSupabaseConfigurationError(error)) {
+      return unavailableResponse();
+    }
+
     console.error('Admin filament save error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się zapisać filamentu.' },
-      { status: 500 }
-    );
+    return filamentErrorResponse(error);
   }
 }
 
@@ -282,9 +334,13 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isSupabaseConfigurationError(error)) {
+      return unavailableResponse();
+    }
+
     console.error('Admin filament delete error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się usunąć filamentu.' },
+      { error: 'Nie udało się usunąć filamentu.' },
       { status: 500 }
     );
   }

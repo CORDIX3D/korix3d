@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/providers';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { canAccessAdminPath } from '@/lib/admin-access';
 
 const adminNav = [
   {
@@ -112,9 +113,17 @@ const adminNav = [
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { profile } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const visibleNav = adminNav
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        canAccessAdminPath(profile?.role, item.href)
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <>
@@ -203,7 +212,7 @@ export function AdminSidebar() {
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-3 custom-scrollbar">
-            {adminNav.map((section) => (
+            {visibleNav.map((section) => (
               <div key={section.title} className="mb-4">
                 {!collapsed && (
                   <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">

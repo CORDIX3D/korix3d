@@ -1,5 +1,10 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import {
+  canAccessAdminPath,
+  getAdminHomePath,
+  isStaffRole,
+} from '@/lib/admin-access';
 
 function createUnavailableResponse(
   request: NextRequest,
@@ -157,8 +162,8 @@ export async function middleware(request: NextRequest) {
     const role = profile?.role || 'customer';
 
     const url = request.nextUrl.clone();
-    if (role === 'admin' || role === 'employee') {
-      url.pathname = '/admin';
+    if (isStaffRole(role)) {
+      url.pathname = getAdminHomePath(role);
     } else {
       url.pathname = '/panel';
     }
@@ -183,9 +188,16 @@ export async function middleware(request: NextRequest) {
 
     const role = profile?.role || 'customer';
 
-    if (role !== 'admin' && role !== 'employee') {
+    if (!isStaffRole(role)) {
       const url = request.nextUrl.clone();
       url.pathname = '/panel';
+      return NextResponse.redirect(url);
+    }
+
+    if (!canAccessAdminPath(role, pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = getAdminHomePath(role);
+      url.search = '';
       return NextResponse.redirect(url);
     }
   }

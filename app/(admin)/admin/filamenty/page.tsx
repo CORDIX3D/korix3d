@@ -38,6 +38,12 @@ import { toast } from 'sonner';
 import { PanelError } from '@/components/customer/panel-state';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
+const ALLOWED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+
 export default function AdminFilamentsPage() {
   const [filaments, setFilaments] = useState<Filament[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -83,8 +89,10 @@ export default function AdminFilamentsPage() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error('Wybierz plik graficzny');
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      toast.error('Nieobsługiwany format zdjęcia', {
+        description: 'Wybierz plik JPG, PNG lub WebP.',
+      });
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -112,7 +120,29 @@ export default function AdminFilamentsPage() {
       upsert: false,
     });
     if (error) throw error;
-    return supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl;
+    return {
+      path: fileName,
+      publicUrl: supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl,
+    };
+  };
+
+  const getManagedImagePath = (value: string | null | undefined) => {
+    if (!value) return null;
+    const marker = '/storage/v1/object/public/product-images/';
+    const markerIndex = value.indexOf(marker);
+    if (markerIndex === -1) return null;
+    const path = decodeURIComponent(value.slice(markerIndex + marker.length));
+    return path.startsWith('filaments/') ? path : null;
+  };
+
+  const removeStoredImage = async (path: string | null) => {
+    if (!path) return;
+    const { error: removeError } = await supabase.storage
+      .from('product-images')
+      .remove([path]);
+    if (removeError) {
+      console.error('Filament image cleanup error:', removeError);
+    }
   };
 
   const fetchFilaments = async () => {
@@ -194,11 +224,14 @@ export default function AdminFilamentsPage() {
       return;
     }
     setSaving(true);
+    let uploadedImagePath: string | null = null;
     try {
       let imageUrl = formData.image_url || null;
       if (imageFile) {
         try {
-          imageUrl = await uploadImage(imageFile);
+          const uploadedImage = await uploadImage(imageFile);
+          uploadedImagePath = uploadedImage.path;
+          imageUrl = uploadedImage.publicUrl;
         } catch {
           toast.warning('Nie udało się wysłać zdjęcia', {
             description: 'Filament zostanie zapisany bez fotografii. Zdjęcie możesz dodać później.',
@@ -230,11 +263,20 @@ export default function AdminFilamentsPage() {
 
       if (!response.ok) throw new Error(result.error || 'Nie udało się zapisać filamentu');
 
+      const oldImagePath = getManagedImagePath(editingFilament?.image_url);
+      if (
+        oldImagePath &&
+        (uploadedImagePath || !imageUrl)
+      ) {
+        await removeStoredImage(oldImagePath);
+      }
+
       toast.success(editingFilament ? 'Zaktualizowano' : 'Dodano filament');
       setDialogOpen(false);
       resetForm();
       await fetchFilaments();
     } catch (error) {
+      await removeStoredImage(uploadedImagePath);
       toast.error('Błąd zapisu', {
         description: error instanceof Error ? error.message : 'Nie udało się zapisać filamentu.',
       });
@@ -495,7 +537,7 @@ export default function AdminFilamentsPage() {
                           <label className="cursor-pointer">
                             <ImagePlus className="mr-2 h-4 w-4" />
                             Zmień zdjęcie
-                            <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                            <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleImageChange} />
                           </label>
                         </Button>
                         <Button type="button" variant="outline" onClick={removeImage}>
@@ -509,7 +551,7 @@ export default function AdminFilamentsPage() {
                       <ImagePlus className="h-8 w-8 text-muted-foreground" />
                       <span className="font-medium">Wybierz zdjęcie z urządzenia</span>
                       <span className="text-xs text-muted-foreground">JPG, PNG lub WebP do 5 MB</span>
-                      <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                      <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleImageChange} />
                     </label>
                   )}
                 </div>

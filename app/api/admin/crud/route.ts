@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { isSupabaseConfigurationError } from '@/lib/supabase/env';
+import { isStaffRole } from '@/lib/admin-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,45 @@ const ALLOWED_TABLES = new Set([
 
 const ALLOWED_SOFT_DELETE_FIELDS = new Set(['active', 'published']);
 const NON_DELETABLE_TABLES = new Set(['orders_3d', 'profiles', 'store_orders']);
+const EMPLOYEE_CRUD_FIELDS: Record<string, ReadonlySet<string>> = {
+  orders_3d: new Set([
+    'status',
+    'priority',
+    'assigned_to',
+    'printing_time_hours',
+    'filament_used_grams',
+    'material_cost',
+    'final_price',
+    'admin_notes',
+    'updated_at',
+  ]),
+  store_orders: new Set([
+    'status',
+    'tracking_number',
+    'notes',
+    'updated_at',
+  ]),
+};
+const ORDER_3D_STATUSES = new Set([
+  'new',
+  'quoted',
+  'accepted',
+  'queued',
+  'printing',
+  'post_processing',
+  'packed',
+  'shipped',
+  'completed',
+  'cancelled',
+]);
+const STORE_ORDER_TRANSITIONS: Record<string, ReadonlySet<string>> = {
+  pending: new Set(['pending']),
+  paid: new Set(['paid', 'processing']),
+  processing: new Set(['processing', 'shipped']),
+  shipped: new Set(['shipped', 'delivered']),
+  delivered: new Set(['delivered']),
+  cancelled: new Set(['cancelled']),
+};
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -75,18 +115,19 @@ async function getAdminSupabaseClient() {
     return { error: unavailableResponse() };
   }
 
-  if (profile?.role !== 'admin') {
-    return { error: NextResponse.json({ error: 'Brak uprawnień administratora.' }, { status: 403 }) };
+  const role = profile?.role;
+  if (!isStaffRole(role)) {
+    return { error: NextResponse.json({ error: 'Brak uprawnień pracownika.' }, { status: 403 }) };
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (url && serviceKey) {
-    return { client: createSupabaseClient(url, serviceKey) };
+    return { client: createSupabaseClient(url, serviceKey), role };
   }
 
-  return { client: sessionClient };
+  return { client: sessionClient, role };
 }
 
 function validateTable(table: unknown) {
@@ -134,6 +175,43 @@ function preparePayload(table: string, payload: AdminCrudPayload) {
   }
 
   return prepared;
+}
+
+function authorizePayload(
+  role: 'admin' | 'employee',
+  table: string,
+  payload: AdminCrudPayload
+) {
+  if (role === 'admin') return payload;
+
+  const allowedFields = EMPLOYEE_CRUD_FIELDS[table];
+  if (
+    !allowedFields ||
+    Object.keys(payload).some((field) => !allowedFields.has(field))
+  ) {
+    return null;
+  }
+
+  return payload;
+}
+
+function canEmployeeAccessTable(role: 'admin' | 'employee', table: string) {
+  return role === 'admin' || Boolean(EMPLOYEE_CRUD_FIELDS[table]);
+}
+
+function validateStatusValue(table: string, payload: AdminCrudPayload) {
+  if (!Object.prototype.hasOwnProperty.call(payload, 'status')) return null;
+  const status = String(payload.status || '').trim();
+
+  if (table === 'orders_3d' && !ORDER_3D_STATUSES.has(status)) {
+    return 'Niepoprawny status zamówienia 3D.';
+  }
+
+  if (table === 'store_orders' && !STORE_ORDER_TRANSITIONS[status]) {
+    return 'Niepoprawny status zamówienia sklepu.';
+  }
+
+  return null;
 }
 
 function isMissingUpdatedAtError(error: unknown) {
@@ -189,9 +267,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Niepoprawne dane zapisu.' }, { status: 400 });
     }
 
-    const payload = preparePayload(table, normalizedPayload);
+    const authorizedPayload = authorizePayload(
+      context.role,
+      table,
+      normalizedPayload
+    );
+    if (!authorizedPayload) {
+      return NextResponse.json(
+        { error: 'Nie masz uprawnień do zmiany tych danych.' },
+        { status: 403 }
+      );
+    }
+
+    if (context.role === 'employee' && !id) {
+      return NextResponse.json(
+        { error: 'Pracownik może aktualizować istniejące pozycje, ale nie tworzyć ich ręcznie.' },
+        { status: 403 }
+      );
+    }
+
+    const payload = preparePayload(table, authorizedPayload);
     if (!payload) {
       return NextResponse.json({ error: 'Nazwa kategorii jest wymagana.' }, { status: 400 });
+    }
+
+    const statusError = validateStatusValue(table, payload);
+    if (statusError) {
+      return NextResponse.json({ error: statusError }, { status: 400 });
+    }
+
+    if (table === 'store_orders' && id && 'status' in payload) {
+      const { data: currentOrder, error: currentOrderError } = await context.client
+        .from('store_orders')
+        .select('status')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (currentOrderError) {
+        console.error('Store order status lookup error:', currentOrderError);
+        return databaseErrorResponse(currentOrderError, 'zapisać');
+      }
+      if (!currentOrder) {
+        return NextResponse.json(
+          { error: 'Nie znaleziono zamówienia do aktualizacji.' },
+          { status: 404 }
+        );
+      }
+
+      const currentStatus = String(currentOrder.status || '');
+      const nextStatus = String(payload.status || '');
+      if (!STORE_ORDER_TRANSITIONS[currentStatus]?.has(nextStatus)) {
+        return NextResponse.json(
+          {
+            error:
+              'Ta zmiana statusu wymaga osobnej obsługi płatności lub anulowania zamówienia.',
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const result = id
@@ -237,6 +370,13 @@ export async function DELETE(request: NextRequest) {
 
     if (!table || !UUID_PATTERN.test(id)) {
       return NextResponse.json({ error: 'Brak danych pozycji do usunięcia.' }, { status: 400 });
+    }
+
+    if (!canEmployeeAccessTable(context.role, table)) {
+      return NextResponse.json(
+        { error: 'Nie masz uprawnień do usunięcia tych danych.' },
+        { status: 403 }
+      );
     }
 
     if (NON_DELETABLE_TABLES.has(table)) {

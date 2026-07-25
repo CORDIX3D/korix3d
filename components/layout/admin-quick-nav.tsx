@@ -15,6 +15,8 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/providers';
+import { canAccessAdminPath } from '@/lib/admin-access';
 
 const quickLinks = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -31,6 +33,10 @@ const quickLinks = [
 
 export function AdminQuickNav() {
   const pathname = usePathname();
+  const { profile } = useAuth();
+  const visibleLinks = quickLinks.filter((item) =>
+    canAccessAdminPath(profile?.role, item.href)
+  );
 
   return (
     <nav
@@ -38,7 +44,7 @@ export function AdminQuickNav() {
       className="sticky top-0 z-30 -mx-4 mb-6 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
     >
       <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
-        {quickLinks.map((item) => {
+        {visibleLinks.map((item) => {
           const isActive = item.href === '/admin'
             ? pathname === '/admin'
             : pathname === item.href || pathname.startsWith(`${item.href}/`);

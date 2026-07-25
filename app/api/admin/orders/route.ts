@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { isStaffRole } from '@/lib/admin-access';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { isSupabaseConfigurationError } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +19,21 @@ const ALLOWED_STATUSES = new Set([
   'completed',
   'cancelled',
 ]);
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function unavailableResponse() {
+  return NextResponse.json(
+    { error: 'Obsługa zamówień jest chwilowo niedostępna.' },
+    {
+      status: 503,
+      headers: {
+        'Cache-Control': 'no-store',
+        'Retry-After': '60',
+      },
+    }
+  );
+}
 
 async function getAdminSupabaseClient() {
   const sessionClient = await createClient();
@@ -31,8 +49,13 @@ async function getAdminSupabaseClient() {
     .eq('id', auth.user.id)
     .maybeSingle();
 
-  if (profileError || profile?.role !== 'admin') {
-    return { error: NextResponse.json({ error: 'Brak uprawnień administratora.' }, { status: 403 }) };
+  if (profileError) {
+    console.error('Order staff profile lookup error:', profileError);
+    return { error: unavailableResponse() };
+  }
+
+  if (!isStaffRole(profile?.role)) {
+    return { error: NextResponse.json({ error: 'Brak uprawnień pracownika.' }, { status: 403 }) };
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,12 +78,12 @@ export async function PATCH(request: NextRequest) {
     const context = await getAdminSupabaseClient();
     if (context.error) return context.error;
 
-    const body = await request.json();
+    const body = await readJsonObject(request, 32 * 1024);
     const id = String(body.id || '').trim();
     const action = String(body.action || '').trim();
 
-    if (!id) {
-      return NextResponse.json({ error: 'Brak identyfikatora zamówienia.' }, { status: 400 });
+    if (!UUID_REGEX.test(id)) {
+      return NextResponse.json({ error: 'Nieprawidłowy identyfikator zamówienia.' }, { status: 400 });
     }
 
     if (action === 'status') {
@@ -69,12 +92,17 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Niepoprawny status zamówienia.' }, { status: 400 });
       }
 
-      const { error } = await context.client
+      const { data, error } = await context.client
         .from('orders_3d')
         .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) {
+        return NextResponse.json({ error: 'Nie znaleziono zamówienia.' }, { status: 404 });
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -90,7 +118,7 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      const { error } = await context.client
+      const { data, error } = await context.client
         .from('orders_3d')
         .update({
           status: 'quoted',
@@ -100,17 +128,30 @@ export async function PATCH(request: NextRequest) {
           admin_notes: String(body.admin_notes || '').trim() || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id);
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) {
+        return NextResponse.json({ error: 'Nie znaleziono zamówienia.' }, { status: 404 });
+      }
       return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: 'Niepoprawna akcja zamówienia.' }, { status: 400 });
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    if (isSupabaseConfigurationError(error)) {
+      return unavailableResponse();
+    }
+
     console.error('Admin order update error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się zaktualizować zamówienia.' },
+      { error: 'Nie udało się zaktualizować zamówienia.' },
       { status: 500 }
     );
   }

@@ -186,6 +186,11 @@ export default function CheckoutPage() {
         }
 
         if (paymentResult.error !== 'stripe_not_configured') {
+          await fetch('/api/stripe/cancel-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: result.orderId, paymentToken: result.paymentToken }),
+          }).catch(() => null);
           throw new Error(paymentResult.error || 'Nie udało się przygotować płatności.');
         }
       }
@@ -250,10 +255,10 @@ export default function CheckoutPage() {
   return (
     <form onSubmit={submitOrder} className="mx-auto min-h-screen max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <div className="mb-8">
-        <p className="mb-2 text-sm font-medium text-primary">Zamówienie bez płatności online</p>
+        <p className="mb-2 text-sm font-medium text-primary">Bezpieczna płatność online</p>
         <h1 className="text-3xl font-bold sm:text-4xl">Finalizacja zamówienia</h1>
         <p className="mt-2 text-muted-foreground">
-          Po wysłaniu zamówienia potwierdzimy dostawę i płatność e-mailem.
+          Po sprawdzeniu zamówienia przejdziesz do bezpiecznej płatności obsługiwanej przez Stripe.
         </p>
       </div>
 
@@ -390,7 +395,7 @@ export default function CheckoutPage() {
             </div>
 
             <div className="rounded-lg bg-primary/10 p-3 text-xs text-muted-foreground">
-              Dane do płatności potwierdzimy przed realizacją. Nie pobieramy teraz danych karty.
+              Dane karty podajesz wyłącznie na stronie Stripe. KORIX3D nie zapisuje ani nie przetwarza numeru karty.
             </div>
 
             {error && (
@@ -411,7 +416,7 @@ export default function CheckoutPage() {
 
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-              {submitting ? 'Zapisywanie...' : 'Złóż zamówienie'}
+              {submitting ? 'Przygotowywanie płatności...' : 'Przejdź do płatności'}
             </Button>
             {submitting ? (
               <Button type="button" variant="ghost" className="w-full" disabled>

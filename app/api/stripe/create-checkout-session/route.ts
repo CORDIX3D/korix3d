@@ -95,7 +95,15 @@ export async function POST(request: NextRequest) {
       { idempotencyKey: `korix3d-checkout-${order.id}` }
     );
 
-    await admin.from('store_orders').update({ stripe_session_id: session.id }).eq('id', order.id);
+    const { error: sessionSaveError } = await admin
+      .from('store_orders')
+      .update({ stripe_session_id: session.id })
+      .eq('id', order.id);
+    if (sessionSaveError) {
+      await stripe.checkout.sessions.expire(session.id);
+      await admin.rpc('cancel_store_order_and_restore_stock', { p_order_id: order.id });
+      throw sessionSaveError;
+    }
     return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error('Stripe checkout session error:', error);

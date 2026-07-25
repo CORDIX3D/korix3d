@@ -17,6 +17,7 @@ import { PanelEmpty, PanelError, PanelHeading, PanelLoading } from '@/components
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import type { Notification } from '@/lib/types/database';
+import { isPathWithin, normalizeInternalPath } from '@/lib/navigation';
 
 const notificationIcons = {
   info: Info,
@@ -160,6 +161,9 @@ export default function NotificationsPage() {
           {notifications.map((notification) => {
             const type = notificationType(notification.type);
             const Icon = notificationIcons[type];
+            const safeLink = notification.link && isPathWithin(notification.link, ['/panel'])
+              ? normalizeInternalPath(notification.link, '/panel')
+              : null;
             const content = (
               <Card
                 className={`transition-colors hover:border-primary/40 ${
@@ -188,10 +192,10 @@ export default function NotificationsPage() {
               </Card>
             );
 
-            return notification.link ? (
+            return safeLink ? (
               <Link
                 key={notification.id}
-                href={notification.link}
+                href={safeLink}
                 onClick={() => void markRead(notification.id)}
               >
                 {content}

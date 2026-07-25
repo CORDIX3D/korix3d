@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import { isSupabaseConfigurationError } from '@/lib/supabase/env';
+import {
+  getRequiredSupabaseServiceEnv,
+  isSupabaseConfigurationError,
+} from '@/lib/supabase/env';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +77,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Zaloguj się, aby wysłać wycenę.' }, { status: 401 });
     }
 
+    const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+    const admin = createSupabaseClient(url, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
     const body = await readJsonObject(request, 64 * 1024);
     const action = cleanString(body.action);
     const orderId = cleanString(body.order_id);
@@ -101,13 +113,13 @@ export async function POST(request: NextRequest) {
 
       const [{ data: material, error: materialError }, { data: filament, error: filamentError }] =
         await Promise.all([
-          supabase
+          admin
             .from('materials')
             .select('id, name')
             .eq('id', materialId)
             .eq('available', true)
             .maybeSingle(),
-          supabase
+          admin
             .from('filaments')
             .select('id, material_id, brand, color, color_hex, active, remaining_weight_grams')
             .eq('id', filamentId)
@@ -141,7 +153,7 @@ export async function POST(request: NextRequest) {
           ? cleanString(filament.color_hex)
           : null;
 
-      const { data, error } = await supabase
+      const { data, error } = await admin
         .from('orders_3d')
         .insert([
           {

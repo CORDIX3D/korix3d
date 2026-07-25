@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getStripeServer } from '@/lib/stripe';
 import { CheckoutSuccessCart } from '@/components/shop/checkout-success-cart';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +16,32 @@ async function getPaymentState(sessionId: string | undefined): Promise<PaymentSt
 
   try {
     const session = await getStripeServer().checkout.sessions.retrieve(sessionId);
+    const orderId = session.metadata?.order_id || session.client_reference_id;
+    if (!orderId) return 'invalid';
+
+    const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+    const admin = createSupabaseClient(url, serviceRoleKey);
+    const { data: order, error } = await admin
+      .from('store_orders')
+      .select('id, status, total, stripe_session_id')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (
+      error ||
+      !order ||
+      order.stripe_session_id !== session.id ||
+      order.status === 'cancelled' ||
+      session.currency !== 'pln' ||
+      session.amount_total !== Math.round(Number(order.total) * 100)
+    ) {
+      return 'invalid';
+    }
+
     if (session.payment_status === 'paid') return 'paid';
-    if (session.status === 'open' || session.payment_status === 'unpaid') return 'processing';
+    if (session.status === 'complete' && session.payment_status === 'unpaid') {
+      return 'processing';
+    }
     return 'invalid';
   } catch {
     return 'invalid';

@@ -16,11 +16,14 @@ export function getRuntimeHealth() {
     services.supabaseUrl &&
     services.supabasePublicKey &&
     services.supabaseServiceKey;
+  const anyStripeKey =
+    services.stripeSecretKey || services.stripeWebhookSecret;
   const paymentsEnabled =
     services.stripeSecretKey &&
-    services.stripeWebhookSecret;
+    services.stripeWebhookSecret &&
+    services.siteUrl;
   const paymentsPartiallyConfigured =
-    services.stripeSecretKey !== services.stripeWebhookSecret;
+    anyStripeKey && !paymentsEnabled;
   const healthy = databaseReady && !paymentsPartiallyConfigured;
   const provider = process.env.VERCEL
     ? 'vercel'

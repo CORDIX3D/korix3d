@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
-import { getStripeServer } from '@/lib/stripe';
+import {
+  getRequiredSupabaseServiceEnv,
+  isSupabaseConfigurationError,
+} from '@/lib/supabase/env';
+import {
+  getStripeCheckoutOrigin,
+  getStripeServer,
+  isStripeConfigurationError,
+} from '@/lib/stripe';
 import { verifyCheckoutToken } from '@/lib/checkout-token';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +22,7 @@ const requestSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const parsed = requestSchema.safeParse(await request.json());
+    const parsed = requestSchema.safeParse(await readJsonObject(request, 8 * 1024));
     if (!parsed.success) return NextResponse.json({ error: 'Nieprawidłowe zamówienie.' }, { status: 400 });
 
     const stripe = getStripeServer();
@@ -41,7 +49,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Płatność dla tego zamówienia została już zakończona.' }, { status: 409 });
       }
       if (existing.status === 'expired') {
-        await admin.rpc('cancel_store_order_and_restore_stock', { p_order_id: order.id });
+        const { error: cancellationError } = await admin.rpc(
+          'cancel_store_order_and_restore_stock',
+          { p_order_id: order.id }
+        );
+        if (cancellationError) throw cancellationError;
         return NextResponse.json(
           { error: 'Sesja płatności wygasła. Złóż zamówienie ponownie.' },
           { status: 409 }
@@ -85,7 +97,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
+    const origin = getStripeCheckoutOrigin(request.nextUrl.origin);
     const session = await stripe.checkout.sessions.create(
       {
         mode: 'payment',
@@ -113,10 +125,37 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error('Stripe checkout session error:', error);
-    if (error instanceof Error && error.message.includes('STRIPE_SECRET_KEY')) {
-      return NextResponse.json({ error: 'stripe_not_configured' }, { status: 503 });
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
+
+    if (isStripeConfigurationError(error)) {
+      return NextResponse.json(
+        { error: 'stripe_not_configured' },
+        {
+          status: 503,
+          headers: {
+            'Cache-Control': 'no-store',
+            'Retry-After': '60',
+          },
+        }
+      );
+    }
+
+    if (isSupabaseConfigurationError(error)) {
+      return NextResponse.json(
+        { error: 'Płatności są chwilowo niedostępne.' },
+        {
+          status: 503,
+          headers: {
+            'Cache-Control': 'no-store',
+            'Retry-After': '60',
+          },
+        }
+      );
+    }
+
+    console.error('Stripe checkout session error:', error);
     return NextResponse.json({ error: 'Nie udało się przygotować płatności.' }, { status: 500 });
   }
 }

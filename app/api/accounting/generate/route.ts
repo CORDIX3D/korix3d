@@ -1,82 +1,77 @@
-import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { generateAccountingReport } from '@/lib/accounting/report-generator';
+import {
+  AccountingReportExistsError,
+  generateAccountingReport,
+} from '@/lib/accounting/report-generator';
+import {
+  adminApiUnavailableResponse,
+  requireAdminApiContext,
+} from '@/lib/api/admin-context';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { isSupabaseConfigurationError } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : '';
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const access = await requireAdminApiContext();
+    if (access.response) return access.response;
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const body = await request.json();
+    const body = await readJsonObject(request, 4 * 1024);
     const year = Number(body.year);
     const month = Number(body.month);
 
     if (!Number.isInteger(year) || !Number.isInteger(month)) {
       return NextResponse.json(
-        { error: 'Brak roku lub miesiąca' },
+        { error: 'Podaj prawidłowy rok i miesiąc.' },
         { status: 400 }
       );
     }
 
-    // Validate month
     if (month < 1 || month > 12) {
       return NextResponse.json(
-        { error: 'Nieprawidłowy miesiąc' },
+        { error: 'Nieprawidłowy miesiąc.' },
         { status: 400 }
       );
     }
 
-    // Validate year
     if (year < 2020 || year > new Date().getFullYear() + 1) {
       return NextResponse.json(
-        { error: 'Nieprawidłowy rok' },
+        { error: 'Nieprawidłowy rok.' },
         { status: 400 }
       );
     }
 
-    // Generate report
-    const result = await generateAccountingReport(year, month, user.id);
+    const result = await generateAccountingReport(
+      year,
+      month,
+      access.context.user.id
+    );
 
-    return NextResponse.json({
-      success: true,
-      report: result
-    });
-
+    return NextResponse.json(
+      { success: true, report: result },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error: unknown) {
-    console.error('Error generating report:', error);
+    console.error('Error generating accounting report:', error);
 
-    const message = getErrorMessage(error);
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
 
-    if (message.includes('już istnieje')) {
+    if (error instanceof AccountingReportExistsError) {
       return NextResponse.json(
-        { error: message },
+        { error: 'Raport dla wybranego miesiąca już istnieje.' },
         { status: 409 }
       );
     }
 
+    if (isSupabaseConfigurationError(error)) {
+      return adminApiUnavailableResponse();
+    }
+
     return NextResponse.json(
-      { error: 'Błąd generowania raportu' },
+      { error: 'Nie udało się wygenerować raportu księgowego.' },
       { status: 500 }
     );
   }

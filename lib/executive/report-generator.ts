@@ -1,16 +1,55 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 
 function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+  return createSupabaseClient(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
 
-  if (!url || !key) {
-    throw new Error('Missing Supabase environment variables');
+export class ExecutiveReportExistsError extends Error {
+  constructor() {
+    super('Executive report already exists');
+    this.name = 'ExecutiveReportExistsError';
+  }
+}
+
+async function rollbackExecutiveReport(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  reportId: string
+) {
+  const { error: notificationsError } = await supabase
+    .from('ai_notifications')
+    .delete()
+    .eq('report_id', reportId);
+
+  if (notificationsError) {
+    console.error('Executive report notification rollback error:', notificationsError);
+    await supabase
+      .from('executive_reports')
+      .update({ status: 'failed' })
+      .eq('id', reportId);
+    return;
   }
 
-  return createSupabaseClient(url, key);
+  const { error: reportError } = await supabase
+    .from('executive_reports')
+    .delete()
+    .eq('id', reportId);
+
+  if (reportError) {
+    console.error('Executive report rollback error:', reportError);
+    await supabase
+      .from('executive_reports')
+      .update({ status: 'failed' })
+      .eq('id', reportId);
+  }
 }
 
 interface ExecutiveData {
@@ -122,7 +161,15 @@ interface ExecutiveReport {
   risks: Risk[];
   forecast: Forecast;
   ceoComment: string;
-  notifications: Array<{ type: string; title: string; message: string; priority: string }>;
+  notifications: ExecutiveNotification[];
+}
+
+interface ExecutiveNotification {
+  type: 'warning' | 'critical' | 'info' | 'success';
+  category: string;
+  title: string;
+  message: string;
+  priority: 'high' | 'medium' | 'low';
 }
 
 async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<ExecutiveData> {
@@ -132,18 +179,7 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
   const prevPeriodEnd = subMonths(periodEnd, 1);
 
   // Fetch all data in parallel
-  const [
-    { data: settings },
-    { data: orders3DCurrent },
-    { data: orders3DPrevious },
-    { data: storeOrdersCurrent },
-    { data: storeOrdersPrevious },
-    { data: filaments },
-    { data: filamentUsage },
-    { data: warehouseItems },
-    { data: materials },
-    { data: profiles }
-  ] = await Promise.all([
+  const results = await Promise.all([
     supabase.from('settings').select('key, value'),
     supabase.from('orders_3d').select('*').gte('created_at', periodStart.toISOString()).lte('created_at', periodEnd.toISOString()),
     supabase.from('orders_3d').select('*').gte('created_at', prevPeriodStart.toISOString()).lte('created_at', prevPeriodEnd.toISOString()),
@@ -155,6 +191,41 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     supabase.from('materials').select('*'),
     supabase.from('profiles').select('id, full_name, email, role, created_at')
   ]);
+
+  const sourceNames = [
+    'settings',
+    'orders_3d (current)',
+    'orders_3d (previous)',
+    'store_orders (current)',
+    'store_orders (previous)',
+    'filaments',
+    'filament_usage_log',
+    'warehouse_items',
+    'materials',
+    'profiles',
+  ];
+  const failedResultIndex = results.findIndex((result) => Boolean(result.error));
+
+  if (failedResultIndex >= 0) {
+    console.error(
+      `Executive report source query failed (${sourceNames[failedResultIndex]}):`,
+      results[failedResultIndex].error
+    );
+    throw new Error('Executive report source data is unavailable');
+  }
+
+  const [
+    { data: settings },
+    { data: orders3DCurrent },
+    { data: orders3DPrevious },
+    { data: storeOrdersCurrent },
+    { data: storeOrdersPrevious },
+    { data: filaments },
+    { data: filamentUsage },
+    { data: warehouseItems },
+    { data: materials },
+    { data: profiles },
+  ] = results;
 
   const settingsMap: Record<string, string> = {};
   (settings || []).forEach((s: any) => {
@@ -887,13 +958,14 @@ function generateCEOComment(data: ExecutiveData, scores: CompanyScores, forecast
   return comment;
 }
 
-function generateNotifications(data: ExecutiveData): Array<{ type: string; title: string; message: string; priority: string }> {
-  const notifications: Array<{ type: string; title: string; message: string; priority: string }> = [];
+function generateNotifications(data: ExecutiveData): ExecutiveNotification[] {
+  const notifications: ExecutiveNotification[] = [];
 
   // Critical notifications
   if (data.warehouse.lowStock > 0) {
     notifications.push({
       type: 'critical',
+      category: 'Magazyn',
       title: 'Niskie stany magazynowe',
       message: `${data.warehouse.lowStock} pozycji wymaga natychmiastowego uzupełnienia.`,
       priority: 'high'
@@ -903,6 +975,7 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
   if (data.filaments.lowStock.length > 0) {
     notifications.push({
       type: 'critical',
+      category: 'Materiały',
       title: 'Krytyczny stan filamentów',
       message: `${data.filaments.lowStock.length} filamentów poniżej minimum. Ryzyko wstrzymania produkcji.`,
       priority: 'high'
@@ -912,6 +985,7 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
   if (data.profit.gross < 0) {
     notifications.push({
       type: 'critical',
+      category: 'Finanse',
       title: 'Strata operacyjna',
       message: `Firma odnotowała stratę ${Math.abs(data.profit.gross).toFixed(2)} PLN. Wymagane działania naprawcze.`,
       priority: 'high'
@@ -922,6 +996,7 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
   if (data.revenue.change < -15) {
     notifications.push({
       type: 'warning',
+      category: 'Finanse',
       title: 'Znaczny spadek przychodów',
       message: `Przychody spadły o ${Math.abs(data.revenue.change).toFixed(1)}% względem poprzedniego miesiąca.`,
       priority: 'medium'
@@ -931,6 +1006,7 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
   if (data.production.utilization > 90) {
     notifications.push({
       type: 'warning',
+      category: 'Produkcja',
       title: 'Przeładowanie produkcyjne',
       message: `Wykorzystanie maszyn wynosi ${data.production.utilization.toFixed(0)}%. Ryzyko awarii.`,
       priority: 'medium'
@@ -940,6 +1016,7 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
   if (data.profit.margin < 15 && data.profit.margin > 0) {
     notifications.push({
       type: 'warning',
+      category: 'Finanse',
       title: 'Niska marża',
       message: `Marża wynosi ${data.profit.margin.toFixed(1)}%. Mały margines bezpieczeństwa.`,
       priority: 'medium'
@@ -950,6 +1027,7 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
   if (data.customers.new > 5) {
     notifications.push({
       type: 'success',
+      category: 'Klienci',
       title: 'Nowi klienci',
       message: `Pozyskano ${data.customers.new} nowych klientów w tym miesiącu.`,
       priority: 'low'
@@ -959,6 +1037,7 @@ function generateNotifications(data: ExecutiveData): Array<{ type: string; title
   if (data.production.queueSize > 15) {
     notifications.push({
       type: 'warning',
+      category: 'Produkcja',
       title: 'Długa kolejka produkcyjna',
       message: `${data.production.queueSize} zamówień czeka w kolejce. Przewidywane opóźnienia.`,
       priority: 'medium'
@@ -1012,6 +1091,30 @@ ${data.production.utilization < 60 ? '3. Zintensyfikuj działania marketingowe.'
 4. Kontynuuj budowanie relacji z kluczowymi klientami.`;
 }
 
+const SCORE_KEYS: Array<{
+  type: string;
+  key: keyof CompanyScores;
+}> = [
+  { type: 'financial_health', key: 'financialHealth' },
+  { type: 'production_efficiency', key: 'productionEfficiency' },
+  { type: 'warehouse_management', key: 'warehouseManagement' },
+  { type: 'customer_satisfaction', key: 'customerSatisfaction' },
+  { type: 'business_growth', key: 'businessGrowth' },
+  { type: 'overall_score', key: 'overallScore' },
+];
+
+function percentageChange(current: number, previous: number) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) {
+    return null;
+  }
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function trendFromChange(change: number | null) {
+  if (change === null || Math.abs(change) < 0.01) return 'stable' as const;
+  return change > 0 ? 'up' as const : 'down' as const;
+}
+
 export async function generateExecutiveReport(
   year: number,
   month: number
@@ -1020,13 +1123,18 @@ export async function generateExecutiveReport(
 
   const periodStart = startOfMonth(new Date(year, month - 1));
   const periodEnd = endOfMonth(new Date(year, month - 1));
+  const reportMonth = format(periodStart, 'yyyy-MM-dd');
 
-  // Check if report already exists
-  const { data: existingReport } = await supabase
+  const { data: existingReport, error: existingReportError } = await supabase
     .from('executive_reports')
-    .select('*')
-    .eq('report_month', periodStart.toISOString().split('T')[0])
+    .select('id, summary, scores')
+    .eq('report_month', reportMonth)
     .maybeSingle();
+
+  if (existingReportError) {
+    console.error('Executive report duplicate check error:', existingReportError);
+    throw new Error('Executive report duplicate check failed');
+  }
 
   if (existingReport) {
     return {
@@ -1050,6 +1158,28 @@ export async function generateExecutiveReport(
   const ceoComment = generateCEOComment(data, scores, forecast);
   const notifications = generateNotifications(data);
 
+  const { data: scoreHistory, error: scoreHistoryError } = await supabase
+    .from('ai_scores_history')
+    .select('score_type, score_value, created_at')
+    .in('score_type', SCORE_KEYS.map(({ type }) => type))
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (scoreHistoryError) {
+    console.error('Executive score history query error:', scoreHistoryError);
+    throw new Error('Executive score history is unavailable');
+  }
+
+  const previousScores = new Map<string, number>();
+  for (const row of scoreHistory || []) {
+    if (
+      !previousScores.has(row.score_type)
+      && typeof row.score_value === 'number'
+    ) {
+      previousScores.set(row.score_type, row.score_value);
+    }
+  }
+
   // Generate executive analysis
   const executiveAnalysis = generateExecutiveAnalysis(data, scores);
 
@@ -1057,7 +1187,7 @@ export async function generateExecutiveReport(
   const { data: report, error: insertError } = await supabase
     .from('executive_reports')
     .insert({
-      report_month: periodStart,
+      report_month: reportMonth,
       report_year: year,
       title: `Raport Wykonawczy - ${format(periodStart, 'MMMM yyyy', { locale: pl })}`,
       summary: executiveAnalysis,
@@ -1069,7 +1199,8 @@ export async function generateExecutiveReport(
         orders: data.orders,
         production: data.production,
         warehouse: data.warehouse,
-        customers: data.customers
+        customers: data.customers,
+        ceoComment,
       },
       scores,
       recommendations,
@@ -1083,50 +1214,97 @@ export async function generateExecutiveReport(
     .single();
 
   if (insertError) {
-    throw new Error(`Błąd zapisu raportu: ${insertError.message}`);
+    if (insertError.code === '23505') {
+      throw new ExecutiveReportExistsError();
+    }
+    console.error('Executive report insert error:', insertError);
+    throw new Error('Executive report save failed');
   }
 
-  // Save scores history
-  await supabase
-    .from('ai_scores_history')
-    .insert({
+  const scoreRows = SCORE_KEYS.map(({ type, key }) => {
+    const scoreValue = Math.round(scores[key]);
+    const previousValue = previousScores.get(type) ?? null;
+    return {
       report_id: report.id,
-      report_month: periodStart,
-      financial_health: scores.financialHealth,
-      production_efficiency: scores.productionEfficiency,
-      warehouse_management: scores.warehouseManagement,
-      customer_satisfaction: scores.customerSatisfaction,
-      business_growth: scores.businessGrowth,
-      overall_score: scores.overallScore
-    });
+      score_type: type,
+      score_value: scoreValue,
+      previous_value: previousValue,
+      change: previousValue === null ? null : scoreValue - previousValue,
+    };
+  });
 
-  // Save notifications
-  for (const notification of notifications) {
-    await supabase
-      .from('ai_notifications')
-      .insert({
-        type: notification.type,
-        title: notification.title,
-        message: notification.message,
-        priority: notification.priority,
-        report_id: report.id
-      });
+  const profitChange = percentageChange(
+    data.profit.gross,
+    data.profit.previousMonth
+  );
+  const ordersChange = percentageChange(
+    data.orders.total,
+    data.orders.previousMonth
+  );
+  const marginChange = percentageChange(
+    data.profit.margin,
+    data.profit.previousMargin
+  );
+  const periodStartDate = format(periodStart, 'yyyy-MM-dd');
+  const periodEndDate = format(periodEnd, 'yyyy-MM-dd');
+  const trendRows = [
+    { key: 'revenue', value: data.revenue.total, change: data.revenue.change },
+    { key: 'expenses', value: data.expenses.total, change: data.expenses.change },
+    { key: 'profit', value: data.profit.gross, change: profitChange },
+    { key: 'orders', value: data.orders.total, change: ordersChange },
+    { key: 'customers_new', value: data.customers.new, change: null },
+    { key: 'production_hours', value: data.production.totalHours, change: null },
+    { key: 'utilization', value: data.production.utilization, change: null },
+    { key: 'margin', value: data.profit.margin, change: marginChange },
+  ].map(({ key, value, change }) => ({
+    metric_key: key,
+    metric_value: value,
+    period_start: periodStartDate,
+    period_end: periodEndDate,
+    trend: trendFromChange(change),
+    change_percent: change,
+  }));
+
+  try {
+    const { error: scoresError } = await supabase
+      .from('ai_scores_history')
+      .insert(scoreRows);
+
+    if (scoresError) {
+      console.error('Executive score history insert error:', scoresError);
+      throw new Error('Executive score history save failed');
+    }
+
+    if (notifications.length > 0) {
+      const { error: notificationsError } = await supabase
+        .from('ai_notifications')
+        .insert(notifications.map((notification) => ({
+          type: notification.type,
+          category: notification.category,
+          title: notification.title,
+          message: notification.message,
+          data: { priority: notification.priority },
+          report_id: report.id,
+        })));
+
+      if (notificationsError) {
+        console.error('Executive notifications insert error:', notificationsError);
+        throw new Error('Executive notifications save failed');
+      }
+    }
+
+    const { error: trendsError } = await supabase
+      .from('monthly_trends')
+      .insert(trendRows);
+
+    if (trendsError) {
+      console.error('Executive trends insert error:', trendsError);
+      throw new Error('Executive trends save failed');
+    }
+  } catch (error) {
+    await rollbackExecutiveReport(supabase, report.id);
+    throw error;
   }
-
-  // Save trends
-  await supabase
-    .from('monthly_trends')
-    .insert({
-      report_month: periodStart,
-      revenue: data.revenue.total,
-      expenses: data.expenses.total,
-      profit: data.profit.gross,
-      orders: data.orders.total,
-      customers_new: data.customers.new,
-      production_hours: data.production.totalHours,
-      utilization: data.production.utilization,
-      margin: data.profit.margin
-    });
 
   return {
     id: report.id,

@@ -2,16 +2,23 @@ import ExcelJS from 'exceljs';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 
 function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+  return createSupabaseClient(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
 
-  if (!url || !key) {
-    throw new Error('Missing Supabase environment variables');
+export class AccountingReportExistsError extends Error {
+  constructor() {
+    super('Accounting report already exists');
+    this.name = 'AccountingReportExistsError';
   }
-
-  return createSupabaseClient(url, key);
 }
 
 interface ReportData {
@@ -106,9 +113,14 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   const supabase = getSupabaseAdmin();
 
   // Fetch company settings
-  const { data: settings } = await supabase
+  const { data: settings, error: settingsError } = await supabase
     .from('settings')
     .select('key, value');
+
+  if (settingsError) {
+    console.error('Accounting settings query error:', settingsError);
+    throw new Error('Accounting report source data is unavailable');
+  }
 
   const settingsMap: Record<string, string> = {};
   (settings || []).forEach((s: any) => {
@@ -124,18 +136,28 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   };
 
   // Fetch 3D orders
-  const { data: orders3D } = await supabase
+  const { data: orders3D, error: orders3DError } = await supabase
     .from('orders_3d')
     .select('*')
     .gte('created_at', periodStart.toISOString())
     .lte('created_at', periodEnd.toISOString());
 
+  if (orders3DError) {
+    console.error('Accounting 3D orders query error:', orders3DError);
+    throw new Error('Accounting report source data is unavailable');
+  }
+
   // Fetch store orders
-  const { data: storeOrders } = await supabase
+  const { data: storeOrders, error: storeOrdersError } = await supabase
     .from('store_orders')
     .select('*')
     .gte('created_at', periodStart.toISOString())
     .lte('created_at', periodEnd.toISOString());
+
+  if (storeOrdersError) {
+    console.error('Accounting store orders query error:', storeOrdersError);
+    throw new Error('Accounting report source data is unavailable');
+  }
 
   // Calculate revenue
   const orders3DRevenue = (orders3D || []).reduce((sum: number, o: any) => sum + (o.final_price || 0), 0);
@@ -143,23 +165,38 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   const totalRevenue = orders3DRevenue + storeOrdersRevenue;
 
   // Fetch filaments
-  const { data: filaments } = await supabase
+  const { data: filaments, error: filamentsError } = await supabase
     .from('filaments')
     .select('*');
 
-  const { data: filamentUsage } = await supabase
+  if (filamentsError) {
+    console.error('Accounting filaments query error:', filamentsError);
+    throw new Error('Accounting report source data is unavailable');
+  }
+
+  const { data: filamentUsage, error: filamentUsageError } = await supabase
     .from('filament_usage_log')
     .select('*')
     .gte('created_at', periodStart.toISOString())
     .lte('created_at', periodEnd.toISOString());
 
+  if (filamentUsageError) {
+    console.error('Accounting filament usage query error:', filamentUsageError);
+    throw new Error('Accounting report source data is unavailable');
+  }
+
   // Calculate filament usage
   const totalFilamentUsed = (filamentUsage || []).reduce((sum: number, f: any) => sum + (f.grams_used || 0), 0);
 
   // Fetch warehouse
-  const { data: warehouseItems } = await supabase
+  const { data: warehouseItems, error: warehouseItemsError } = await supabase
     .from('warehouse_items')
     .select('*');
+
+  if (warehouseItemsError) {
+    console.error('Accounting warehouse query error:', warehouseItemsError);
+    throw new Error('Accounting report source data is unavailable');
+  }
 
   const warehouseValue = (warehouseItems || []).reduce(
     (sum: number, item: any) => sum + (item.quantity || 0) * (item.purchase_price || 0),
@@ -167,10 +204,15 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   );
 
   // Fetch customers
-  const { data: profiles } = await supabase
+  const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
     .select('id, full_name, email, created_at')
     .eq('role', 'customer');
+
+  if (profilesError) {
+    console.error('Accounting profiles query error:', profilesError);
+    throw new Error('Accounting report source data is unavailable');
+  }
 
   const newCustomers = (profiles || []).filter((p: any) => {
     const created = new Date(p.created_at);
@@ -264,11 +306,16 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     const monthStart = startOfMonth(subMonths(periodEnd, i));
     const monthEnd = endOfMonth(subMonths(periodEnd, i));
 
-    const { data: monthOrders } = await supabase
+    const { data: monthOrders, error: monthOrdersError } = await supabase
       .from('orders_3d')
       .select('final_price, material_cost')
       .gte('created_at', monthStart.toISOString())
       .lte('created_at', monthEnd.toISOString());
+
+    if (monthOrdersError) {
+      console.error('Accounting cash flow query error:', monthOrdersError);
+      throw new Error('Accounting report cash flow data is unavailable');
+    }
 
     const inflow = (monthOrders || []).reduce((sum: number, o: any) => sum + (o.final_price || 0), 0);
     const outflow = (monthOrders || []).reduce((sum: number, o: any) => sum + (o.material_cost || 0), 0);
@@ -956,16 +1003,22 @@ export async function generateAccountingReport(
 
   const periodStart = startOfMonth(new Date(year, month - 1));
   const periodEnd = endOfMonth(new Date(year, month - 1));
+  const reportMonth = format(periodStart, 'yyyy-MM-dd');
 
-  // Check if report already exists
-  const { data: existingReport } = await supabase
+  const { data: existingReport, error: existingReportError } = await supabase
     .from('accounting_reports')
-    .select('*')
-    .eq('report_month', periodStart.toISOString().split('T')[0])
-    .single();
+    .select('id')
+    .eq('report_month', reportMonth)
+    .eq('report_type', 'monthly')
+    .maybeSingle();
+
+  if (existingReportError) {
+    console.error('Accounting report duplicate check error:', existingReportError);
+    throw new Error('Accounting report duplicate check failed');
+  }
 
   if (existingReport) {
-    throw new Error(`Raport dla ${format(periodStart, 'MMMM yyyy', { locale: pl })} już istnieje`);
+    throw new AccountingReportExistsError();
   }
 
   // Fetch data
@@ -995,7 +1048,7 @@ export async function generateAccountingReport(
   const { data: report, error: insertError } = await supabase
     .from('accounting_reports')
     .insert({
-      report_month: periodStart,
+      report_month: reportMonth,
       report_year: year,
       report_type: 'monthly',
       file_name: fileName,
@@ -1014,7 +1067,16 @@ export async function generateAccountingReport(
     .single();
 
   if (insertError) {
-    throw new Error(`Błąd zapisu metadanych: ${insertError.message}`);
+    const { error: cleanupError } = await supabase.storage
+      .from('accounting-reports')
+      .remove([filePath]);
+
+    if (cleanupError) {
+      console.error('Accounting report rollback file cleanup error:', cleanupError);
+    }
+
+    console.error('Accounting report metadata insert error:', insertError);
+    throw new Error('Accounting report metadata save failed');
   }
 
   return {

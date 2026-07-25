@@ -1,46 +1,46 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  adminApiUnavailableResponse,
+  requireAdminApiContext,
+} from '@/lib/api/admin-context';
+import { isSupabaseConfigurationError } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const yearParam = searchParams.get('year');
-  const limitParam = searchParams.get('limit') || '12';
-  const year = yearParam ? Number(yearParam) : undefined;
-  const limit = Number(limitParam);
-
+export async function GET(request: NextRequest) {
   try {
+    const access = await requireAdminApiContext();
+    if (access.response) return access.response;
+
+    const { searchParams } = new URL(request.url);
+    const yearParam = searchParams.get('year');
+    const limitParam = searchParams.get('limit') || '12';
+    const year = yearParam ? Number(yearParam) : undefined;
+    const limit = Number(limitParam);
+
     if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
-      return NextResponse.json({ error: 'Invalid limit' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Nieprawidłowy limit raportów.' },
+        { status: 400 }
+      );
     }
 
-    if (year !== undefined && (!Number.isInteger(year) || year < 2020 || year > new Date().getFullYear() + 1)) {
-      return NextResponse.json({ error: 'Invalid report year' }, { status: 400 });
+    if (
+      year !== undefined
+      && (!Number.isInteger(year)
+        || year < 2020
+        || year > new Date().getFullYear() + 1)
+    ) {
+      return NextResponse.json(
+        { error: 'Nieprawidłowy rok raportu.' },
+        { status: 400 }
+      );
     }
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    let query = supabase
+    let query = access.context.adminClient
       .from('executive_reports')
       .select('*')
       .order('report_month', { ascending: false })
@@ -53,62 +53,125 @@ export async function GET(request: Request) {
     const { data, error } = await query;
 
     if (error) {
-      throw error;
+      console.error('Executive reports query error:', error);
+      return NextResponse.json(
+        { error: 'Nie udało się pobrać raportów zarządczych.' },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ data });
-  } catch (error: unknown) {
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to fetch reports') },
+      { data: data || [] },
+      { headers: { 'Cache-Control': 'private, no-store' } }
+    );
+  } catch (error: unknown) {
+    console.error('Executive reports request error:', error);
+    if (isSupabaseConfigurationError(error)) {
+      return adminApiUnavailableResponse();
+    }
+    return NextResponse.json(
+      { error: 'Nie udało się pobrać raportów zarządczych.' },
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const access = await requireAdminApiContext();
+    if (access.response) return access.response;
 
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const id = searchParams.get('id') || '';
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID required' }, { status: 400 });
+    if (!UUID_REGEX.test(id)) {
+      return NextResponse.json(
+        { error: 'Nieprawidłowy identyfikator raportu.' },
+        { status: 400 }
+      );
     }
 
-    // Check admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // Delete associated records
-    await supabase.from('ai_scores_history').delete().eq('report_id', id);
-    await supabase.from('ai_notifications').delete().eq('report_id', id);
-
-    // Delete report
-    const { error } = await supabase
+    const { data: report, error: lookupError } = await access.context.adminClient
       .from('executive_reports')
-      .delete()
-      .eq('id', id);
+      .select('id, report_month')
+      .eq('id', id)
+      .maybeSingle();
 
-    if (error) {
-      throw error;
+    if (lookupError) {
+      console.error('Executive report delete lookup error:', lookupError);
+      return NextResponse.json(
+        { error: 'Nie udało się odczytać raportu zarządczego.' },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ success: true });
-  } catch (error: unknown) {
+    if (!report) {
+      return NextResponse.json(
+        { error: 'Raport nie istnieje.' },
+        { status: 404 }
+      );
+    }
+
+    const { error: notificationsError } = await access.context.adminClient
+      .from('ai_notifications')
+      .delete()
+      .eq('report_id', id);
+
+    if (notificationsError) {
+      console.error('Executive notification delete error:', notificationsError);
+      return NextResponse.json(
+        { error: 'Nie udało się usunąć danych powiązanych z raportem.' },
+        { status: 500 }
+      );
+    }
+
+    const { error: trendsError } = await access.context.adminClient
+      .from('monthly_trends')
+      .delete()
+      .eq('period_start', report.report_month);
+
+    if (trendsError) {
+      console.error('Executive trend delete error:', trendsError);
+      return NextResponse.json(
+        { error: 'Nie udało się usunąć danych powiązanych z raportem.' },
+        { status: 500 }
+      );
+    }
+
+    const { data: deletedReport, error: deleteError } =
+      await access.context.adminClient
+        .from('executive_reports')
+        .delete()
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
+
+    if (deleteError) {
+      console.error('Executive report delete error:', deleteError);
+      return NextResponse.json(
+        { error: 'Nie udało się usunąć raportu zarządczego.' },
+        { status: 500 }
+      );
+    }
+
+    if (!deletedReport) {
+      return NextResponse.json(
+        { error: 'Raport nie istnieje.' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to delete report') },
+      { success: true },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (error: unknown) {
+    console.error('Executive report delete request error:', error);
+    if (isSupabaseConfigurationError(error)) {
+      return adminApiUnavailableResponse();
+    }
+    return NextResponse.json(
+      { error: 'Nie udało się usunąć raportu zarządczego.' },
       { status: 500 }
     );
   }

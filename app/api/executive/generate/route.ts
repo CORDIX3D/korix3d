@@ -1,67 +1,73 @@
-import { NextResponse } from 'next/server';
-import { generateExecutiveReport } from '@/lib/executive/report-generator';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  ExecutiveReportExistsError,
+  generateExecutiveReport,
+} from '@/lib/executive/report-generator';
+import {
+  adminApiUnavailableResponse,
+  requireAdminApiContext,
+} from '@/lib/api/admin-context';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { isSupabaseConfigurationError } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
-function getErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
-
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const access = await requireAdminApiContext();
+    if (access.response) return access.response;
 
-    // Check admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const body = await request.json();
+    const body = await readJsonObject(request, 4 * 1024);
     const year = Number(body.year);
     const month = Number(body.month);
 
     if (!Number.isInteger(year) || !Number.isInteger(month)) {
       return NextResponse.json(
-        { error: 'Year and month required' },
+        { error: 'Podaj prawidłowy rok i miesiąc.' },
         { status: 400 }
       );
     }
 
     if (year < 2020 || year > new Date().getFullYear() + 1) {
       return NextResponse.json(
-        { error: 'Invalid report year' },
+        { error: 'Nieprawidłowy rok.' },
         { status: 400 }
       );
     }
 
     if (month < 1 || month > 12) {
       return NextResponse.json(
-        { error: 'Invalid report month' },
+        { error: 'Nieprawidłowy miesiąc.' },
         { status: 400 }
       );
     }
 
     const result = await generateExecutiveReport(year, month);
 
-    return NextResponse.json({
-      success: true,
-      report: result
-    });
+    return NextResponse.json(
+      { success: true, report: result },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error: unknown) {
     console.error('Executive report generation error:', error);
+
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    if (error instanceof ExecutiveReportExistsError) {
+      return NextResponse.json(
+        { error: 'Raport dla wybranego miesiąca już istnieje.' },
+        { status: 409 }
+      );
+    }
+
+    if (isSupabaseConfigurationError(error)) {
+      return adminApiUnavailableResponse();
+    }
+
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to generate report') },
+      { error: 'Nie udało się wygenerować raportu zarządczego.' },
       { status: 500 }
     );
   }

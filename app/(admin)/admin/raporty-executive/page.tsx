@@ -110,7 +110,7 @@ export default function ExecutiveReportsPage() {
   const [generating, setGenerating] = useState(false);
   const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth()).toString());
+  const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [viewingReport, setViewingReport] = useState<ExecutiveReportData | null>(null);
   const [showViewDialog, setShowViewDialog] = useState(false);

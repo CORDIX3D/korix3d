@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useSearchParams } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -67,7 +68,16 @@ const defaultDeliveryOptions: DeliveryOption[] = [
 
 const ignoredShippingSettingKeys = new Set(['free_shipping_threshold']);
 
+const serviceNotes: Record<string, string> = {
+  prototypowanie: 'Interesuje mnie prototypowanie.',
+  'czesci-inzynieryjne': 'Interesuje mnie wykonanie części inżynieryjnej.',
+  'produkcja-seryjna': 'Interesuje mnie produkcja małoseryjna.',
+};
+
 export default function QuotePage() {
+  const searchParams = useSearchParams();
+  const requestedMaterialId = searchParams.get('material');
+  const requestedService = searchParams.get('usluga');
   const { user } = useAuth();
   const [materials, setMaterials] = useState<any[]>([]);
   const [colors, setColors] = useState<any[]>([]);
@@ -100,6 +110,7 @@ export default function QuotePage() {
       quantity: 1,
       priority: 'standard',
       delivery_type: 'courier',
+      notes: requestedService ? serviceNotes[requestedService] || '' : '',
     },
   });
 
@@ -222,6 +233,17 @@ export default function QuotePage() {
       setSelectedMaterial(mat);
     }
   }, [fetchColors, watchMaterial, materials]);
+
+  useEffect(() => {
+    if (
+      !materialsLoading
+      && !watchMaterial
+      && requestedMaterialId
+      && materials.some((material) => material.id === requestedMaterialId)
+    ) {
+      setValue('material_id', requestedMaterialId);
+    }
+  }, [materials, materialsLoading, requestedMaterialId, setValue, watchMaterial]);
 
   useEffect(() => {
     if (deliveryOptions.length > 0 && !deliveryOptions.some((option) => option.value === watchDelivery)) {

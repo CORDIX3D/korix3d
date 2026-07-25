@@ -55,9 +55,9 @@ const materialColors = ['#22c55e', '#3b82f6', '#ef4444', '#a855f7', '#64748b', '
 
 // Benefits data
 const benefits = [
-  { icon: Timer, title: 'Szybka realizacja', description: 'Standardowo 3-5 dni roboczych' },
-  { icon: Award, title: 'Wysoka jakość', description: 'Precyzyjne wydruki do 50μm' },
-  { icon: Shield, title: 'Gwarancja satysfakcji', description: '30 dni na zwrot' },
+  { icon: Timer, title: 'Ustalony termin', description: 'Termin realizacji potwierdzamy przed rozpoczęciem zlecenia' },
+  { icon: Award, title: 'Kontrola jakości', description: 'Parametry druku dobieramy do zastosowania modelu' },
+  { icon: Shield, title: 'Jasne zasady reklamacji', description: 'Każde zgłoszenie rozpatrujemy indywidualnie' },
   { icon: Users, title: 'Wsparcie techniczne', description: 'Doradztwo w doborze materiałów' },
 ];
 
@@ -65,7 +65,7 @@ const benefits = [
 const serviceFacts = [
   { value: 'STL, STEP', label: 'Obsługiwane pliki' },
   { value: 'OBJ, 3MF', label: 'Dodatkowe formaty' },
-  { value: '6+', label: 'Rodzajów materiałów' },
+  { value: 'PLA–techniczne', label: 'Dobór materiału' },
   { value: 'Indywidualnie', label: 'Wycena projektu' },
 ];
 
@@ -322,7 +322,7 @@ export default function HomePage() {
               Szeroki wybór materiałów
             </h2>
             <p className="max-w-2xl mx-auto text-muted-foreground">
-              Drukujemy w 14+ materiałach - od uniwersalnego PLA po inżynieryjne PA-CF i PC
+              Dostępne materiały dobieramy do wymaganej wytrzymałości, wyglądu i warunków pracy modelu
             </p>
           </div>
 
@@ -413,7 +413,7 @@ export default function HomePage() {
                   </div>
                   <div className="absolute top-4 right-4 bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                     <CheckCircle2 className="w-4 h-4" />
-                    Certyfikat ISO
+                    Kontrola jakości
                   </div>
                 </div>
               </div>

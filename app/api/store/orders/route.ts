@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 import { DEFAULT_DELIVERY_OPTIONS, IGNORED_SHIPPING_SETTING_KEYS } from '@/lib/shipping';
+import { createCheckoutToken } from '@/lib/checkout-token';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,9 +130,29 @@ export async function POST(request: NextRequest) {
       ? String(order.orderId)
       : null;
 
+    let paymentToken: string | null = null;
+    if (orderId) {
+      const checkoutToken = createCheckoutToken();
+      const { error: tokenError } = await admin
+        .from('store_orders')
+        .update({ checkout_token_hash: checkoutToken.hash })
+        .eq('id', orderId);
+
+      if (tokenError) {
+        console.error('Store order payment token error:', tokenError);
+        await admin.rpc('cancel_store_order_and_restore_stock', { p_order_id: orderId });
+        return NextResponse.json(
+          { error: 'Nie udało się bezpiecznie przygotować płatności.' },
+          { status: 500 }
+        );
+      }
+      paymentToken = checkoutToken.token;
+    }
+
     return NextResponse.json({
       orderId,
       orderNumber: savedOrderNumber,
+      paymentToken,
       total: typeof order === 'object' && order !== null && 'total' in order ? Number(order.total) : undefined,
     });
   } catch (error) {

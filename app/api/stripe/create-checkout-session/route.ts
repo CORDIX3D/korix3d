@@ -3,10 +3,14 @@ import { z } from 'zod';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 import { getStripeServer } from '@/lib/stripe';
+import { verifyCheckoutToken } from '@/lib/checkout-token';
 
 export const dynamic = 'force-dynamic';
 
-const requestSchema = z.object({ orderId: z.string().uuid() });
+const requestSchema = z.object({
+  orderId: z.string().uuid(),
+  paymentToken: z.string().regex(/^[a-f0-9]{64}$/),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,11 +22,14 @@ export async function POST(request: NextRequest) {
     const admin = createSupabaseClient(url, serviceRoleKey);
     const { data: order, error: orderError } = await admin
       .from('store_orders')
-      .select('id, order_number, status, customer_email, total, shipping_cost, stripe_session_id')
+      .select('id, order_number, status, customer_email, total, shipping_cost, stripe_session_id, checkout_token_hash')
       .eq('id', parsed.data.orderId)
       .maybeSingle();
 
     if (orderError || !order) return NextResponse.json({ error: 'Zamówienie nie istnieje.' }, { status: 404 });
+    if (!verifyCheckoutToken(parsed.data.paymentToken, order.checkout_token_hash)) {
+      return NextResponse.json({ error: 'Brak dostępu do płatności tego zamówienia.' }, { status: 403 });
+    }
     if (order.status !== 'pending') return NextResponse.json({ error: 'To zamówienie nie oczekuje na płatność.' }, { status: 409 });
 
     if (order.stripe_session_id) {
@@ -46,6 +53,15 @@ export async function POST(request: NextRequest) {
     }));
 
     const shippingCost = Number(order.shipping_cost || 0);
+    const calculatedTotalCents = items.reduce(
+      (sum, item) => sum + Math.round(Number(item.unit_price) * 100) * item.quantity,
+      Math.round(shippingCost * 100)
+    );
+    const expectedTotalCents = Math.round(Number(order.total) * 100);
+    if (calculatedTotalCents !== expectedTotalCents) {
+      console.error('Stripe total mismatch:', { orderId: order.id, calculatedTotalCents, expectedTotalCents });
+      return NextResponse.json({ error: 'Kwota zamówienia wymaga ponownego przeliczenia.' }, { status: 409 });
+    }
     if (shippingCost > 0) {
       lineItems.push({
         quantity: 1,

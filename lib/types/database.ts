@@ -479,6 +479,7 @@ export interface Database {
           total: number;
           stripe_session_id: string | null;
           stripe_payment_intent_id: string | null;
+          checkout_token_hash: string | null;
           tracking_number: string | null;
           coupon_code: string | null;
           notes: string | null;
@@ -501,6 +502,7 @@ export interface Database {
           total: number;
           stripe_session_id?: string | null;
           stripe_payment_intent_id?: string | null;
+          checkout_token_hash?: string | null;
           tracking_number?: string | null;
           coupon_code?: string | null;
           notes?: string | null;
@@ -523,6 +525,7 @@ export interface Database {
           total?: number;
           stripe_session_id?: string | null;
           stripe_payment_intent_id?: string | null;
+          checkout_token_hash?: string | null;
           tracking_number?: string | null;
           coupon_code?: string | null;
           notes?: string | null;

@@ -133,11 +133,11 @@ export default function CheckoutPage() {
         throw new Error('Zamówienie zostało zapisane, ale nie udało się odczytać jego numeru. Skontaktuj się z nami, jeśli nie otrzymasz potwierdzenia.');
       }
 
-      if (result.orderId) {
+      if (result.orderId && result.paymentToken) {
         const paymentResponse = await fetch('/api/stripe/create-checkout-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: result.orderId }),
+          body: JSON.stringify({ orderId: result.orderId, paymentToken: result.paymentToken }),
         });
         const paymentResult = await paymentResponse.json().catch(() => ({}));
 

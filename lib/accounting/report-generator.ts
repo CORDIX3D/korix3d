@@ -171,6 +171,18 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   const recognizedStoreOrders = (storeOrders || []).filter((order: any) =>
     isRecognizedStoreOrderRevenue(order.status)
   );
+  const recognizedStoreOrderIds = recognizedStoreOrders.map((order: any) => order.id);
+  const storeCostResult = recognizedStoreOrderIds.length > 0
+    ? await supabase
+        .from('store_order_items')
+        .select('order_id, quantity, unit_cost')
+        .in('order_id', recognizedStoreOrderIds)
+    : { data: [], error: null };
+
+  if (storeCostResult.error) {
+    console.error('Accounting store item costs query error:', storeCostResult.error);
+    throw new Error('Accounting report source data is unavailable');
+  }
 
   // A quote is not revenue. Count 3D work only after customer acceptance and
   // store orders only after successful payment.
@@ -247,10 +259,15 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   );
 
   // Calculate material costs
-  const materialCosts = recognizedOrders3D.reduce(
+  const printingMaterialCosts = recognizedOrders3D.reduce(
     (sum: number, o: any) => sum + (o.material_cost || 0),
     0
   );
+  const storeProductCosts = (storeCostResult.data || []).reduce(
+    (sum: number, item: any) => sum + Number(item.unit_cost || 0) * Number(item.quantity || 0),
+    0
+  );
+  const materialCosts = printingMaterialCosts + storeProductCosts;
 
   // Calculate expenses
   const electricity = productionHours * electricityCost;
@@ -261,16 +278,17 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
     .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
   const shipping = orders3DShipping + storeOrdersShipping;
+  const packaging = packagingCost * (recognizedOrders3D.length + recognizedStoreOrders.length);
 
   const expenses = {
-    total: materialCosts + electricity + maintenance + shipping + (packagingCost * recognizedOrders3D.length),
+    total: materialCosts + electricity + maintenance + shipping + packaging,
     materials: materialCosts,
     electricity,
     maintenance,
     shipping,
     salaries: 0, // Not tracked in MVP
     marketing: 0, // Not tracked in MVP
-    other: (packagingCost * recognizedOrders3D.length)
+    other: packaging
   };
 
   // Calculate profit
@@ -339,7 +357,7 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
         .lte('created_at', monthEnd.toISOString()),
       supabase
         .from('store_orders')
-        .select('total, status')
+        .select('id, total, status')
         .in('status', [...RECOGNIZED_STORE_ORDER_STATUSES])
         .gte('created_at', monthStart.toISOString())
         .lte('created_at', monthEnd.toISOString()),
@@ -350,10 +368,28 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
       throw new Error('Accounting report cash flow data is unavailable');
     }
 
+    const monthStoreOrderIds = (monthStoreResult.data || []).map((order: any) => order.id);
+    const monthStoreCostResult = monthStoreOrderIds.length > 0
+      ? await supabase
+          .from('store_order_items')
+          .select('quantity, unit_cost')
+          .in('order_id', monthStoreOrderIds)
+      : { data: [], error: null };
+
+    if (monthStoreCostResult.error) {
+      console.error('Accounting monthly store costs query error:', monthStoreCostResult.error);
+      throw new Error('Accounting report cash flow data is unavailable');
+    }
+
     const inflow3D = (month3DResult.data || []).reduce((sum: number, o: any) => sum + Number(o.final_price || 0), 0);
     const inflowStore = (monthStoreResult.data || []).reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
     const inflow = inflow3D + inflowStore;
-    const outflow = (month3DResult.data || []).reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
+    const outflow3D = (month3DResult.data || []).reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
+    const outflowStore = (monthStoreCostResult.data || []).reduce(
+      (sum: number, item: any) => sum + Number(item.unit_cost || 0) * Number(item.quantity || 0),
+      0
+    );
+    const outflow = outflow3D + outflowStore;
 
     cashFlowByMonth.push({
       month: format(monthStart, 'MMM', { locale: pl }),

@@ -191,6 +191,8 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     supabase.from('orders_3d').select('*').gte('created_at', prevPeriodStart.toISOString()).lte('created_at', prevPeriodEnd.toISOString()),
     supabase.from('store_orders').select('*').gte('created_at', periodStart.toISOString()).lte('created_at', periodEnd.toISOString()),
     supabase.from('store_orders').select('*').gte('created_at', prevPeriodStart.toISOString()).lte('created_at', prevPeriodEnd.toISOString()),
+    supabase.from('store_order_items').select('order_id, quantity, unit_cost').gte('created_at', periodStart.toISOString()).lte('created_at', periodEnd.toISOString()),
+    supabase.from('store_order_items').select('order_id, quantity, unit_cost').gte('created_at', prevPeriodStart.toISOString()).lte('created_at', prevPeriodEnd.toISOString()),
     supabase.from('filaments').select('*'),
     supabase.from('filament_usage_log').select('*').gte('created_at', periodStart.toISOString()).lte('created_at', periodEnd.toISOString()),
     supabase.from('warehouse_items').select('*'),
@@ -204,6 +206,8 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     'orders_3d (previous)',
     'store_orders (current)',
     'store_orders (previous)',
+    'store_order_items (current)',
+    'store_order_items (previous)',
     'filaments',
     'filament_usage_log',
     'warehouse_items',
@@ -226,6 +230,8 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     { data: orders3DPrevious },
     { data: storeOrdersCurrent },
     { data: storeOrdersPrevious },
+    { data: storeOrderItemsCurrent },
+    { data: storeOrderItemsPrevious },
     { data: filaments },
     { data: filamentUsage },
     { data: warehouseItems },
@@ -250,6 +256,12 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
   const recognizedStoreOrdersPrevious = (storeOrdersPrevious || []).filter((order: any) =>
     isRecognizedStoreOrderRevenue(order.status)
   );
+  const recognizedStoreOrderIdsCurrent = new Set(
+    recognizedStoreOrdersCurrent.map((order: any) => order.id)
+  );
+  const recognizedStoreOrderIdsPrevious = new Set(
+    recognizedStoreOrdersPrevious.map((order: any) => order.id)
+  );
 
   // Quotes, pending payments, cancellations and refunds are not revenue.
   const orders3DRevenue = recognizedOrders3DCurrent.reduce((sum: number, o: any) => sum + Number(o.final_price || 0), 0);
@@ -268,8 +280,22 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
 
   const electricityCost = parseFloat(settingsMap.electricity_hour_cost || '2') * productionHours;
   const maintenanceCost = parseFloat(settingsMap.maintenance_hour_cost || '5') * productionHours;
-  const materialCosts = recognizedOrders3DCurrent.reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
-  const prevMaterialCosts = recognizedOrders3DPrevious.reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
+  const printingMaterialCosts = recognizedOrders3DCurrent.reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
+  const prevPrintingMaterialCosts = recognizedOrders3DPrevious.reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
+  const storeProductCosts = (storeOrderItemsCurrent || [])
+    .filter((item: any) => recognizedStoreOrderIdsCurrent.has(item.order_id))
+    .reduce(
+      (sum: number, item: any) => sum + Number(item.unit_cost || 0) * Number(item.quantity || 0),
+      0
+    );
+  const prevStoreProductCosts = (storeOrderItemsPrevious || [])
+    .filter((item: any) => recognizedStoreOrderIdsPrevious.has(item.order_id))
+    .reduce(
+      (sum: number, item: any) => sum + Number(item.unit_cost || 0) * Number(item.quantity || 0),
+      0
+    );
+  const materialCosts = printingMaterialCosts + storeProductCosts;
+  const prevMaterialCosts = prevPrintingMaterialCosts + prevStoreProductCosts;
   const defaultShippingCost = parseFloat(settingsMap.courier_price || settingsMap.shipping_cost || '15');
   const shippingCost3D = recognizedOrders3DCurrent.filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
   const shippingCostStore = recognizedStoreOrdersCurrent
@@ -281,8 +307,10 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
     .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
   const prevShippingCost = prevShippingCost3D + prevShippingCostStore;
-  const packagingCost = parseFloat(settingsMap.packaging_cost || '5') * recognizedOrders3DCurrent.length;
-  const prevPackagingCost = parseFloat(settingsMap.packaging_cost || '5') * recognizedOrders3DPrevious.length;
+  const packagingCost = parseFloat(settingsMap.packaging_cost || '5')
+    * (recognizedOrders3DCurrent.length + recognizedStoreOrdersCurrent.length);
+  const prevPackagingCost = parseFloat(settingsMap.packaging_cost || '5')
+    * (recognizedOrders3DPrevious.length + recognizedStoreOrdersPrevious.length);
 
   const totalExpenses = materialCosts + electricityCost + maintenanceCost + shippingCost + packagingCost;
   const prevTotalExpenses = prevMaterialCosts +

@@ -646,6 +646,7 @@ export interface Database {
           name: string;
           quantity: number;
           unit_price: number;
+          unit_cost: number;
           total: number;
           created_at: string;
         };
@@ -657,6 +658,7 @@ export interface Database {
           name: string;
           quantity: number;
           unit_price: number;
+          unit_cost?: number;
           total: number;
           created_at?: string;
         };
@@ -668,6 +670,7 @@ export interface Database {
           name?: string;
           quantity?: number;
           unit_price?: number;
+          unit_cost?: number;
           total?: number;
           created_at?: string;
         };

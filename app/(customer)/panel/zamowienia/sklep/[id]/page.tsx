@@ -88,7 +88,7 @@ export default function StoreOrderDetailsPage() {
 
       const { data: itemData, error: itemsError } = await supabase
         .from('store_order_items')
-        .select('*')
+        .select('id, order_id, product_id, sku, name, quantity, unit_price, total, created_at')
         .eq('order_id', orderId)
         .order('created_at', { ascending: true });
 

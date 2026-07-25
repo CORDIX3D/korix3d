@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 import { z } from 'zod';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +96,14 @@ function normalizeText(value: string | null | undefined) {
     .replace(/ł/g, 'l')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+function redactSecrets(value: string) {
+  return value
+    .replace(/\b(?:sk|rk)_(?:test|live)_[A-Za-z0-9]{16,}\b/gi, '[USUNIĘTY SEKRET]')
+    .replace(/\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b/gi, '[USUNIĘTY SEKRET]')
+    .replace(/\bsbp_[A-Za-z0-9]{16,}\b/gi, '[USUNIĘTY SEKRET]')
+    .replace(/\bwhsec_[A-Za-z0-9]{16,}\b/gi, '[USUNIĘTY SEKRET]');
 }
 
 function stockStatusLabel(quantity: number, minimum: number | null | undefined) {
@@ -326,7 +335,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const parsed = chatRequestSchema.safeParse(await request.json());
+    const parsed = chatRequestSchema.safeParse(await readJsonObject(request, 64 * 1024));
     if (!parsed.success) {
       return new Response(JSON.stringify({ error: 'Brak wiadomości' }), {
         status: 400,
@@ -343,6 +352,7 @@ export async function POST(request: NextRequest) {
       });
     }
     const question = userMessage.content;
+    const safeQuestion = redactSecrets(question);
 
     let userId: string | null = null;
     let convId: string | null = null;
@@ -388,14 +398,14 @@ export async function POST(request: NextRequest) {
           .insert({
             conversation_id: convId,
             role: 'user',
-            content: question,
+            content: safeQuestion,
           });
       }
     } catch (contextError) {
       console.warn('AI local context unavailable; answering without database context:', contextError);
     }
 
-    const answer = buildFreeResponse(question, context);
+    const answer = buildFreeResponse(safeQuestion, context);
 
     try {
       if (supabaseAdmin && convId) {
@@ -412,7 +422,7 @@ export async function POST(request: NextRequest) {
           .insert({
             user_id: userId,
             conversation_id: convId,
-            query: question,
+            query: safeQuestion,
             response_time_ms: Date.now() - startTime,
             tokens_used: 0,
             model: 'free-local-assistant',
@@ -425,6 +435,13 @@ export async function POST(request: NextRequest) {
 
     return createEventStream(answer, convId);
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: error.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     console.error('AI local API error:', error);
     return createEventStream('Asystent jest chwilowo niedostępny. Możesz skorzystać z formularza wyceny albo napisać na kontakt@korix3d.pl.');
   }

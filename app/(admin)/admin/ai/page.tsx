@@ -97,7 +97,8 @@ export default function AdminAIPage() {
     try {
       const { data, error } = await supabase
         .from('ai_settings')
-        .select('*');
+        .select('*')
+        .in('setting_key', ['enabled', 'greeting', 'system_prompt']);
 
       if (error) {
         setSettings({});

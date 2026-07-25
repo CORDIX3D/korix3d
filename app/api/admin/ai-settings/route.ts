@@ -1,59 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createServiceRoleClient } from '@/lib/supabase/service-client';
+import {
+  adminApiUnavailableResponse,
+  requireAdminApiContext,
+} from '@/lib/api/admin-context';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 
 export const dynamic = 'force-dynamic';
 
-async function getAdminSupabaseClient() {
-  const sessionClient = await createClient();
-  const { data: auth } = await sessionClient.auth.getUser();
+const AI_SETTING_LIMITS: Record<string, number> = {
+  enabled: 5,
+  greeting: 500,
+  system_prompt: 5000,
+};
 
-  if (!auth.user) {
-    return { error: NextResponse.json({ error: 'Zaloguj się ponownie.' }, { status: 401 }) };
-  }
-
-  const { data: profile, error: profileError } = await sessionClient
-    .from('profiles')
-    .select('role')
-    .eq('id', auth.user.id)
-    .maybeSingle();
-
-  if (profileError || profile?.role !== 'admin') {
-    return { error: NextResponse.json({ error: 'Brak uprawnień administratora.' }, { status: 403 }) };
-  }
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (url && serviceKey) {
-    return { client: createServiceRoleClient(url, serviceKey, auth.user.id) };
-  }
-
-  return { client: sessionClient };
-}
+const SECRET_VALUE_PATTERN = /(?:\b(?:sk|rk)_(?:test|live)_[A-Za-z0-9]{16,}\b|\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b|\bsbp_[A-Za-z0-9]{16,}\b|\bwhsec_[A-Za-z0-9]{16,}\b|OPENAI_API_KEY\s*=)/i;
 
 function normalizeSettings(settings: unknown) {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return null;
-  return Object.entries(settings as Record<string, unknown>).map(([key, value]) => ({
-    key: key.trim(),
-    value: String(value ?? ''),
-  }));
+  const entries = Object.entries(settings as Record<string, unknown>);
+  if (entries.length < 1 || entries.length > Object.keys(AI_SETTING_LIMITS).length) return null;
+
+  const normalized = entries.map(([rawKey, rawValue]) => {
+    const key = rawKey.trim();
+    const value = String(rawValue ?? '').trim();
+    return { key, value };
+  });
+
+  if (normalized.some(({ key, value }) => (
+    !Object.prototype.hasOwnProperty.call(AI_SETTING_LIMITS, key)
+    || value.length > AI_SETTING_LIMITS[key]
+    || SECRET_VALUE_PATTERN.test(value)
+    || (key === 'enabled' && !['true', 'false'].includes(value))
+  ))) {
+    return null;
+  }
+
+  return normalized;
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    const context = await getAdminSupabaseClient();
-    if (context.error) return context.error;
+    const result = await requireAdminApiContext();
+    if (result.response) return result.response;
 
-    const body = await request.json();
+    const body = await readJsonObject(request, 8 * 1024);
     const settings = normalizeSettings(body.settings);
 
-    if (!settings || settings.some((setting) => !setting.key)) {
+    if (!settings) {
       return NextResponse.json({ error: 'Niepoprawne dane ustawień AI.' }, { status: 400 });
     }
 
+    const settingKeys = settings.map((setting) => setting.key);
+    const { data: existingSettings, error: lookupError } = await result.context.adminClient
+      .from('ai_settings')
+      .select('setting_key')
+      .in('setting_key', settingKeys);
+
+    if (lookupError) throw lookupError;
+    const existingKeys = new Set((existingSettings || []).map((setting) => setting.setting_key));
+    const missingKey = settingKeys.find((key) => !existingKeys.has(key));
+    if (missingKey) {
+      return NextResponse.json(
+        { error: `Brak ustawienia „${missingKey}” w bazie.` },
+        { status: 409 }
+      );
+    }
+
     for (const setting of settings) {
-      const { error } = await context.client
+      const { error } = await result.context.adminClient
         .from('ai_settings')
         .update({ setting_value: setting.value, updated_at: new Date().toISOString() })
         .eq('setting_key', setting.key);
@@ -63,10 +77,11 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     console.error('Admin AI settings update error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Nie udało się zapisać ustawień AI.' },
-      { status: 500 }
-    );
+    return adminApiUnavailableResponse();
   }
 }

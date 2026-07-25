@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,7 +81,7 @@ async function getAdminSupabaseClient() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (url && serviceKey) {
-    return { client: createSupabaseClient(url, serviceKey) };
+    return { client: createServiceRoleClient(url, serviceKey, auth.user.id) };
   }
 
   return { client: sessionClient };

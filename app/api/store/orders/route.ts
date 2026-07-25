@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -9,6 +8,7 @@ import {
 import { DEFAULT_DELIVERY_OPTIONS, IGNORED_SHIPPING_SETTING_KEYS } from '@/lib/shipping';
 import { createCheckoutToken } from '@/lib/checkout-token';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { createServiceRoleClient } from '@/lib/supabase/service-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,10 +41,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = await createClient();
+    const { data: auth } = await supabase.auth.getUser();
+
     let admin;
     try {
       const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
-      admin = createSupabaseClient(url, serviceRoleKey);
+      admin = createServiceRoleClient(url, serviceRoleKey, auth.user?.id);
     } catch {
       return NextResponse.json(
         { error: 'Składanie zamówień jest chwilowo niedostępne.' },
@@ -53,8 +56,6 @@ export async function POST(request: NextRequest) {
     }
 
     const orderNumber = `SK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
-    const supabase = await createClient();
-    const { data: auth } = await supabase.auth.getUser();
     const { data: shippingSettings, error: shippingError } = await admin
       .from('settings')
       .select('key, label, value')

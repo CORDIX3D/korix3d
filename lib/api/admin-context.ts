@@ -1,19 +1,15 @@
-import { createClient as createSupabaseClient, type User } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import {
   getRequiredSupabaseServiceEnv,
   isSupabaseConfigurationError,
 } from '@/lib/supabase/env';
+import { createServiceRoleClient } from '@/lib/supabase/service-client';
 
-function createAdminServiceClient() {
+function createAdminServiceClient(actorId: string) {
   const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
-  return createSupabaseClient(url, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  return createServiceRoleClient(url, serviceRoleKey, actorId);
 }
 
 type AdminApiContext = {
@@ -79,7 +75,7 @@ export async function requireAdminApiContext(): Promise<AdminApiResult> {
 
     return {
       context: {
-        adminClient: createAdminServiceClient(),
+        adminClient: createAdminServiceClient(auth.user.id),
         user: auth.user,
       },
     };

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import {
   getRequiredSupabaseServiceEnv,
   isSupabaseConfigurationError,
 } from '@/lib/supabase/env';
+import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 
 export const dynamic = 'force-dynamic';
@@ -78,12 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
-    const admin = createSupabaseClient(url, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    const admin = createServiceRoleClient(url, serviceRoleKey, auth.user.id);
 
     const body = await readJsonObject(request, 64 * 1024);
     const action = cleanString(body.action);

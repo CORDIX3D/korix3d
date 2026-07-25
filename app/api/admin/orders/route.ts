@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isStaffRole } from '@/lib/admin-access';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { isSupabaseConfigurationError } from '@/lib/supabase/env';
@@ -62,7 +62,7 @@ async function getAdminSupabaseClient() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (url && serviceKey) {
-    return { client: createSupabaseClient(url, serviceKey) };
+    return { client: createServiceRoleClient(url, serviceKey, auth.user.id) };
   }
 
   return { client: sessionClient };

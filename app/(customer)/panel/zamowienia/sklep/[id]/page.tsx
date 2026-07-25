@@ -22,6 +22,7 @@ type StoreOrderItem = {
 };
 
 type ShippingAddress = {
+  name?: string;
   street?: string;
   postalCode?: string;
   city?: string;
@@ -30,8 +31,23 @@ type ShippingAddress = {
   delivery_label?: string;
 };
 
+type BillingAddress = {
+  invoiceType?: 'individual' | 'company';
+  name?: string;
+  company?: string;
+  nip?: string;
+  street?: string;
+  postalCode?: string;
+  city?: string;
+  country?: string;
+};
+
 function asAddress(value: unknown): ShippingAddress {
   return value && typeof value === 'object' ? (value as ShippingAddress) : {};
+}
+
+function asBillingAddress(value: unknown): BillingAddress {
+  return value && typeof value === 'object' ? (value as BillingAddress) : {};
 }
 
 export default function StoreOrderDetailsPage() {
@@ -111,6 +127,10 @@ export default function StoreOrderDetailsPage() {
   }
 
   const address = asAddress(order.shipping_address);
+  const billingAddress = asBillingAddress(order.billing_address);
+  const hasBillingAddress = Boolean(
+    billingAddress.street || billingAddress.postalCode || billingAddress.city
+  );
 
   return (
     <div className="space-y-6">
@@ -188,6 +208,36 @@ export default function StoreOrderDetailsPage() {
               {order.tracking_number && (
                 <p className="rounded-lg bg-secondary p-3">
                   Numer przesyłki: <span className="font-semibold">{order.tracking_number}</span>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ReceiptText className="h-5 w-5 text-primary" />
+                Dane fakturowe
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {hasBillingAddress ? (
+                <>
+                  <p className="font-medium">
+                    {billingAddress.invoiceType === 'company' ? 'Faktura firmowa' : 'Faktura imienna'}
+                  </p>
+                  {billingAddress.company && <p>{billingAddress.company}</p>}
+                  {billingAddress.nip && <p>NIP: {billingAddress.nip}</p>}
+                  {billingAddress.name && <p>{billingAddress.name}</p>}
+                  <p className="text-muted-foreground">
+                    {billingAddress.street}<br />
+                    {[billingAddress.postalCode, billingAddress.city].filter(Boolean).join(' ')}
+                    {billingAddress.country ? <><br />{billingAddress.country === 'PL' ? 'Polska' : billingAddress.country}</> : null}
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">
+                  Dane fakturowe nie są dostępne dla tego starszego zamówienia.
                 </p>
               )}
             </CardContent>

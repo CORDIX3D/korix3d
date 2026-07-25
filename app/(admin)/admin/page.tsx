@@ -33,6 +33,10 @@ import {
   Bar,
 } from 'recharts';
 import { supabase } from '@/lib/supabase/client';
+import {
+  isRecognizedOrder3DRevenue,
+  isRecognizedStoreOrderRevenue,
+} from '@/lib/revenue';
 
 const chartColors = ['#FF6A00', '#3b82f6', '#22c55e', '#a855f7', '#ef4444', '#6b7280'];
 
@@ -128,6 +132,12 @@ export default function AdminDashboardPage() {
         .order('created_at', { ascending: false })
         .limit(500);
 
+      const { data: storeOrders, error: storeOrdersError } = await supabase
+        .from('store_orders')
+        .select('total, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
       // Fetch pending quotes
       const { data: quotes, error: quotesError } = await supabase
         .from('orders_3d')
@@ -149,7 +159,7 @@ export default function AdminDashboardPage() {
         .from('warehouse_items')
         .select('quantity, min_quantity');
 
-      const queryError = ordersError || quotesError || profilesError || filamentsError || warehouseError;
+      const queryError = ordersError || storeOrdersError || quotesError || profilesError || filamentsError || warehouseError;
       if (queryError) throw queryError;
 
       const filamentsData = filaments as Array<{ remaining_weight_grams?: number; min_weight_grams?: number | null }> | undefined;
@@ -159,6 +169,7 @@ export default function AdminDashboardPage() {
 
       // Calculate stats for the selected period and its directly preceding period.
       const ordersData = orders as Array<{ final_price?: string | number; status?: string; printing_time_hours?: string | number; created_at?: string }> | undefined;
+      const storeOrdersData = storeOrders as Array<{ total?: string | number; status?: string; created_at?: string }> | undefined;
       const { currentStart, previousStart } = getPeriodRange(period);
       const inRange = <T extends { created_at?: string }>(items: T[], from: Date, to?: Date) => items.filter((item) => {
         if (!item.created_at) return false;
@@ -167,23 +178,32 @@ export default function AdminDashboardPage() {
       });
       const currentOrders = inRange(ordersData || [], currentStart);
       const previousOrders = inRange(ordersData || [], previousStart, currentStart);
+      const currentStoreOrders = inRange(storeOrdersData || [], currentStart);
+      const previousStoreOrders = inRange(storeOrdersData || [], previousStart, currentStart);
+      const currentRevenueOrders = currentOrders.filter((order) => isRecognizedOrder3DRevenue(order.status));
+      const previousRevenueOrders = previousOrders.filter((order) => isRecognizedOrder3DRevenue(order.status));
+      const currentRevenueStoreOrders = currentStoreOrders.filter((order) => isRecognizedStoreOrderRevenue(order.status));
+      const previousRevenueStoreOrders = previousStoreOrders.filter((order) => isRecognizedStoreOrderRevenue(order.status));
       const currentProfiles = inRange((profiles || []) as Array<{ created_at?: string }>, currentStart);
       const previousProfiles = inRange((profiles || []) as Array<{ created_at?: string }>, previousStart, currentStart);
 
-      const totalRevenue = currentOrders.reduce(
-        (sum, o) => sum + (Number(o.final_price) || 0),
-        0);
-      const previousRevenue = previousOrders.reduce((sum, o) => sum + (Number(o.final_price) || 0), 0);
-      const printingHours = currentOrders.reduce(
+      const totalRevenue = currentRevenueOrders.reduce(
+        (sum, o) => sum + (Number(o.final_price) || 0), 0)
+        + currentRevenueStoreOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+      const previousRevenue = previousRevenueOrders.reduce((sum, o) => sum + (Number(o.final_price) || 0), 0)
+        + previousRevenueStoreOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+      const printingHours = currentRevenueOrders.reduce(
         (sum, o) => sum + (Number(o.printing_time_hours) || 0),
         0);
-      const previousPrintingHours = previousOrders.reduce((sum, o) => sum + (Number(o.printing_time_hours) || 0), 0);
+      const previousPrintingHours = previousRevenueOrders.reduce((sum, o) => sum + (Number(o.printing_time_hours) || 0), 0);
+      const currentOrderCount = currentRevenueOrders.length + currentRevenueStoreOrders.length;
+      const previousOrderCount = previousRevenueOrders.length + previousRevenueStoreOrders.length;
 
       setStats({
         totalRevenue,
         revenueChange: percentageChange(totalRevenue, previousRevenue),
-        pendingOrders: currentOrders.length,
-        ordersChange: percentageChange(currentOrders.length, previousOrders.length),
+        pendingOrders: currentOrderCount,
+        ordersChange: percentageChange(currentOrderCount, previousOrderCount),
         newCustomers: currentProfiles.length,
         customersChange: percentageChange(currentProfiles.length, previousProfiles.length),
         printingHours,
@@ -200,12 +220,23 @@ export default function AdminDashboardPage() {
         const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
         const monthOrders = (ordersData || []).filter((order) => {
           const createdAt = order.created_at ? new Date(order.created_at) : null;
-          return createdAt && createdAt.getFullYear() === date.getFullYear() && createdAt.getMonth() === date.getMonth();
+          return createdAt
+            && createdAt.getFullYear() === date.getFullYear()
+            && createdAt.getMonth() === date.getMonth()
+            && isRecognizedOrder3DRevenue(order.status);
+        });
+        const monthStoreOrders = (storeOrdersData || []).filter((order) => {
+          const createdAt = order.created_at ? new Date(order.created_at) : null;
+          return createdAt
+            && createdAt.getFullYear() === date.getFullYear()
+            && createdAt.getMonth() === date.getMonth()
+            && isRecognizedStoreOrderRevenue(order.status);
         });
         return {
           month: date.toLocaleDateString('pl-PL', { month: 'short' }),
-          revenue: monthOrders.reduce((sum, order) => sum + (Number(order.final_price) || 0), 0),
-          orders: monthOrders.length,
+          revenue: monthOrders.reduce((sum, order) => sum + (Number(order.final_price) || 0), 0)
+            + monthStoreOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0),
+          orders: monthOrders.length + monthStoreOrders.length,
         };
       });
       setRevenueData(monthlyRevenue);

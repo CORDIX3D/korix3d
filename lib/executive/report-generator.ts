@@ -2,6 +2,12 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import {
+  RECOGNIZED_ORDER_3D_STATUSES,
+  RECOGNIZED_STORE_ORDER_STATUSES,
+  isRecognizedOrder3DRevenue,
+  isRecognizedStoreOrderRevenue,
+} from '@/lib/revenue';
 
 function getSupabaseAdmin() {
   const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
@@ -232,43 +238,58 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     settingsMap[s.key] = s.value || '';
   });
 
-  // Calculate revenue
-  const orders3DRevenue = (orders3DCurrent || []).reduce((sum: number, o: any) => sum + (o.final_price || 0), 0);
-  const storeOrdersRevenue = (storeOrdersCurrent || []).reduce((sum: number, o: any) => sum + (o.total || 0), 0);
+  const recognizedOrders3DCurrent = (orders3DCurrent || []).filter((order: any) =>
+    isRecognizedOrder3DRevenue(order.status)
+  );
+  const recognizedOrders3DPrevious = (orders3DPrevious || []).filter((order: any) =>
+    isRecognizedOrder3DRevenue(order.status)
+  );
+  const recognizedStoreOrdersCurrent = (storeOrdersCurrent || []).filter((order: any) =>
+    isRecognizedStoreOrderRevenue(order.status)
+  );
+  const recognizedStoreOrdersPrevious = (storeOrdersPrevious || []).filter((order: any) =>
+    isRecognizedStoreOrderRevenue(order.status)
+  );
+
+  // Quotes, pending payments, cancellations and refunds are not revenue.
+  const orders3DRevenue = recognizedOrders3DCurrent.reduce((sum: number, o: any) => sum + Number(o.final_price || 0), 0);
+  const storeOrdersRevenue = recognizedStoreOrdersCurrent.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
   const totalRevenue = orders3DRevenue + storeOrdersRevenue;
 
-  const prevOrders3DRevenue = (orders3DPrevious || []).reduce((sum: number, o: any) => sum + (o.final_price || 0), 0);
-  const prevStoreOrdersRevenue = (storeOrdersPrevious || []).reduce((sum: number, o: any) => sum + (o.total || 0), 0);
+  const prevOrders3DRevenue = recognizedOrders3DPrevious.reduce((sum: number, o: any) => sum + Number(o.final_price || 0), 0);
+  const prevStoreOrdersRevenue = recognizedStoreOrdersPrevious.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
   const prevTotalRevenue = prevOrders3DRevenue + prevStoreOrdersRevenue;
 
   const revenueChange = prevTotalRevenue > 0 ? ((totalRevenue - prevTotalRevenue) / prevTotalRevenue) * 100 : 0;
 
   // Calculate production hours and costs
-  const productionHours = (orders3DCurrent || []).reduce((sum: number, o: any) => sum + (o.printing_time_hours || 0), 0);
-  const prevProductionHours = (orders3DPrevious || []).reduce((sum: number, o: any) => sum + (o.printing_time_hours || 0), 0);
+  const productionHours = recognizedOrders3DCurrent.reduce((sum: number, o: any) => sum + Number(o.printing_time_hours || 0), 0);
+  const prevProductionHours = recognizedOrders3DPrevious.reduce((sum: number, o: any) => sum + Number(o.printing_time_hours || 0), 0);
 
   const electricityCost = parseFloat(settingsMap.electricity_hour_cost || '2') * productionHours;
   const maintenanceCost = parseFloat(settingsMap.maintenance_hour_cost || '5') * productionHours;
-  const materialCosts = (orders3DCurrent || []).reduce((sum: number, o: any) => sum + (o.material_cost || 0), 0);
-  const prevMaterialCosts = (orders3DPrevious || []).reduce((sum: number, o: any) => sum + (o.material_cost || 0), 0);
+  const materialCosts = recognizedOrders3DCurrent.reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
+  const prevMaterialCosts = recognizedOrders3DPrevious.reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
   const defaultShippingCost = parseFloat(settingsMap.courier_price || settingsMap.shipping_cost || '15');
-  const shippingCost3D = (orders3DCurrent || []).filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
-  const shippingCostStore = (storeOrdersCurrent || [])
+  const shippingCost3D = recognizedOrders3DCurrent.filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
+  const shippingCostStore = recognizedStoreOrdersCurrent
     .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
     .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
   const shippingCost = shippingCost3D + shippingCostStore;
-  const prevShippingCost3D = (orders3DPrevious || []).filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
-  const prevShippingCostStore = (storeOrdersPrevious || [])
+  const prevShippingCost3D = recognizedOrders3DPrevious.filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
+  const prevShippingCostStore = recognizedStoreOrdersPrevious
     .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
     .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
   const prevShippingCost = prevShippingCost3D + prevShippingCostStore;
-  const packagingCost = parseFloat(settingsMap.packaging_cost || '5') * ((orders3DCurrent || []).length);
+  const packagingCost = parseFloat(settingsMap.packaging_cost || '5') * recognizedOrders3DCurrent.length;
+  const prevPackagingCost = parseFloat(settingsMap.packaging_cost || '5') * recognizedOrders3DPrevious.length;
 
   const totalExpenses = materialCosts + electricityCost + maintenanceCost + shippingCost + packagingCost;
   const prevTotalExpenses = prevMaterialCosts +
     (parseFloat(settingsMap.electricity_hour_cost || '2') * prevProductionHours) +
     (parseFloat(settingsMap.maintenance_hour_cost || '5') * prevProductionHours) +
-    prevShippingCost;
+    prevShippingCost +
+    prevPackagingCost;
 
   const expensesChange = prevTotalExpenses > 0 ? ((totalExpenses - prevTotalExpenses) / prevTotalExpenses) * 100 : 0;
 
@@ -281,7 +302,8 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
   // Order statistics
   const totalOrders = (orders3DCurrent || []).length + (storeOrdersCurrent || []).length;
   const prevTotalOrders = (orders3DPrevious || []).length + (storeOrdersPrevious || []).length;
-  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const revenueOrderCount = recognizedOrders3DCurrent.length + recognizedStoreOrdersCurrent.length;
+  const averageOrderValue = revenueOrderCount > 0 ? totalRevenue / revenueOrderCount : 0;
 
   const priorityCounts = { standard: 0, express: 0, urgent: 0 };
   (orders3DCurrent || []).forEach((o: any) => {
@@ -330,19 +352,31 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     return created >= periodStart && created <= periodEnd;
   }).length;
 
-  const returningCustomers = (orders3DCurrent || []).reduce((set: Set<string>, o: any) => {
+  const returningCustomerIds = recognizedOrders3DCurrent.reduce((set: Set<string>, o: any) => {
     if (o.user_id) set.add(o.user_id);
     return set;
-  }, new Set()).size;
+  }, new Set());
+  recognizedStoreOrdersCurrent.forEach((order: any) => {
+    if (order.user_id) returningCustomerIds.add(order.user_id);
+  });
+  const returningCustomers = returningCustomerIds.size;
 
   const customerSpending: Record<string, { name: string; orders: number; value: number }> = {};
-  (orders3DCurrent || []).forEach((o: any) => {
+  recognizedOrders3DCurrent.forEach((o: any) => {
     if (!o.user_id) return;
     if (!customerSpending[o.user_id]) {
       customerSpending[o.user_id] = { name: o.user_id, orders: 0, value: 0 };
     }
     customerSpending[o.user_id].orders++;
-    customerSpending[o.user_id].value += o.final_price || 0;
+    customerSpending[o.user_id].value += Number(o.final_price || 0);
+  });
+  recognizedStoreOrdersCurrent.forEach((order: any) => {
+    if (!order.user_id) return;
+    if (!customerSpending[order.user_id]) {
+      customerSpending[order.user_id] = { name: order.user_id, orders: 0, value: 0 };
+    }
+    customerSpending[order.user_id].orders++;
+    customerSpending[order.user_id].value += Number(order.total || 0);
   });
 
   const topCustomers = Object.values(customerSpending)
@@ -353,14 +387,14 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
 
   // Top products/materials
   const productRevenue: Record<string, { sold: number; revenue: number; cost: number }> = {};
-  (orders3DCurrent || []).forEach((o: any) => {
+  recognizedOrders3DCurrent.forEach((o: any) => {
     const material = o.material_name || 'Unknown';
     if (!productRevenue[material]) {
       productRevenue[material] = { sold: 0, revenue: 0, cost: 0 };
     }
     productRevenue[material].sold += o.quantity || 1;
-    productRevenue[material].revenue += o.final_price || 0;
-    productRevenue[material].cost += o.material_cost || 0;
+    productRevenue[material].revenue += Number(o.final_price || 0);
+    productRevenue[material].cost += Number(o.material_cost || 0);
   });
 
   const topProducts = Object.entries(productRevenue)
@@ -379,13 +413,29 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     const monthStart = startOfMonth(subMonths(periodEnd, i));
     const monthEnd = endOfMonth(subMonths(periodEnd, i));
 
-    const { data: monthOrders } = await supabase
-      .from('orders_3d')
-      .select('final_price')
-      .gte('created_at', monthStart.toISOString())
-      .lte('created_at', monthEnd.toISOString());
+    const [month3DResult, monthStoreResult] = await Promise.all([
+      supabase
+        .from('orders_3d')
+        .select('final_price, status')
+        .in('status', [...RECOGNIZED_ORDER_3D_STATUSES])
+        .gte('created_at', monthStart.toISOString())
+        .lte('created_at', monthEnd.toISOString()),
+      supabase
+        .from('store_orders')
+        .select('total, status')
+        .in('status', [...RECOGNIZED_STORE_ORDER_STATUSES])
+        .gte('created_at', monthStart.toISOString())
+        .lte('created_at', monthEnd.toISOString()),
+    ]);
 
-    const monthRevenue = (monthOrders || []).reduce((sum: number, o: any) => sum + (o.final_price || 0), 0);
+    if (month3DResult.error || monthStoreResult.error) {
+      console.error('Executive revenue history query failed:', month3DResult.error || monthStoreResult.error);
+      throw new Error('Executive report revenue history is unavailable');
+    }
+
+    const monthRevenue3D = (month3DResult.data || []).reduce((sum: number, o: any) => sum + Number(o.final_price || 0), 0);
+    const monthRevenueStore = (monthStoreResult.data || []).reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+    const monthRevenue = monthRevenue3D + monthRevenueStore;
     revenueByMonth.push({
       month: format(monthStart, 'MMM', { locale: pl }),
       amount: monthRevenue

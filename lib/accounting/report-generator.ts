@@ -3,6 +3,12 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import {
+  RECOGNIZED_ORDER_3D_STATUSES,
+  RECOGNIZED_STORE_ORDER_STATUSES,
+  isRecognizedOrder3DRevenue,
+  isRecognizedStoreOrderRevenue,
+} from '@/lib/revenue';
 
 function getSupabaseAdmin() {
   const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
@@ -159,9 +165,17 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     throw new Error('Accounting report source data is unavailable');
   }
 
-  // Calculate revenue
-  const orders3DRevenue = (orders3D || []).reduce((sum: number, o: any) => sum + (o.final_price || 0), 0);
-  const storeOrdersRevenue = (storeOrders || []).reduce((sum: number, o: any) => sum + (o.total || 0), 0);
+  const recognizedOrders3D = (orders3D || []).filter((order: any) =>
+    isRecognizedOrder3DRevenue(order.status)
+  );
+  const recognizedStoreOrders = (storeOrders || []).filter((order: any) =>
+    isRecognizedStoreOrderRevenue(order.status)
+  );
+
+  // A quote is not revenue. Count 3D work only after customer acceptance and
+  // store orders only after successful payment.
+  const orders3DRevenue = recognizedOrders3D.reduce((sum: number, o: any) => sum + Number(o.final_price || 0), 0);
+  const storeOrdersRevenue = recognizedStoreOrders.reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
   const totalRevenue = orders3DRevenue + storeOrdersRevenue;
 
   // Fetch filaments
@@ -227,13 +241,13 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   const vatRate = parseFloat(settingsMap.vat_rate || '23') / 100;
 
   // Calculate production hours
-  const productionHours = (orders3D || []).reduce(
+  const productionHours = recognizedOrders3D.reduce(
     (sum: number, o: any) => sum + (o.printing_time_hours || 0),
     0
   );
 
   // Calculate material costs
-  const materialCosts = (orders3D || []).reduce(
+  const materialCosts = recognizedOrders3D.reduce(
     (sum: number, o: any) => sum + (o.material_cost || 0),
     0
   );
@@ -242,21 +256,21 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   const electricity = productionHours * electricityCost;
   const maintenance = productionHours * maintenanceCost;
   const defaultShippingCost = parseFloat(settingsMap.courier_price || settingsMap.shipping_cost || '15');
-  const orders3DShipping = (orders3D || []).filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
-  const storeOrdersShipping = (storeOrders || [])
+  const orders3DShipping = recognizedOrders3D.filter((o: any) => ['shipped', 'completed'].includes(o.status)).length * defaultShippingCost;
+  const storeOrdersShipping = recognizedStoreOrders
     .filter((o: any) => ['shipped', 'delivered'].includes(o.status))
     .reduce((sum: number, o: any) => sum + Number(o.shipping_cost || 0), 0);
   const shipping = orders3DShipping + storeOrdersShipping;
 
   const expenses = {
-    total: materialCosts + electricity + maintenance + shipping + (packagingCost * ((orders3D || []).length)),
+    total: materialCosts + electricity + maintenance + shipping + (packagingCost * recognizedOrders3D.length),
     materials: materialCosts,
     electricity,
     maintenance,
     shipping,
     salaries: 0, // Not tracked in MVP
     marketing: 0, // Not tracked in MVP
-    other: (packagingCost * ((orders3D || []).length))
+    other: (packagingCost * recognizedOrders3D.length)
   };
 
   // Calculate profit
@@ -280,16 +294,26 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
   });
 
   const totalOrders = (orders3D || []).length + (storeOrders || []).length;
-  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const revenueOrderCount = recognizedOrders3D.length + recognizedStoreOrders.length;
+  const averageOrderValue = revenueOrderCount > 0 ? totalRevenue / revenueOrderCount : 0;
 
   // Top customers
   const customerSpending: Record<string, { name: string; orders: number; value: number }> = {};
-  (orders3D || []).forEach((o: any) => {
+  recognizedOrders3D.forEach((o: any) => {
+    if (!o.user_id) return;
     if (!customerSpending[o.user_id]) {
       customerSpending[o.user_id] = { name: o.user_id, orders: 0, value: 0 };
     }
     customerSpending[o.user_id].orders++;
-    customerSpending[o.user_id].value += o.final_price || 0;
+    customerSpending[o.user_id].value += Number(o.final_price || 0);
+  });
+  recognizedStoreOrders.forEach((order: any) => {
+    if (!order.user_id) return;
+    if (!customerSpending[order.user_id]) {
+      customerSpending[order.user_id] = { name: order.user_id, orders: 0, value: 0 };
+    }
+    customerSpending[order.user_id].orders++;
+    customerSpending[order.user_id].value += Number(order.total || 0);
   });
 
   const topCustomers = Object.values(customerSpending)
@@ -306,19 +330,30 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     const monthStart = startOfMonth(subMonths(periodEnd, i));
     const monthEnd = endOfMonth(subMonths(periodEnd, i));
 
-    const { data: monthOrders, error: monthOrdersError } = await supabase
-      .from('orders_3d')
-      .select('final_price, material_cost')
-      .gte('created_at', monthStart.toISOString())
-      .lte('created_at', monthEnd.toISOString());
+    const [month3DResult, monthStoreResult] = await Promise.all([
+      supabase
+        .from('orders_3d')
+        .select('final_price, material_cost, status')
+        .in('status', [...RECOGNIZED_ORDER_3D_STATUSES])
+        .gte('created_at', monthStart.toISOString())
+        .lte('created_at', monthEnd.toISOString()),
+      supabase
+        .from('store_orders')
+        .select('total, status')
+        .in('status', [...RECOGNIZED_STORE_ORDER_STATUSES])
+        .gte('created_at', monthStart.toISOString())
+        .lte('created_at', monthEnd.toISOString()),
+    ]);
 
-    if (monthOrdersError) {
-      console.error('Accounting cash flow query error:', monthOrdersError);
+    if (month3DResult.error || monthStoreResult.error) {
+      console.error('Accounting cash flow query error:', month3DResult.error || monthStoreResult.error);
       throw new Error('Accounting report cash flow data is unavailable');
     }
 
-    const inflow = (monthOrders || []).reduce((sum: number, o: any) => sum + (o.final_price || 0), 0);
-    const outflow = (monthOrders || []).reduce((sum: number, o: any) => sum + (o.material_cost || 0), 0);
+    const inflow3D = (month3DResult.data || []).reduce((sum: number, o: any) => sum + Number(o.final_price || 0), 0);
+    const inflowStore = (monthStoreResult.data || []).reduce((sum: number, o: any) => sum + Number(o.total || 0), 0);
+    const inflow = inflow3D + inflowStore;
+    const outflow = (month3DResult.data || []).reduce((sum: number, o: any) => sum + Number(o.material_cost || 0), 0);
 
     cashFlowByMonth.push({
       month: format(monthStart, 'MMM', { locale: pl }),

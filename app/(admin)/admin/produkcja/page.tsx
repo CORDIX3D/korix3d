@@ -15,6 +15,7 @@ export default function Page() {
         orderBy: 'created_at',
         addLabel: 'Dodaj pracę',
         allowCreate: false,
+        allowDelete: false,
         searchKeys: ['order_number', 'material_name', 'status', 'assigned_to'],
         fields: [
           { key: 'material_name', label: 'Materiał' },

@@ -15,6 +15,7 @@ export default function Page() {
         orderBy: 'created_at',
         addLabel: 'Dodaj wycenę',
         allowCreate: false,
+        allowDelete: false,
         searchKeys: ['order_number', 'material_name', 'status', 'notes'],
         fields: [
           { key: 'material_name', label: 'Materiał' },

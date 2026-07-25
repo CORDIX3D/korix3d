@@ -21,6 +21,7 @@ const ALLOWED_TABLES = new Set([
 ]);
 
 const ALLOWED_SOFT_DELETE_FIELDS = new Set(['active', 'published']);
+const NON_DELETABLE_TABLES = new Set(['orders_3d', 'profiles', 'store_orders']);
 
 async function getAdminSupabaseClient() {
   const sessionClient = await createClient();
@@ -139,6 +140,13 @@ export async function DELETE(request: NextRequest) {
 
     if (!table || !id) {
       return NextResponse.json({ error: 'Brak danych pozycji do usunięcia.' }, { status: 400 });
+    }
+
+    if (NON_DELETABLE_TABLES.has(table)) {
+      return NextResponse.json(
+        { error: 'Tych danych nie można trwale usuwać w tym module.' },
+        { status: 409 }
+      );
     }
 
     let result;

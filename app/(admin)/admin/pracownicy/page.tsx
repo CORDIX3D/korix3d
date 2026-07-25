@@ -15,10 +15,14 @@ export default function Page() {
         orderBy: 'created_at',
         addLabel: 'Dodaj pracownika',
         allowCreate: false,
+        allowDelete: false,
         searchKeys: ['email', 'full_name', 'phone', 'role'],
+        filters: [
+          { field: 'role', operator: 'in', value: ['employee', 'admin'] },
+        ],
         fields: [
           { key: 'id', label: 'ID użytkownika UUID', required: true, placeholder: 'UUID z auth.users', readOnlyOnEdit: true },
-          { key: 'email', label: 'Email', type: 'email', required: true },
+          { key: 'email', label: 'Email', type: 'email', required: true, readOnlyOnEdit: true },
           { key: 'full_name', label: 'Imię i nazwisko' },
           { key: 'phone', label: 'Telefon', type: 'tel' },
           {

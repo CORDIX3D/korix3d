@@ -43,6 +43,7 @@ export type AdminCrudConfig = {
   softDeleteField?: string;
   readOnly?: boolean;
   allowCreate?: boolean;
+  allowDelete?: boolean;
   filters?: Array<{
     field: string;
     operator?: 'eq' | 'in' | 'neq';
@@ -508,15 +509,17 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                     <td className="py-3 pr-4 text-right whitespace-nowrap">
                         <div className="inline-flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => openEdit(row)}><Edit className="w-4 h-4" /></Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={deletingRowId === String(row.id)}
-                            onClick={() => deleteRow(row)}
-                            aria-label={config.softDeleteField ? 'Ukryj pozycję' : 'Usuń pozycję'}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {config.allowDelete !== false && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={deletingRowId === String(row.id)}
+                              onClick={() => deleteRow(row)}
+                              aria-label={config.softDeleteField ? 'Ukryj pozycję' : 'Usuń pozycję'}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                     </td>
                     )}

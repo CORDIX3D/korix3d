@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import {
   getRequiredSupabaseServiceEnv,
@@ -10,55 +9,9 @@ import { createCheckoutToken } from '@/lib/checkout-token';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
+import { storeOrderSchema } from '@/lib/store-order-validation';
 
 export const dynamic = 'force-dynamic';
-
-const billingAddressSchema = z.object({
-  invoiceType: z.enum(['individual', 'company']),
-  name: z.string().trim().min(2).max(120),
-  company: z.string().trim().max(160),
-  nip: z.string().trim().max(10),
-  street: z.string().trim().min(3).max(160),
-  postalCode: z.string().trim().regex(/^\d{2}-\d{3}$/),
-  city: z.string().trim().min(2).max(100),
-  country: z.literal('PL'),
-}).superRefine((address, context) => {
-  if (address.invoiceType !== 'company') return;
-  if (address.company.length < 2) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['company'],
-      message: 'Podaj nazwę firmy',
-    });
-  }
-  if (!/^\d{10}$/.test(address.nip)) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['nip'],
-      message: 'Podaj 10-cyfrowy NIP',
-    });
-  }
-});
-
-const orderSchema = z.object({
-  customer: z.object({
-    name: z.string().trim().min(2).max(120),
-    email: z.string().trim().email().max(160),
-    phone: z.string().trim().min(7).max(30).regex(/^[+\d\s()-]+$/),
-  }),
-  shippingAddress: z.object({
-    street: z.string().trim().min(3).max(160),
-    postalCode: z.string().trim().regex(/^\d{2}-\d{3}$/),
-    city: z.string().trim().min(2).max(100),
-    country: z.literal('PL'),
-  }),
-  billingAddress: billingAddressSchema,
-  deliveryType: z.string().trim().min(1).max(80),
-  items: z.array(z.object({
-    id: z.string().uuid(),
-    quantity: z.number().int().min(1).max(99),
-  })).min(1).max(50),
-});
 
 async function releaseAbandonedReservations(
   admin: ReturnType<typeof createServiceRoleClient>
@@ -92,7 +45,7 @@ async function releaseAbandonedReservations(
 
 export async function POST(request: NextRequest) {
   try {
-    const parsed = orderSchema.safeParse(await readJsonObject(request, 64 * 1024));
+    const parsed = storeOrderSchema.safeParse(await readJsonObject(request, 64 * 1024));
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Sprawdź dane kontaktowe, adres i zawartość koszyka.' },

@@ -20,6 +20,7 @@
     "lib/checkout-token.ts",
     "lib/order-3d-status.ts",
     "lib/quote-files.ts",
+    "lib/store-order-validation.ts",
     "lib/types/database.ts",
     "tests/core.test.ts"
   ]

@@ -16,6 +16,7 @@ import {
   IGNORED_SHIPPING_SETTING_KEYS,
   type DeliveryOption,
 } from '@/lib/shipping';
+import { isValidPolishNip } from '@/lib/store-order-validation';
 
 function normalizeCheckoutError(message: string) {
   const lower = message.toLowerCase();
@@ -176,10 +177,15 @@ export default function CheckoutPage() {
       return;
     }
 
-    setSubmitting(true);
     setError('');
     const form = new FormData(event.currentTarget);
     const formValue = (name: string) => String(form.get(name) || '').trim();
+    if (invoiceType === 'company' && !isValidPolishNip(formValue('billingNip'))) {
+      setError('Podaj prawidłowy 10-cyfrowy NIP firmy.');
+      return;
+    }
+
+    setSubmitting(true);
     const shippingAddress = {
       street: formValue('street'),
       postalCode: formValue('postalCode'),
@@ -427,7 +433,7 @@ export default function CheckoutPage() {
                       pattern="[0-9]{10}"
                       minLength={10}
                       maxLength={10}
-                      placeholder="1234567890"
+                      placeholder="1234563218"
                       defaultValue={profile?.nip || ''}
                     />
                   </div>

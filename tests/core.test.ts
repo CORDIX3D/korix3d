@@ -15,6 +15,10 @@ import {
   getAllowedOrder3DStatuses,
 } from '../lib/order-3d-status';
 import { validateQuoteFiles } from '../lib/quote-files';
+import {
+  isValidPolishNip,
+  storeOrderSchema,
+} from '../lib/store-order-validation';
 import type { Product } from '../lib/types/database';
 
 function product(overrides: Partial<Product> = {}): Product {
@@ -138,4 +142,74 @@ test('pliki wyceny odrzucają obcego właściciela, zły typ, duży plik i dupli
   assert.match(validateQuoteFiles([{ ...valid, type: 'exe', storage_path: `${userId}/${orderId}/model.exe` }], userId, orderId) || '', /metadane/);
   assert.match(validateQuoteFiles([{ ...valid, size: 50 * 1024 * 1024 + 1 }], userId, orderId) || '', /metadane/);
   assert.match(validateQuoteFiles([valid, valid], userId, orderId) || '', /metadane/);
+});
+
+const baseStoreOrder = {
+  customer: {
+    name: 'Jan Kowalski',
+    email: 'jan@example.com',
+    phone: '+48 123 456 789',
+  },
+  shippingAddress: {
+    street: 'Przykładowa 1',
+    postalCode: '00-001',
+    city: 'Warszawa',
+    country: 'PL' as const,
+  },
+  billingAddress: {
+    invoiceType: 'individual' as const,
+    name: 'Jan Kowalski',
+    company: '',
+    nip: '',
+    street: 'Przykładowa 1',
+    postalCode: '00-001',
+    city: 'Warszawa',
+    country: 'PL' as const,
+  },
+  deliveryType: 'courier',
+  items: [
+    {
+      id: '00000000-0000-4000-8000-000000000001',
+      quantity: 2,
+    },
+  ],
+};
+
+test('zamówienie osoby fizycznej wymaga adresu wysyłki i faktury', () => {
+  assert.equal(storeOrderSchema.safeParse(baseStoreOrder).success, true);
+
+  const missingShippingStreet = {
+    ...baseStoreOrder,
+    shippingAddress: { ...baseStoreOrder.shippingAddress, street: '' },
+  };
+  const missingBillingStreet = {
+    ...baseStoreOrder,
+    billingAddress: { ...baseStoreOrder.billingAddress, street: '' },
+  };
+
+  assert.equal(storeOrderSchema.safeParse(missingShippingStreet).success, false);
+  assert.equal(storeOrderSchema.safeParse(missingBillingStreet).success, false);
+});
+
+test('faktura firmowa wymaga nazwy i NIP z prawidłową sumą kontrolną', () => {
+  assert.equal(isValidPolishNip('1234563218'), true);
+  assert.equal(isValidPolishNip('1234567890'), false);
+
+  const companyOrder = {
+    ...baseStoreOrder,
+    billingAddress: {
+      ...baseStoreOrder.billingAddress,
+      invoiceType: 'company' as const,
+      company: 'KORIX3D',
+      nip: '1234563218',
+    },
+  };
+  assert.equal(storeOrderSchema.safeParse(companyOrder).success, true);
+  assert.equal(
+    storeOrderSchema.safeParse({
+      ...companyOrder,
+      billingAddress: { ...companyOrder.billingAddress, nip: '1234567890' },
+    }).success,
+    false
+  );
 });

@@ -50,6 +50,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
+  if (pathname === '/api/health' || pathname === '/serwis-niedostepny') {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });

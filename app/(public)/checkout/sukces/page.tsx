@@ -10,20 +10,30 @@ import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 export const dynamic = 'force-dynamic';
 
 type PaymentState = 'paid' | 'processing' | 'invalid';
+type PaymentDetails = {
+  state: PaymentState;
+  orderNumber: string | null;
+  hasCustomerAccount: boolean;
+};
 
-async function getPaymentState(sessionId: string | undefined): Promise<PaymentState> {
-  if (!sessionId || !sessionId.startsWith('cs_')) return 'invalid';
+async function getPaymentState(sessionId: string | undefined): Promise<PaymentDetails> {
+  const invalid: PaymentDetails = {
+    state: 'invalid',
+    orderNumber: null,
+    hasCustomerAccount: false,
+  };
+  if (!sessionId || !sessionId.startsWith('cs_')) return invalid;
 
   try {
     const session = await getStripeServer().checkout.sessions.retrieve(sessionId);
     const orderId = session.metadata?.order_id || session.client_reference_id;
-    if (!orderId) return 'invalid';
+    if (!orderId) return invalid;
 
     const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
     const admin = createSupabaseClient(url, serviceRoleKey);
     const { data: order, error } = await admin
       .from('store_orders')
-      .select('id, status, total, stripe_session_id')
+      .select('id, order_number, user_id, status, total, stripe_session_id')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -35,16 +45,21 @@ async function getPaymentState(sessionId: string | undefined): Promise<PaymentSt
       session.currency !== 'pln' ||
       session.amount_total !== Math.round(Number(order.total) * 100)
     ) {
-      return 'invalid';
+      return invalid;
     }
 
-    if (session.payment_status === 'paid') return 'paid';
+    const details = {
+      orderNumber: order.order_number || null,
+      hasCustomerAccount: Boolean(order.user_id),
+    };
+
+    if (session.payment_status === 'paid') return { state: 'paid', ...details };
     if (session.status === 'complete' && session.payment_status === 'unpaid') {
-      return 'processing';
+      return { state: 'processing', ...details };
     }
-    return 'invalid';
+    return invalid;
   } catch {
-    return 'invalid';
+    return invalid;
   }
 }
 
@@ -54,7 +69,8 @@ export default async function CheckoutSuccessPage({
   searchParams: Promise<{ session_id?: string }>;
 }) {
   const { session_id: sessionId } = await searchParams;
-  const state = await getPaymentState(sessionId);
+  const payment = await getPaymentState(sessionId);
+  const { state } = payment;
   const paid = state === 'paid';
   const processing = state === 'processing';
 
@@ -84,9 +100,16 @@ export default async function CheckoutSuccessPage({
                 ? 'Status zamówienia zostanie zaktualizowany automatycznie po potwierdzeniu przez Stripe.'
                 : 'Sprawdź historię zamówień. Jeśli płatność została pobrana, skontaktuj się z nami.'}
           </p>
+          {payment.orderNumber && (
+            <p className="mb-7 rounded-lg bg-secondary px-4 py-3 text-sm">
+              Numer zamówienia: <strong>{payment.orderNumber}</strong>
+            </p>
+          )}
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
             <Button asChild>
-              <Link href="/panel/zamowienia">Przejdź do zamówień</Link>
+              <Link href={payment.hasCustomerAccount ? '/panel/zamowienia' : '/sklep'}>
+                {payment.hasCustomerAccount ? 'Przejdź do zamówień' : 'Wróć do sklepu'}
+              </Link>
             </Button>
             {!paid && (
               <Button asChild variant="outline">

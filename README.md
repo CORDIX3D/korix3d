@@ -1,11 +1,20 @@
 # KORIX3D
 
+Aplikacja Next.js 15 z panelem klienta i administratora, sklepem, wyceną druku 3D, Supabase oraz checkoutem Stripe.
+
 ## Uruchomienie lokalne
 
 1. Skopiuj `.env.example` jako `.env.local`.
-2. Uzupełnij adres projektu i publiczny klucz Supabase.
+2. Uzupełnij wymagane zmienne środowiskowe bez zapisywania sekretów w Git.
 3. Uruchom `npm ci`, a następnie `npm run dev`.
 
-Kompilacja produkcyjna: `npm run build`.
+## Kontrola przed wdrożeniem
 
-[![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-tlozysrd)
+```text
+npm run lint
+npm run typecheck
+npm run check:secrets
+npm run build
+```
+
+Pełna kolejność konfiguracji Supabase, Stripe i Netlify znajduje się w [instrukcji wdrożenia](docs/WDROZENIE.md).

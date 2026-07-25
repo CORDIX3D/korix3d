@@ -8,6 +8,7 @@ import {
 import {
   getStripeCheckoutOrigin,
   getStripeServer,
+  getStripeWebhookSecret,
   isStripeConfigurationError,
 } from '@/lib/stripe';
 import { verifyCheckoutToken } from '@/lib/checkout-token';
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: 'Nieprawidłowe zamówienie.' }, { status: 400 });
 
     const stripe = getStripeServer();
+    getStripeWebhookSecret();
     const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
     const admin = createSupabaseClient(url, serviceRoleKey);
     const { data: order, error: orderError } = await admin

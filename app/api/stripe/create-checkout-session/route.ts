@@ -40,6 +40,13 @@ export async function POST(request: NextRequest) {
       if (existing.status === 'complete') {
         return NextResponse.json({ error: 'Płatność dla tego zamówienia została już zakończona.' }, { status: 409 });
       }
+      if (existing.status === 'expired') {
+        await admin.rpc('cancel_store_order_and_restore_stock', { p_order_id: order.id });
+        return NextResponse.json(
+          { error: 'Sesja płatności wygasła. Złóż zamówienie ponownie.' },
+          { status: 409 }
+        );
+      }
     }
 
     const { data: items, error: itemsError } = await admin

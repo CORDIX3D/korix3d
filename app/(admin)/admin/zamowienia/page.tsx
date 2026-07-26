@@ -34,7 +34,6 @@ import {
   Send,
   Trash2,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
 import { Order3D } from '@/lib/types/database';
 import { toast } from 'sonner';
 import { PanelError } from '@/components/customer/panel-state';
@@ -90,25 +89,17 @@ export default function AdminOrdersPage() {
     setLoading(true);
     setError('');
     try {
-      let query = supabase
-        .from('orders_3d')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      if (search) {
-        query = query.or(`order_number.ilike.%${search}%`);
-      }
-
-      const { data, error: queryError } = await query.limit(50);
-      if (queryError) {
+      const params = new URLSearchParams({ status: statusFilter });
+      if (search.trim()) params.set('search', search.trim());
+      const response = await fetch(`/api/admin/orders?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
         setError('Nie udało się pobrać zamówień z Supabase.');
         setOrders([]);
       } else {
-        setOrders((data || []) as Order3D[]);
+        setOrders((result?.orders || []) as Order3D[]);
       }
     } catch {
       setError('Nie udało się połączyć z Supabase podczas pobierania zamówień.');

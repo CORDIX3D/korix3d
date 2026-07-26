@@ -33,6 +33,7 @@ import {
   Bar,
 } from 'recharts';
 import { supabase } from '@/lib/supabase/client';
+import { CUSTOMER_ORDER_3D_COLUMNS } from '@/lib/customer-order';
 import {
   isRecognizedOrder3DRevenue,
   isRecognizedStoreOrderRevenue,
@@ -128,7 +129,7 @@ export default function AdminDashboardPage() {
       // Fetch orders
       const { data: orders, error: ordersError } = await supabase
         .from('orders_3d')
-        .select('*')
+        .select(CUSTOMER_ORDER_3D_COLUMNS)
         .order('created_at', { ascending: false })
         .limit(500);
 
@@ -141,7 +142,7 @@ export default function AdminDashboardPage() {
       // Fetch pending quotes
       const { data: quotes, error: quotesError } = await supabase
         .from('orders_3d')
-        .select('*')
+        .select('id')
         .eq('status', 'new');
 
       // Fetch profiles count

@@ -10,6 +10,7 @@ import { PanelEmpty, PanelError, PanelHeading, PanelLoading } from '@/components
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import type { Order3D, StoreOrder } from '@/lib/types/database';
+import { CUSTOMER_ORDER_3D_COLUMNS } from '@/lib/customer-order';
 
 type CustomerOrder =
   | {
@@ -77,7 +78,7 @@ export default function OrdersPage() {
 
     try {
       const [printResult, storeResult] = await Promise.all([
-        supabase.from('orders_3d').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('orders_3d').select(CUSTOMER_ORDER_3D_COLUMNS).eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('store_orders').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       ]);
 

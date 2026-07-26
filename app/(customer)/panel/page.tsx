@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import { PanelError, PanelLoading } from '@/components/customer/panel-state';
 import type { Order3D, StoreOrder } from '@/lib/types/database';
+import { CUSTOMER_ORDER_3D_COLUMNS } from '@/lib/customer-order';
 
 interface StatCard {
   title: string;
@@ -55,7 +56,7 @@ export default function CustomerDashboardPage() {
       // Fetch orders
       const { data: orders, error: ordersError } = await supabase
         .from('orders_3d')
-        .select('*')
+        .select(CUSTOMER_ORDER_3D_COLUMNS)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -68,7 +69,7 @@ export default function CustomerDashboardPage() {
       // Fetch quotes
       const { data: quotes, error: quotesError } = await supabase
         .from('orders_3d')
-        .select('*')
+        .select(CUSTOMER_ORDER_3D_COLUMNS)
         .eq('user_id', user.id)
         .in('status', ['new', 'quoted'])
         .order('created_at', { ascending: false })

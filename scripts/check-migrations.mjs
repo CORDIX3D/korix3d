@@ -124,6 +124,10 @@ const requiredSecurityGuards = [
     name: 'ukrycie wewnętrznego cennika wycen',
     sql: "category in ('general', 'shipping', 'social', 'seo')",
   },
+  {
+    name: 'ukrycie wewnętrznych kosztów wyceny klienta',
+    sql: 'revoke select on public.orders_3d from anon, authenticated',
+  },
 ];
 
 for (const guard of requiredSecurityGuards) {

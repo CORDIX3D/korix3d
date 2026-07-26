@@ -13,6 +13,7 @@ import { OrderStatus } from '@/components/customer/order-status';
 import { PanelError, PanelLoading } from '@/components/customer/panel-state';
 import type { Order3D } from '@/lib/types/database';
 import { OrderFileDownload, StoredOrderFile } from '@/components/customer/order-file-download';
+import { CUSTOMER_ORDER_3D_COLUMNS } from '@/lib/customer-order';
 
 type OrderFile = StoredOrderFile;
 
@@ -59,7 +60,7 @@ export default function OrderDetailsPage() {
     if (!user) return;
     setLoading(true); setError('');
     try {
-      const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('id', orderId).eq('user_id', user.id).maybeSingle();
+      const { data, error: queryError } = await supabase.from('orders_3d').select(CUSTOMER_ORDER_3D_COLUMNS).eq('id', orderId).eq('user_id', user.id).maybeSingle();
       if (queryError) {
         setError('Nie udało się pobrać szczegółów zamówienia.');
         setOrder(null);

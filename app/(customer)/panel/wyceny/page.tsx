@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { OrderStatus } from '@/components/customer/order-status';
 import { PanelEmpty, PanelError, PanelHeading, PanelLoading } from '@/components/customer/panel-state';
 import type { Order3D } from '@/lib/types/database';
+import { CUSTOMER_ORDER_3D_COLUMNS } from '@/lib/customer-order';
 
 export default function QuotesPage() {
   const { user } = useAuth();
@@ -19,7 +20,7 @@ export default function QuotesPage() {
     if (!user) return;
     setLoading(true); setError('');
     try {
-      const { data, error: queryError } = await supabase.from('orders_3d').select('*').eq('user_id', user.id).in('status', ['new', 'quoted']).order('created_at', { ascending: false });
+      const { data, error: queryError } = await supabase.from('orders_3d').select(CUSTOMER_ORDER_3D_COLUMNS).eq('user_id', user.id).in('status', ['new', 'quoted']).order('created_at', { ascending: false });
       if (queryError) {
         setError('Nie udało się pobrać wycen. Spróbuj ponownie.');
         setQuotes([]);

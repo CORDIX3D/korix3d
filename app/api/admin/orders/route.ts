@@ -79,6 +79,44 @@ function isOrderTransitionDatabaseError(error: unknown) {
   );
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const context = await getAdminSupabaseClient();
+    if (context.error) return context.error;
+
+    const status = request.nextUrl.searchParams.get('status')?.trim() || 'all';
+    const search = request.nextUrl.searchParams.get('search')?.trim() || '';
+    if (status !== 'all' && !isOrder3DStatus(status)) {
+      return NextResponse.json({ error: 'Niepoprawny filtr statusu.' }, { status: 400 });
+    }
+    if (search.length > 100) {
+      return NextResponse.json({ error: 'Wyszukiwana fraza jest za długa.' }, { status: 400 });
+    }
+
+    let query = context.client
+      .from('orders_3d')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (status !== 'all') query = query.eq('status', status);
+    if (search) query = query.ilike('order_number', `%${search}%`);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return NextResponse.json(
+      { orders: data || [] },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (error) {
+    if (!isSupabaseConfigurationError(error)) {
+      console.error('Admin orders list error:', error);
+    }
+    return unavailableResponse();
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();

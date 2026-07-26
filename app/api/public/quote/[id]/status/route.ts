@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigurationError } from '@/lib/supabase/env';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import { createServiceRoleClient } from '@/lib/supabase/service-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +47,9 @@ export async function GET(
       );
     }
 
-    const { data: order, error } = await supabase
+    const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+    const admin = createServiceRoleClient(url, serviceRoleKey, auth.user.id);
+    const { data: order, error } = await admin
       .from('orders_3d')
       .select(
         'id, order_number, status, slicing_status, printing_time_hours, filament_used_grams, final_price, slicing_result, sliced_at'

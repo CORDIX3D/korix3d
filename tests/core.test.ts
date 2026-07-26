@@ -31,6 +31,7 @@ import { productPayloadSchema } from '../lib/product-validation';
 import { PUBLIC_PRODUCT_COLUMNS } from '../lib/public-product';
 import { PUBLIC_FILAMENT_COLUMNS } from '../lib/public-filament';
 import { PUBLIC_MATERIAL_COLUMNS } from '../lib/public-material';
+import { CUSTOMER_ORDER_3D_COLUMNS } from '../lib/customer-order';
 import {
   isValidPolishNip,
   storeOrderSchema,
@@ -526,4 +527,24 @@ test('publiczna lista materiałów nie pobiera ceny używanej do wyceny', () => 
   assert.equal(publicColumns.has('properties'), false);
   assert.equal(publicColumns.has('name'), true);
   assert.equal(publicColumns.has('description'), true);
+});
+
+test('panel klienta nie pobiera wewnętrznych składowych wyceny', () => {
+  const customerColumns = new Set(CUSTOMER_ORDER_3D_COLUMNS.split(',').map((column) => column.trim()));
+  for (const hiddenColumn of [
+    'pricing_settings_snapshot',
+    'slicing_result',
+    'material_cost',
+    'electricity_cost',
+    'printing_cost',
+    'packaging_cost',
+    'margin_amount',
+    'vat_amount',
+    'admin_notes',
+  ]) {
+    assert.equal(customerColumns.has(hiddenColumn), false);
+  }
+  assert.equal(customerColumns.has('printing_time_hours'), true);
+  assert.equal(customerColumns.has('filament_used_grams'), true);
+  assert.equal(customerColumns.has('final_price'), true);
 });

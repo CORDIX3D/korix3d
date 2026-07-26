@@ -120,6 +120,10 @@ const requiredSecurityGuards = [
     name: 'ukrycie wewnętrznych kolumn produktu',
     sql: 'revoke select on public.products from anon, authenticated',
   },
+  {
+    name: 'ukrycie wewnętrznego cennika wycen',
+    sql: "category in ('general', 'shipping', 'social', 'seo')",
+  },
 ];
 
 for (const guard of requiredSecurityGuards) {

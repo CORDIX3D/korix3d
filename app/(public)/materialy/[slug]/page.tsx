@@ -5,6 +5,9 @@ import { ArrowLeft, Layers, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { createClient } from '@/lib/supabase/server';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import { createServiceRoleClient } from '@/lib/supabase/service-client';
+import { PUBLIC_FILAMENT_COLUMNS } from '@/lib/public-filament';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,15 +85,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function MaterialDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const supabase = await createClient();
   const { data: material, error } = await fetchMaterialForPage(slug);
 
   if (error) throw new Error('Nie udało się pobrać materiału.');
   if (!material) notFound();
 
-  const { data: filaments, error: filamentsError } = await supabase
+  const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+  const admin = createServiceRoleClient(url, serviceRoleKey);
+  const { data: filaments, error: filamentsError } = await admin
     .from('filaments')
-    .select('id, brand, color, color_hex, remaining_weight_grams')
+    .select(PUBLIC_FILAMENT_COLUMNS)
     .eq('material_id', material.id)
     .eq('active', true)
     .gt('remaining_weight_grams', 0)

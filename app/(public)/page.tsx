@@ -21,7 +21,10 @@ import {
   Timer,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
-import type { Material } from '@/lib/types/database';
+import {
+  PUBLIC_MATERIAL_COLUMNS,
+  type PublicMaterial,
+} from '@/lib/public-material';
 
 // Services data
 const services = [
@@ -102,7 +105,7 @@ const particles = Array.from({ length: 20 }, (_, index) => ({
 
 export default function HomePage() {
   const [portfolio, setPortfolio] = useState<any[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materials, setMaterials] = useState<PublicMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
 
   useEffect(() => {
@@ -117,14 +120,14 @@ export default function HomePage() {
           .limit(6),
         supabase
           .from('materials')
-          .select('*')
+          .select(PUBLIC_MATERIAL_COLUMNS)
           .eq('available', true)
           .order('name')
           .limit(6),
       ]);
 
       if (portfolioResult.data) setPortfolio(portfolioResult.data);
-      if (materialsResult.data) setMaterials(materialsResult.data as Material[]);
+      if (materialsResult.data) setMaterials(materialsResult.data as PublicMaterial[]);
       setMaterialsLoading(false);
     };
 

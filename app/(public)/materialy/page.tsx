@@ -7,11 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Layers, Palette, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
-import { Filament, Material } from '@/lib/types/database';
+import type { PublicFilament } from '@/lib/public-filament';
+import {
+  PUBLIC_MATERIAL_COLUMNS,
+  type PublicMaterial,
+} from '@/lib/public-material';
 
 export default function MaterialsPage() {
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [filaments, setFilaments] = useState<Filament[]>([]);
+  const [materials, setMaterials] = useState<PublicMaterial[]>([]);
+  const [filaments, setFilaments] = useState<PublicFilament[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -20,7 +24,7 @@ export default function MaterialsPage() {
   }, []);
 
   const filamentsByMaterial = useMemo(() => {
-    return filaments.reduce<Record<string, Filament[]>>((acc, filament) => {
+    return filaments.reduce<Record<string, PublicFilament[]>>((acc, filament) => {
       const key = filament.material_id || filament.material_name;
       acc[key] = acc[key] || [];
       acc[key].push(filament);
@@ -33,23 +37,22 @@ export default function MaterialsPage() {
     setError('');
 
     try {
-      const [materialsResult, filamentsResult] = await Promise.all([
-        supabase.from('materials').select('*').eq('available', true).order('name'),
+      const [materialsResult, filamentsResponse] = await Promise.all([
         supabase
-          .from('filaments')
-          .select('*')
-          .eq('active', true)
-          .gt('remaining_weight_grams', 0)
-          .order('material_name')
-          .order('color'),
+          .from('materials')
+          .select(PUBLIC_MATERIAL_COLUMNS)
+          .eq('available', true)
+          .order('name'),
+        fetch('/api/public/filaments', { cache: 'no-store' }),
       ]);
 
-      if (materialsResult.error || filamentsResult.error) {
-        throw materialsResult.error || filamentsResult.error;
+      const filamentPayload = await filamentsResponse.json().catch(() => null);
+      if (materialsResult.error || !filamentsResponse.ok) {
+        throw materialsResult.error || new Error(filamentPayload?.error);
       }
 
-      setMaterials((materialsResult.data || []) as Material[]);
-      setFilaments((filamentsResult.data || []) as Filament[]);
+      setMaterials((materialsResult.data || []) as PublicMaterial[]);
+      setFilaments((filamentPayload?.filaments || []) as PublicFilament[]);
     } catch {
       setMaterials([]);
       setFilaments([]);

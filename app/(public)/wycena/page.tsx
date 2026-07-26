@@ -32,11 +32,8 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import { toast } from 'sonner';
 import { parseDeliveryOptions, type DeliveryOption } from '@/lib/shipping';
-import {
-  parseQuotePricingSettings,
-  QUOTE_PRICING_KEYS,
-  type QuotePricingSettings,
-} from '@/lib/quote-pricing';
+import type { PublicFilament } from '@/lib/public-filament';
+import { PUBLIC_MATERIAL_COLUMNS } from '@/lib/public-material';
 
 const quoteSchema = z.object({
   material_id: z.string().min(1, 'Wybierz materiał'),
@@ -107,9 +104,6 @@ function QuotePageContent() {
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
   const [deliveryLoading, setDeliveryLoading] = useState(true);
   const [deliveryError, setDeliveryError] = useState('');
-  const [pricingSettings, setPricingSettings] = useState<QuotePricingSettings | null>(null);
-  const [pricingLoading, setPricingLoading] = useState(true);
-  const [pricingError, setPricingError] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -151,7 +145,7 @@ function QuotePageContent() {
     try {
       const { data, error } = await supabase
         .from('materials')
-        .select('*')
+        .select(PUBLIC_MATERIAL_COLUMNS)
         .eq('available', true)
         .order('name');
 
@@ -176,33 +170,18 @@ function QuotePageContent() {
     setColorsError('');
 
     try {
-      const { data, error } = await supabase
-        .from('filaments')
-        .select('id, brand, color, color_hex, price_per_kg, remaining_weight_grams')
-        .eq('material_id', materialId)
-        .eq('active', true)
-        .gt('remaining_weight_grams', 0)
-        .order('color');
+      const response = await fetch(
+        `/api/public/filaments?material_id=${encodeURIComponent(materialId)}`,
+        { cache: 'no-store' }
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || 'Nie udało się pobrać kolorów.');
 
-      if (error) {
-        setColors([]);
-        setColorsError('Nie udało się pobrać kolorów dla wybranego materiału.');
-      } else {
-        setColors((data || []).map((filament: {
-          id: string;
-          brand: string | null;
-          color: string;
-          color_hex: string | null;
-          price_per_kg: number | null;
-          remaining_weight_grams: number;
-        }) => ({
+      setColors(((payload?.filaments || []) as PublicFilament[]).map((filament) => ({
           id: filament.id,
           name: `${filament.color}${filament.brand ? ` (${filament.brand})` : ''}`,
           hex: filament.color_hex || '#ffffff',
-          price_per_kg: filament.price_per_kg,
-          remaining_weight_grams: filament.remaining_weight_grams,
-        })));
-      }
+      })));
     } catch {
       setColors([]);
       setColorsError('Nie udało się pobrać kolorów dla wybranego materiału.');
@@ -237,35 +216,10 @@ function QuotePageContent() {
     }
   }, []);
 
-  const fetchPricingSettings = useCallback(async () => {
-    setPricingLoading(true);
-    setPricingError('');
-
-    try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('key, value')
-        .in('key', [...QUOTE_PRICING_KEYS]);
-
-      if (error) throw error;
-      const parsed = parseQuotePricingSettings(data || []);
-      setPricingSettings(parsed);
-      if (!parsed) {
-        setPricingError('Cennik automatycznej wyceny jest niekompletny. Skontaktuj się z nami.');
-      }
-    } catch {
-      setPricingSettings(null);
-      setPricingError('Nie udało się pobrać aktualnego cennika. Spróbuj ponownie.');
-    } finally {
-      setPricingLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     fetchMaterials();
     fetchDeliveryOptions();
-    fetchPricingSettings();
-  }, [fetchDeliveryOptions, fetchMaterials, fetchPricingSettings]);
+  }, [fetchDeliveryOptions, fetchMaterials]);
 
   useEffect(() => {
     if (watchMaterial) {
@@ -386,12 +340,9 @@ function QuotePageContent() {
       deliveryLoading
       || deliveryError
       || !deliveryOptions.some((option) => option.value === data.delivery_type)
-      || pricingLoading
-      || pricingError
-      || !pricingSettings
     ) {
       toast.error('Konfiguracja wyceny jest niedostępna', {
-        description: 'Odśwież cennik i metody dostawy, a następnie spróbuj ponownie.',
+        description: 'Odśwież metody dostawy, a następnie spróbuj ponownie.',
       });
       return;
     }
@@ -1008,28 +959,13 @@ function QuotePageContent() {
                 {/* Priority */}
                 <div className="space-y-2">
                   <label className="form-label">Priorytet realizacji</label>
-                  {pricingError && (
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                      <p>{pricingError}</p>
-                      <Button type="button" variant="outline" size="sm" className="mt-3" onClick={fetchPricingSettings} disabled={pricingLoading}>
-                        {pricingLoading ? 'Pobieranie...' : 'Spróbuj ponownie'}
-                      </Button>
-                    </div>
-                  )}
                   <div className="grid gap-3 sm:grid-cols-3">
-                    {priorityOptions.map((option) => {
-                      const price = option.value === 'express'
-                        ? pricingSettings?.express_surcharge
-                        : option.value === 'urgent'
-                          ? pricingSettings?.urgent_surcharge
-                          : 0;
-                      return (
-                        <button
+                    {priorityOptions.map((option) => (
+                      <button
                         key={option.value}
                         type="button"
-                        disabled={pricingLoading || Boolean(pricingError) || !pricingSettings}
                         onClick={() => setValue('priority', option.value as any)}
-                        className={`p-4 rounded-xl border text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`p-4 rounded-xl border text-left transition-all ${
                           watchPriority === option.value
                             ? 'border-primary bg-primary/10'
                             : 'border-border hover:border-primary/50'
@@ -1037,17 +973,10 @@ function QuotePageContent() {
                       >
                         <div className="flex justify-between items-start mb-1">
                           <span className="font-semibold text-foreground">{option.label}</span>
-                          {price !== undefined && price > 0 && (
-                            <span className="text-sm text-primary font-medium">
-                              +{price.toFixed(2)} zł
-                            </span>
-                          )}
-                          {pricingLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                         </div>
                         <p className="text-sm text-muted-foreground">{option.description}</p>
                       </button>
-                      );
-                    })}
+                    ))}
                   </div>
                 </div>
 
@@ -1243,7 +1172,7 @@ function QuotePageContent() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={submitting || !user || deliveryLoading || Boolean(deliveryError) || !deliveryOptions.some((option) => option.value === watchDelivery) || pricingLoading || Boolean(pricingError) || !pricingSettings}
+                    disabled={submitting || !user || deliveryLoading || Boolean(deliveryError) || !deliveryOptions.some((option) => option.value === watchDelivery)}
                     className="bg-gradient-primary hover:shadow-glow min-w-[160px]"
                   >
                     {submitting ? (

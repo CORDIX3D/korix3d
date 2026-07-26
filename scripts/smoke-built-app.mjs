@@ -128,6 +128,15 @@ async function testRoutingAndHealth() {
   if (!['ok', 'degraded'].includes(payload.status) || !payload.checkedAt) {
     throw new Error('/api/health: nieprawidłowa odpowiedź stanu usług');
   }
+
+  const invalidFilamentRequest = await request(
+    '/api/public/filaments?material_id=niepoprawny'
+  );
+  assertStatus(
+    '/api/public/filaments (błędny materiał)',
+    invalidFilamentRequest.status,
+    400
+  );
 }
 
 async function testInvalidRequests() {
@@ -148,7 +157,7 @@ try {
   await testRoutingAndHealth();
   await testInvalidRequests();
   console.log(
-    `Test uruchomieniowy zakończony: ${publicPages.length} stron, 404, panele, health i ${invalidRequestCases.length} walidacji API.`
+    `Test uruchomieniowy zakończony: ${publicPages.length} stron, 404, panele, health i ${invalidRequestCases.length + 1} walidacji API.`
   );
 } catch (error) {
   exitCode = 1;

@@ -29,6 +29,8 @@ import {
 import { validateQuoteFiles } from '../lib/quote-files';
 import { productPayloadSchema } from '../lib/product-validation';
 import { PUBLIC_PRODUCT_COLUMNS } from '../lib/public-product';
+import { PUBLIC_FILAMENT_COLUMNS } from '../lib/public-filament';
+import { PUBLIC_MATERIAL_COLUMNS } from '../lib/public-material';
 import {
   isValidPolishNip,
   storeOrderSchema,
@@ -505,4 +507,23 @@ test('publiczny katalog nie udostępnia wewnętrznych pól produktu', () => {
   assert.equal(publicColumns.has('price'), true);
   assert.equal(publicColumns.has('stock_quantity'), true);
   assert.equal(publicColumns.has('images'), true);
+});
+
+test('publiczna lista filamentów nie ujawnia stanów ani kosztów magazynowych', () => {
+  const publicColumns = new Set(PUBLIC_FILAMENT_COLUMNS.split(',').map((column) => column.trim()));
+  assert.equal(publicColumns.has('price_per_kg'), false);
+  assert.equal(publicColumns.has('price_paid'), false);
+  assert.equal(publicColumns.has('remaining_weight_grams'), false);
+  assert.equal(publicColumns.has('min_weight_grams'), false);
+  assert.equal(publicColumns.has('location'), false);
+  assert.equal(publicColumns.has('color'), true);
+  assert.equal(publicColumns.has('brand'), true);
+});
+
+test('publiczna lista materiałów nie pobiera ceny używanej do wyceny', () => {
+  const publicColumns = new Set(PUBLIC_MATERIAL_COLUMNS.split(',').map((column) => column.trim()));
+  assert.equal(publicColumns.has('price_per_kg'), false);
+  assert.equal(publicColumns.has('properties'), false);
+  assert.equal(publicColumns.has('name'), true);
+  assert.equal(publicColumns.has('description'), true);
 });

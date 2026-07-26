@@ -10,6 +10,7 @@ import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-l
 import {
   parseDeliveryOptions,
 } from '@/lib/shipping';
+import { parseQuotePricingSettings } from '@/lib/quote-pricing';
 import { validateQuoteFiles } from '@/lib/quote-files';
 
 export const dynamic = 'force-dynamic';
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
       const [
         { data: material, error: materialError },
         { data: filament, error: filamentError },
-        { data: shippingSettings, error: shippingError },
+        { data: quoteSettings, error: settingsError },
       ] =
         await Promise.all([
           admin
@@ -124,12 +125,12 @@ export async function POST(request: NextRequest) {
             .maybeSingle(),
           admin
             .from('settings')
-            .select('key, label, value')
-            .eq('category', 'shipping'),
+            .select('key, label, value, category')
+            .in('category', ['shipping', 'pricing']),
         ]);
 
-      if (materialError || filamentError || shippingError) {
-        console.error('Quote configuration lookup error:', materialError || filamentError || shippingError);
+      if (materialError || filamentError || settingsError) {
+        console.error('Quote configuration lookup error:', materialError || filamentError || settingsError);
         return NextResponse.json(
           { error: 'Nie udało się sprawdzić wybranych parametrów wyceny.' },
           { status: 500 }
@@ -150,13 +151,25 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const deliverySetting = parseDeliveryOptions(shippingSettings || [])
+      const deliverySetting = parseDeliveryOptions(
+        (quoteSettings || []).filter((setting) => setting.category === 'shipping')
+      )
         .find((option) => option.value === deliveryType);
 
       if (!deliverySetting) {
         return NextResponse.json(
           { error: 'Wybrana metoda dostawy nie jest już dostępna.' },
           { status: 409 }
+        );
+      }
+
+      const pricingSettings = parseQuotePricingSettings(
+        (quoteSettings || []).filter((setting) => setting.category === 'pricing')
+      );
+      if (!pricingSettings) {
+        return NextResponse.json(
+          { error: 'Cennik automatycznej wyceny jest niekompletny. Skontaktuj się z nami.' },
+          { status: 503, headers: { 'Retry-After': '60' } }
         );
       }
 

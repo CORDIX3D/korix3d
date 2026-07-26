@@ -32,6 +32,11 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import { toast } from 'sonner';
 import { parseDeliveryOptions, type DeliveryOption } from '@/lib/shipping';
+import {
+  parseQuotePricingSettings,
+  QUOTE_PRICING_KEYS,
+  type QuotePricingSettings,
+} from '@/lib/quote-pricing';
 
 const quoteSchema = z.object({
   material_id: z.string().min(1, 'Wybierz materiał'),
@@ -76,9 +81,9 @@ const infillOptions = [
 ];
 
 const priorityOptions = [
-  { value: 'standard', label: 'Standard', price: 0, description: 'Termin ustalany po analizie pliku' },
-  { value: 'express', label: 'Express', price: 50, description: 'Przyspieszona kolejka po potwierdzeniu dostępności' },
-  { value: 'urgent', label: 'Pilne', price: 100, description: 'Najwyższy priorytet po indywidualnym potwierdzeniu' },
+  { value: 'standard', label: 'Standard', description: 'Termin ustalany po analizie pliku' },
+  { value: 'express', label: 'Express', description: 'Przyspieszona kolejka po potwierdzeniu dostępności' },
+  { value: 'urgent', label: 'Pilne', description: 'Najwyższy priorytet po indywidualnym potwierdzeniu' },
 ];
 
 const serviceNotes: Record<string, string> = {
@@ -102,6 +107,9 @@ function QuotePageContent() {
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
   const [deliveryLoading, setDeliveryLoading] = useState(true);
   const [deliveryError, setDeliveryError] = useState('');
+  const [pricingSettings, setPricingSettings] = useState<QuotePricingSettings | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(true);
+  const [pricingError, setPricingError] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -229,10 +237,35 @@ function QuotePageContent() {
     }
   }, []);
 
+  const fetchPricingSettings = useCallback(async () => {
+    setPricingLoading(true);
+    setPricingError('');
+
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('key, value')
+        .in('key', [...QUOTE_PRICING_KEYS]);
+
+      if (error) throw error;
+      const parsed = parseQuotePricingSettings(data || []);
+      setPricingSettings(parsed);
+      if (!parsed) {
+        setPricingError('Cennik automatycznej wyceny jest niekompletny. Skontaktuj się z nami.');
+      }
+    } catch {
+      setPricingSettings(null);
+      setPricingError('Nie udało się pobrać aktualnego cennika. Spróbuj ponownie.');
+    } finally {
+      setPricingLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchMaterials();
     fetchDeliveryOptions();
-  }, [fetchDeliveryOptions, fetchMaterials]);
+    fetchPricingSettings();
+  }, [fetchDeliveryOptions, fetchMaterials, fetchPricingSettings]);
 
   useEffect(() => {
     if (watchMaterial) {
@@ -349,9 +382,16 @@ function QuotePageContent() {
   const onSubmit = async (data: QuoteFormValues) => {
     if (submitting) return;
 
-    if (deliveryLoading || deliveryError || !deliveryOptions.some((option) => option.value === data.delivery_type)) {
-      toast.error('Metoda dostawy jest niedostępna', {
-        description: 'Odśwież listę metod dostawy i spróbuj ponownie.',
+    if (
+      deliveryLoading
+      || deliveryError
+      || !deliveryOptions.some((option) => option.value === data.delivery_type)
+      || pricingLoading
+      || pricingError
+      || !pricingSettings
+    ) {
+      toast.error('Konfiguracja wyceny jest niedostępna', {
+        description: 'Odśwież cennik i metody dostawy, a następnie spróbuj ponownie.',
       });
       return;
     }
@@ -968,13 +1008,28 @@ function QuotePageContent() {
                 {/* Priority */}
                 <div className="space-y-2">
                   <label className="form-label">Priorytet realizacji</label>
+                  {pricingError && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      <p>{pricingError}</p>
+                      <Button type="button" variant="outline" size="sm" className="mt-3" onClick={fetchPricingSettings} disabled={pricingLoading}>
+                        {pricingLoading ? 'Pobieranie...' : 'Spróbuj ponownie'}
+                      </Button>
+                    </div>
+                  )}
                   <div className="grid gap-3 sm:grid-cols-3">
-                    {priorityOptions.map((option) => (
-                      <button
+                    {priorityOptions.map((option) => {
+                      const price = option.value === 'express'
+                        ? pricingSettings?.express_surcharge
+                        : option.value === 'urgent'
+                          ? pricingSettings?.urgent_surcharge
+                          : 0;
+                      return (
+                        <button
                         key={option.value}
                         type="button"
+                        disabled={pricingLoading || Boolean(pricingError) || !pricingSettings}
                         onClick={() => setValue('priority', option.value as any)}
-                        className={`p-4 rounded-xl border text-left transition-all ${
+                        className={`p-4 rounded-xl border text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
                           watchPriority === option.value
                             ? 'border-primary bg-primary/10'
                             : 'border-border hover:border-primary/50'
@@ -982,15 +1037,17 @@ function QuotePageContent() {
                       >
                         <div className="flex justify-between items-start mb-1">
                           <span className="font-semibold text-foreground">{option.label}</span>
-                          {option.price > 0 && (
+                          {price !== undefined && price > 0 && (
                             <span className="text-sm text-primary font-medium">
-                              +{option.price.toFixed(2)} zł
+                              +{price.toFixed(2)} zł
                             </span>
                           )}
+                          {pricingLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                         </div>
                         <p className="text-sm text-muted-foreground">{option.description}</p>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1186,7 +1243,7 @@ function QuotePageContent() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={submitting || !user || deliveryLoading || Boolean(deliveryError) || !deliveryOptions.some((option) => option.value === watchDelivery)}
+                    disabled={submitting || !user || deliveryLoading || Boolean(deliveryError) || !deliveryOptions.some((option) => option.value === watchDelivery) || pricingLoading || Boolean(pricingError) || !pricingSettings}
                     className="bg-gradient-primary hover:shadow-glow min-w-[160px]"
                   >
                     {submitting ? (

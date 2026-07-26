@@ -3,6 +3,7 @@ import test from 'node:test';
 import { buildProductSalesReport } from '../lib/accounting/product-ranking';
 import { calculateDiscount, normalizeCouponCode } from '../lib/discount';
 import { parseDeliveryOptions } from '../lib/shipping';
+import { parseQuotePricingSettings } from '../lib/quote-pricing';
 import {
   addCartItem,
   getCartSummary,
@@ -396,4 +397,35 @@ test('metody dostawy pochodzą wyłącznie z poprawnej konfiguracji administrato
     ]
   );
   assert.deepEqual(parseDeliveryOptions([]), []);
+});
+
+test('kalkulator wymaga kompletnego i poprawnego cennika administratora', () => {
+  const rows = [
+    ['printing_hour_cost', '50'],
+    ['electricity_hour_cost', '2,50'],
+    ['maintenance_hour_cost', '5'],
+    ['packaging_cost', '5'],
+    ['default_margin', '25'],
+    ['vat_rate', '23'],
+    ['minimum_order_value', '20'],
+    ['express_surcharge', '65'],
+    ['urgent_surcharge', '120'],
+  ].map(([key, value]) => ({ key, value }));
+
+  assert.deepEqual(parseQuotePricingSettings(rows), {
+    printing_hour_cost: 50,
+    electricity_hour_cost: 2.5,
+    maintenance_hour_cost: 5,
+    packaging_cost: 5,
+    default_margin: 25,
+    vat_rate: 23,
+    minimum_order_value: 20,
+    express_surcharge: 65,
+    urgent_surcharge: 120,
+  });
+  assert.equal(parseQuotePricingSettings(rows.slice(1)), null);
+  assert.equal(
+    parseQuotePricingSettings(rows.map((row) => row.key === 'vat_rate' ? { ...row, value: '101' } : row)),
+    null
+  );
 });

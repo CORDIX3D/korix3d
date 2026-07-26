@@ -53,6 +53,19 @@ const NON_NEGATIVE_NUMBER_SETTINGS = new Set([
   'free_shipping_threshold',
 ]);
 
+const NUMBER_SETTING_MAXIMUMS: Record<string, number> = {
+  printing_hour_cost: 10_000,
+  electricity_hour_cost: 10_000,
+  maintenance_hour_cost: 10_000,
+  packaging_cost: 10_000,
+  default_margin: 1_000,
+  vat_rate: 100,
+  minimum_order_value: 1_000_000,
+  express_surcharge: 100_000,
+  urgent_surcharge: 100_000,
+  free_shipping_threshold: 1_000_000,
+};
+
 export async function PATCH(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();
@@ -76,9 +89,9 @@ export async function PATCH(request: NextRequest) {
     for (const setting of settings) {
       if (!NON_NEGATIVE_NUMBER_SETTINGS.has(setting.key)) continue;
       const value = Number(setting.value.replace(',', '.'));
-      if (!Number.isFinite(value) || value < 0) {
+      if (!Number.isFinite(value) || value < 0 || value > NUMBER_SETTING_MAXIMUMS[setting.key]) {
         return NextResponse.json(
-          { error: `Ustawienie ${setting.key} musi być liczbą równą lub większą od 0.` },
+          { error: `Ustawienie ${setting.key} ma wartość spoza dozwolonego zakresu.` },
           { status: 400 }
         );
       }

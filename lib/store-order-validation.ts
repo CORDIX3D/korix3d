@@ -44,6 +44,29 @@ const billingAddressSchema = z
     }
   });
 
+export const storeOrderItemsSchema = z
+  .array(
+    z.object({
+      id: z.string().uuid(),
+      quantity: z.number().int().min(1).max(99),
+    })
+  )
+  .min(1)
+  .max(50)
+  .superRefine((items, context) => {
+    const ids = new Set<string>();
+    items.forEach((item, index) => {
+      if (ids.has(item.id)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'id'],
+          message: 'Produkt występuje w koszyku więcej niż raz',
+        });
+      }
+      ids.add(item.id);
+    });
+  });
+
 export const storeOrderSchema = z.object({
   customer: z.object({
     name: z.string().trim().min(2).max(120),
@@ -58,13 +81,6 @@ export const storeOrderSchema = z.object({
   }),
   billingAddress: billingAddressSchema,
   deliveryType: z.string().trim().min(1).max(80),
-  items: z
-    .array(
-      z.object({
-        id: z.string().uuid(),
-        quantity: z.number().int().min(1).max(99),
-      })
-    )
-    .min(1)
-    .max(50),
+  couponCode: z.string().trim().regex(/^[A-Za-z0-9_-]{2,40}$/).optional(),
+  items: storeOrderItemsSchema,
 });

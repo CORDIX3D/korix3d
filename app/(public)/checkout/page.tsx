@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, Loader2, Package, ShoppingCart, Truck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Package, ShoppingCart, TicketPercent, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -45,8 +45,62 @@ export default function CheckoutPage() {
   const [paymentNotice, setPaymentNotice] = useState('');
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
   const [invoiceType, setInvoiceType] = useState<'individual' | 'company'>('individual');
+  const [couponCode, setCouponCode] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    amount: number;
+    cartSignature: string;
+  } | null>(null);
   const selectedDelivery = deliveryOptions.find((option) => option.value === deliveryType) || deliveryOptions[0];
-  const total = subtotal + (selectedDelivery?.price || 0);
+  const cartSignature = items
+    .map((item) => `${item.id}:${item.quantity}`)
+    .sort()
+    .join('|');
+  const activeCoupon = appliedCoupon?.cartSignature === cartSignature ? appliedCoupon : null;
+  const discountAmount = Math.min(activeCoupon?.amount || 0, subtotal);
+  const total = Math.max(0, subtotal - discountAmount) + (selectedDelivery?.price || 0);
+
+  async function applyCoupon() {
+    const normalizedCode = couponCode.trim().toUpperCase();
+    setCouponError('');
+    setAppliedCoupon(null);
+    if (!/^[A-Z0-9_-]{2,40}$/.test(normalizedCode)) {
+      setCouponError('Podaj prawidłowy kod rabatowy.');
+      return;
+    }
+
+    setCouponLoading(true);
+    try {
+      const response = await fetch('/api/store/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: normalizedCode,
+          items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.valid) {
+        throw new Error(result.error || 'Nie udało się zastosować kuponu.');
+      }
+      setCouponCode(String(result.code));
+      setAppliedCoupon({
+        code: String(result.code),
+        amount: Number(result.amount),
+        cartSignature,
+      });
+    } catch (couponSubmitError) {
+      setCouponError(
+        couponSubmitError instanceof Error
+          ? couponSubmitError.message
+          : 'Nie udało się zastosować kuponu.'
+      );
+    } finally {
+      setCouponLoading(false);
+    }
+  }
 
   const fetchDeliveryOptions = useCallback(async () => {
     setDeliveryError('');
@@ -225,6 +279,7 @@ export default function CheckoutPage() {
           shippingAddress,
           billingAddress,
           deliveryType,
+          couponCode: activeCoupon?.code,
           items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
         }),
       });
@@ -580,6 +635,46 @@ export default function CheckoutPage() {
               <span>Dostawa</span>
               <strong>{selectedDelivery?.price === 0 ? 'Gratis' : `${(selectedDelivery?.price || 0).toFixed(2)} zł`}</strong>
             </div>
+
+            <div className="space-y-2 border-t pt-5">
+              <Label htmlFor="checkout-coupon">Kod rabatowy</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="checkout-coupon"
+                  value={couponCode}
+                  onChange={(event) => {
+                    setCouponCode(event.target.value.toUpperCase());
+                    setCouponError('');
+                    setAppliedCoupon(null);
+                  }}
+                  maxLength={40}
+                  autoComplete="off"
+                  placeholder="Wpisz kod"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={applyCoupon}
+                  disabled={couponLoading || !couponCode.trim()}
+                >
+                  {couponLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Zastosuj'}
+                </Button>
+              </div>
+              {couponError && <p className="text-sm text-destructive">{couponError}</p>}
+              {activeCoupon && (
+                <p className="flex items-center gap-2 text-sm text-green-600">
+                  <TicketPercent className="h-4 w-4" />
+                  Kupon {activeCoupon.code} został zastosowany.
+                </p>
+              )}
+            </div>
+
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-green-600">
+                <span>Rabat</span>
+                <strong>−{discountAmount.toFixed(2)} zł</strong>
+              </div>
+            )}
 
             <div className="flex items-center justify-between border-t pt-5">
               <span>Razem</span>

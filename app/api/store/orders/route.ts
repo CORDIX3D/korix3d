@@ -141,10 +141,17 @@ export async function POST(request: NextRequest) {
       },
       p_billing_address: parsed.data.billingAddress,
       p_shipping_cost: shippingCost,
+      p_coupon_code: parsed.data.couponCode || null,
       p_items: parsed.data.items,
     });
 
     if (orderError) {
+      if (orderError.code === 'P0003') {
+        return NextResponse.json(
+          { error: 'Kod rabatowy jest nieprawidłowy, wygasł albo nie spełnia warunków.' },
+          { status: 400 }
+        );
+      }
       if (['23514', 'P0002', '22023'].includes(orderError.code || '')) {
         return NextResponse.json(
           { error: 'Jeden z produktów jest niedostępny w wybranej ilości. Odśwież koszyk.' },
@@ -192,6 +199,14 @@ export async function POST(request: NextRequest) {
       orderNumber: savedOrderNumber,
       paymentToken,
       total: typeof order === 'object' && order !== null && 'total' in order ? Number(order.total) : undefined,
+      discountAmount:
+        typeof order === 'object' && order !== null && 'discountAmount' in order
+          ? Number(order.discountAmount)
+          : 0,
+      couponCode:
+        typeof order === 'object' && order !== null && 'couponCode' in order
+          ? String(order.couponCode || '') || null
+          : null,
     });
   } catch (error) {
     if (isJsonBodyError(error)) {

@@ -33,6 +33,13 @@ const authenticationPages = new Set([
   '/odzyskaj-haslo',
   '/reset-password',
 ]);
+const invalidRequestCases = [
+  ['/api/public/contact', {}],
+  ['/api/public/newsletter', { email: 'niepoprawny-email' }],
+  ['/api/store/orders', {}],
+  ['/api/store/coupons', { code: 'zły kod', items: [] }],
+  ['/api/stripe/create-checkout-session', {}],
+];
 
 const server = spawn(
   process.execPath,
@@ -124,14 +131,7 @@ async function testRoutingAndHealth() {
 }
 
 async function testInvalidRequests() {
-  const cases = [
-    ['/api/public/contact', {}],
-    ['/api/public/newsletter', { email: 'niepoprawny-email' }],
-    ['/api/store/orders', {}],
-    ['/api/stripe/create-checkout-session', {}],
-  ];
-
-  for (const [path, body] of cases) {
+  for (const [path, body] of invalidRequestCases) {
     const response = await request(path, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -148,7 +148,7 @@ try {
   await testRoutingAndHealth();
   await testInvalidRequests();
   console.log(
-    `Test uruchomieniowy zakończony: ${publicPages.length} stron, 404, panele, health i 4 walidacje API.`
+    `Test uruchomieniowy zakończony: ${publicPages.length} stron, 404, panele, health i ${invalidRequestCases.length} walidacji API.`
   );
 } catch (error) {
   exitCode = 1;

@@ -586,6 +586,7 @@ export interface Database {
           checkout_token_hash: string | null;
           tracking_number: string | null;
           coupon_code: string | null;
+          coupon_id: string | null;
           notes: string | null;
           created_at: string;
           updated_at: string;
@@ -609,6 +610,7 @@ export interface Database {
           checkout_token_hash?: string | null;
           tracking_number?: string | null;
           coupon_code?: string | null;
+          coupon_id?: string | null;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -632,6 +634,7 @@ export interface Database {
           checkout_token_hash?: string | null;
           tracking_number?: string | null;
           coupon_code?: string | null;
+          coupon_id?: string | null;
           notes?: string | null;
           created_at?: string;
           updated_at?: string;

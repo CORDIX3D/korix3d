@@ -8,6 +8,7 @@ import {
   canTransitionOrder3DStatus,
   isOrder3DStatus,
 } from '@/lib/order-3d-status';
+import { normalizeCouponCode } from '@/lib/discount';
 
 export const dynamic = 'force-dynamic';
 
@@ -169,7 +170,43 @@ function preparePayload(table: string, payload: AdminCrudPayload) {
     prepared.sort_order = Number(prepared.sort_order ?? 0);
   }
 
+  if (table === 'discount_codes') {
+    prepared.code = normalizeCouponCode(prepared.code);
+    prepared.discount_type = String(prepared.discount_type || 'percent').trim();
+    prepared.discount_value = Number(prepared.discount_value);
+    prepared.min_order_value = prepared.min_order_value === '' || prepared.min_order_value == null
+      ? null
+      : Number(prepared.min_order_value);
+    prepared.max_uses = prepared.max_uses === '' || prepared.max_uses == null
+      ? null
+      : Number(prepared.max_uses);
+    prepared.active = prepared.active ?? true;
+  }
+
   return prepared;
+}
+
+function validateDiscountCodePayload(table: string, payload: AdminCrudPayload) {
+  if (table !== 'discount_codes') return null;
+
+  const code = String(payload.code || '');
+  const type = String(payload.discount_type || '');
+  const value = Number(payload.discount_value);
+  const minimum = payload.min_order_value == null ? 0 : Number(payload.min_order_value);
+  const maxUses = payload.max_uses == null ? null : Number(payload.max_uses);
+
+  if (!/^[A-Z0-9_-]{2,40}$/.test(code)) {
+    return 'Kod kuponu może zawierać 2–40 liter, cyfr, myślników lub podkreśleń.';
+  }
+  if (!['percent', 'fixed'].includes(type)) return 'Wybierz prawidłowy typ rabatu.';
+  if (!Number.isFinite(value) || value <= 0 || (type === 'percent' && value > 100)) {
+    return 'Wartość rabatu musi być dodatnia, a rabat procentowy nie może przekraczać 100%.';
+  }
+  if (!Number.isFinite(minimum) || minimum < 0) return 'Minimalna wartość zamówienia jest nieprawidłowa.';
+  if (maxUses !== null && (!Number.isInteger(maxUses) || maxUses < 1)) {
+    return 'Limit użyć musi być dodatnią liczbą całkowitą.';
+  }
+  return null;
 }
 
 function authorizePayload(
@@ -325,6 +362,11 @@ export async function POST(request: NextRequest) {
     const statusError = validateStatusValue(table, payload);
     if (statusError) {
       return NextResponse.json({ error: statusError }, { status: 400 });
+    }
+
+    const discountError = validateDiscountCodePayload(table, payload);
+    if (discountError) {
+      return NextResponse.json({ error: discountError }, { status: 400 });
     }
 
     if (table === 'store_orders' && id && 'status' in payload) {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildProductSalesReport } from '../lib/accounting/product-ranking';
+import { calculateDiscount, normalizeCouponCode } from '../lib/discount';
 import {
   addCartItem,
   getCartSummary,
@@ -308,4 +309,71 @@ test('ranking produktów obejmuje tylko poprawne pozycje i sumuje historię sprz
     Filamenty: 8,
     'Bez kategorii': 1,
   });
+});
+
+test('kupon procentowy i kwotowy liczą rabat od produktów z dokładnością do grosza', () => {
+  assert.equal(normalizeCouponCode(' lato-10 '), 'LATO-10');
+  assert.deepEqual(
+    calculateDiscount(
+      {
+        code: 'LATO-10',
+        discount_type: 'percent',
+        discount_value: 10,
+        active: true,
+      },
+      99.99
+    ),
+    { valid: true, code: 'LATO-10', amount: 10, subtotalAfterDiscount: 89.99 }
+  );
+  assert.deepEqual(
+    calculateDiscount(
+      {
+        code: 'BON-150',
+        discount_type: 'fixed',
+        discount_value: 150,
+        active: true,
+      },
+      100
+    ),
+    { valid: true, code: 'BON-150', amount: 100, subtotalAfterDiscount: 0 }
+  );
+});
+
+test('kupon odrzuca wygaśnięcie, limit użyć i za mały koszyk', () => {
+  const baseCoupon = {
+    code: 'TEST-10',
+    discount_type: 'percent',
+    discount_value: 10,
+    active: true,
+  };
+  assert.deepEqual(
+    calculateDiscount({ ...baseCoupon, expires_at: '2020-01-01T00:00:00Z' }, 100),
+    { valid: false, reason: 'expired' }
+  );
+  assert.deepEqual(
+    calculateDiscount({ ...baseCoupon, max_uses: 2, used_count: 2 }, 100),
+    { valid: false, reason: 'limit' }
+  );
+  assert.deepEqual(
+    calculateDiscount({ ...baseCoupon, min_order_value: 200 }, 100),
+    { valid: false, reason: 'minimum' }
+  );
+});
+
+test('zamówienie przyjmuje poprawny kupon i odrzuca powtórzony produkt', () => {
+  assert.equal(
+    storeOrderSchema.safeParse({ ...baseStoreOrder, couponCode: 'LATO-10' }).success,
+    true
+  );
+  assert.equal(
+    storeOrderSchema.safeParse({ ...baseStoreOrder, couponCode: 'zły kod' }).success,
+    false
+  );
+  assert.equal(
+    storeOrderSchema.safeParse({
+      ...baseStoreOrder,
+      items: [baseStoreOrder.items[0], baseStoreOrder.items[0]],
+    }).success,
+    false
+  );
 });

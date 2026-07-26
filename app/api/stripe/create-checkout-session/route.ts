@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import type Stripe from 'stripe';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import {
   getRequiredSupabaseServiceEnv,
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     const admin = createSupabaseClient(url, serviceRoleKey);
     const { data: order, error: orderError } = await admin
       .from('store_orders')
-      .select('id, order_number, status, customer_email, total, shipping_cost, stripe_session_id, checkout_token_hash')
+      .select('id, order_number, status, customer_email, total, shipping_cost, discount_amount, coupon_code, stripe_session_id, checkout_token_hash')
       .eq('id', parsed.data.orderId)
       .maybeSingle();
 
@@ -69,25 +70,57 @@ export async function POST(request: NextRequest) {
       .eq('order_id', order.id);
     if (itemsError || !items?.length) return NextResponse.json({ error: 'Zamówienie nie zawiera produktów.' }, { status: 422 });
 
-    const lineItems = items.map((item) => ({
-      quantity: item.quantity,
-      price_data: {
-        currency: 'pln',
-        unit_amount: Math.round(Number(item.unit_price) * 100),
-        product_data: { name: item.name, metadata: { sku: item.sku } },
-      },
-    }));
-
     const shippingCost = Number(order.shipping_cost || 0);
-    const calculatedTotalCents = items.reduce(
+    const shippingCents = Math.round(shippingCost * 100);
+    const itemsTotalCents = items.reduce(
       (sum, item) => sum + Math.round(Number(item.unit_price) * 100) * item.quantity,
-      Math.round(shippingCost * 100)
+      0
     );
+    const discountCents = Math.round(Number(order.discount_amount || 0) * 100);
+    if (
+      !Number.isInteger(discountCents) ||
+      discountCents < 0 ||
+      discountCents > itemsTotalCents
+    ) {
+      return NextResponse.json(
+        { error: 'Rabat zamówienia jest nieprawidłowy.' },
+        { status: 409 }
+      );
+    }
+    const discountedItemsCents = itemsTotalCents - discountCents;
+    const calculatedTotalCents = discountedItemsCents + shippingCents;
     const expectedTotalCents = Math.round(Number(order.total) * 100);
     if (calculatedTotalCents !== expectedTotalCents) {
       console.error('Stripe total mismatch:', { orderId: order.id, calculatedTotalCents, expectedTotalCents });
       return NextResponse.json({ error: 'Kwota zamówienia wymaga ponownego przeliczenia.' }, { status: 409 });
     }
+
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = discountCents > 0
+      ? discountedItemsCents > 0
+        ? [
+            {
+              quantity: 1,
+              price_data: {
+                currency: 'pln',
+                unit_amount: discountedItemsCents,
+                product_data: {
+                  name: `Zamówienie ${order.order_number} po rabacie`,
+                  description: items.map((item) => `${item.name} × ${item.quantity}`).join(', ').slice(0, 500),
+                  metadata: { coupon_code: order.coupon_code || '' },
+                },
+              },
+            },
+          ]
+        : []
+      : items.map((item) => ({
+          quantity: item.quantity,
+          price_data: {
+            currency: 'pln',
+            unit_amount: Math.round(Number(item.unit_price) * 100),
+            product_data: { name: item.name, metadata: { sku: item.sku } },
+          },
+        }));
+
     if (shippingCost > 0) {
       lineItems.push({
         quantity: 1,
@@ -97,6 +130,12 @@ export async function POST(request: NextRequest) {
           product_data: { name: 'Dostawa', metadata: { sku: 'shipping' } },
         },
       });
+    }
+    if (lineItems.length === 0) {
+      return NextResponse.json(
+        { error: 'Wartość zamówienia po rabacie jest zbyt niska do płatności online.' },
+        { status: 409 }
+      );
     }
 
     const origin = getStripeCheckoutOrigin(request.nextUrl.origin);

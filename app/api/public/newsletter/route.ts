@@ -16,6 +16,13 @@ function getSupabaseClient() {
 
 export async function POST(request: NextRequest) {
   try {
+    const body = await readJsonObject(request, 4 * 1024);
+    const normalizedEmail = String(body.email || '').trim().toLowerCase();
+
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
+      return NextResponse.json({ error: 'Podaj poprawny adres email.' }, { status: 400 });
+    }
+
     const supabase = getSupabaseClient();
     const rateLimit = await checkPublicRateLimit(request, {
       scope: 'newsletter_form',
@@ -32,13 +39,6 @@ export async function POST(request: NextRequest) {
         'Wysłano zbyt wiele zapisów. Spróbuj ponownie później.',
         rateLimit.retryAfter
       );
-    }
-
-    const body = await readJsonObject(request, 4 * 1024);
-    const normalizedEmail = String(body.email || '').trim().toLowerCase();
-
-    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
-      return NextResponse.json({ error: 'Podaj poprawny adres email.' }, { status: 400 });
     }
 
     const { data: existing, error: lookupError } = await supabase

@@ -8,8 +8,7 @@ import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
 import {
-  DEFAULT_DELIVERY_OPTIONS,
-  IGNORED_SHIPPING_SETTING_KEYS,
+  parseDeliveryOptions,
 } from '@/lib/shipping';
 import { validateQuoteFiles } from '@/lib/quote-files';
 
@@ -151,33 +150,17 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const availableShippingSettings = (shippingSettings || []).filter(
-        (setting) => setting.key && !IGNORED_SHIPPING_SETTING_KEYS.has(setting.key)
-      );
-      const deliverySetting = availableShippingSettings.find((setting) =>
-        setting.key === deliveryType || setting.key.replace(/_price$/, '') === deliveryType
-      );
-      const defaultDelivery = availableShippingSettings.length === 0
-        ? DEFAULT_DELIVERY_OPTIONS.find((option) => option.value === deliveryType)
-        : undefined;
+      const deliverySetting = parseDeliveryOptions(shippingSettings || [])
+        .find((option) => option.value === deliveryType);
 
-      if (!deliverySetting && !defaultDelivery) {
+      if (!deliverySetting) {
         return NextResponse.json(
           { error: 'Wybrana metoda dostawy nie jest już dostępna.' },
           { status: 409 }
         );
       }
 
-      const deliveryCost = deliverySetting
-        ? Number(String(deliverySetting.value ?? '0').replace(',', '.'))
-        : Number(defaultDelivery?.price ?? 0);
-
-      if (!Number.isFinite(deliveryCost) || deliveryCost < 0 || deliveryCost > 10_000) {
-        return NextResponse.json(
-          { error: 'Koszt wybranej dostawy jest nieprawidłowy.' },
-          { status: 500 }
-        );
-      }
+      const deliveryCost = deliverySetting.price;
 
       const canonicalColor = `${filament.color}${filament.brand ? ` (${filament.brand})` : ''}`;
       const canonicalColorHex =

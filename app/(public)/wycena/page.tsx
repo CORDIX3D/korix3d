@@ -31,6 +31,7 @@ import {
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import { toast } from 'sonner';
+import { parseDeliveryOptions, type DeliveryOption } from '@/lib/shipping';
 
 const quoteSchema = z.object({
   material_id: z.string().min(1, 'Wybierz materiał'),
@@ -43,7 +44,6 @@ const quoteSchema = z.object({
 });
 
 type QuoteFormValues = z.infer<typeof quoteSchema>;
-type DeliveryOption = { value: string; label: string; price: number };
 type AutomaticQuote = {
   state: 'calculating' | 'ready' | 'manual_review';
   order_number: string;
@@ -81,14 +81,6 @@ const priorityOptions = [
   { value: 'urgent', label: 'Pilne', price: 100, description: 'Najwyższy priorytet po indywidualnym potwierdzeniu' },
 ];
 
-const defaultDeliveryOptions: DeliveryOption[] = [
-  { value: 'pickup', label: 'Odbiór osobisty', price: 0 },
-  { value: 'courier', label: 'Kurier', price: 15 },
-  { value: 'paczkomat', label: 'Paczkomat', price: 12 },
-];
-
-const ignoredShippingSettingKeys = new Set(['free_shipping_threshold']);
-
 const serviceNotes: Record<string, string> = {
   prototypowanie: 'Interesuje mnie prototypowanie.',
   'czesci-inzynieryjne': 'Interesuje mnie wykonanie części inżynieryjnej.',
@@ -107,7 +99,7 @@ function QuotePageContent() {
   const [materialsError, setMaterialsError] = useState('');
   const [colorsLoading, setColorsLoading] = useState(false);
   const [colorsError, setColorsError] = useState('');
-  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(defaultDeliveryOptions);
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
   const [deliveryLoading, setDeliveryLoading] = useState(true);
   const [deliveryError, setDeliveryError] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -134,7 +126,7 @@ function QuotePageContent() {
       infill: '20',
       quantity: 1,
       priority: 'standard',
-      delivery_type: 'courier',
+      delivery_type: '',
       notes: requestedService ? serviceNotes[requestedService] || '' : '',
     },
   });
@@ -224,23 +216,14 @@ function QuotePageContent() {
 
       if (error) throw error;
 
-      const options = (data || [])
-        .filter((setting: { key: string | null; label: string | null; value: string | number | null }) =>
-          setting.key && !ignoredShippingSettingKeys.has(setting.key)
-        )
-        .map((setting: { key: string; label: string | null; value: string | number | null }) => {
-          const price = Number(String(setting.value ?? '0').replace(',', '.'));
-          return {
-            value: setting.key.replace(/_price$/, ''),
-            label: setting.label || setting.key.replace(/_/g, ' '),
-            price: Number.isFinite(price) ? price : 0,
-          };
-        });
-
-      setDeliveryOptions(options.length > 0 ? options : defaultDeliveryOptions);
+      const options = parseDeliveryOptions(data || []);
+      setDeliveryOptions(options);
+      if (options.length === 0) {
+        setDeliveryError('Brak skonfigurowanych metod dostawy. Skontaktuj się z nami przed wysłaniem wyceny.');
+      }
     } catch {
-      setDeliveryOptions(defaultDeliveryOptions);
-      setDeliveryError('Nie udało się pobrać metod dostawy z panelu admina. Pokazujemy domyślne opcje.');
+      setDeliveryOptions([]);
+      setDeliveryError('Nie udało się pobrać metod dostawy z panelu administratora. Spróbuj ponownie.');
     } finally {
       setDeliveryLoading(false);
     }
@@ -365,6 +348,13 @@ function QuotePageContent() {
 
   const onSubmit = async (data: QuoteFormValues) => {
     if (submitting) return;
+
+    if (deliveryLoading || deliveryError || !deliveryOptions.some((option) => option.value === data.delivery_type)) {
+      toast.error('Metoda dostawy jest niedostępna', {
+        description: 'Odśwież listę metod dostawy i spróbuj ponownie.',
+      });
+      return;
+    }
 
     if (!user) {
       toast.error('Zaloguj się', { description: 'Konto jest wymagane do wysłania i śledzenia wyceny.' });
@@ -1099,9 +1089,17 @@ function QuotePageContent() {
                 <div className="space-y-2">
                   <label className="form-label">Metoda dostawy</label>
                   {deliveryError && (
-                    <p className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-muted-foreground">
-                      {deliveryError}
-                    </p>
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      <p>{deliveryError}</p>
+                      <Button type="button" variant="outline" size="sm" className="mt-3" onClick={fetchDeliveryOptions} disabled={deliveryLoading}>
+                        {deliveryLoading ? 'Pobieranie...' : 'Spróbuj ponownie'}
+                      </Button>
+                    </div>
+                  )}
+                  {deliveryLoading && !deliveryError && (
+                    <div className="flex items-center gap-2 rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Pobieranie aktualnych metod dostawy...
+                    </div>
                   )}
                   <div className="grid gap-3 sm:grid-cols-3">
                     {deliveryOptions.map((option) => (
@@ -1188,7 +1186,7 @@ function QuotePageContent() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={submitting || !user}
+                    disabled={submitting || !user || deliveryLoading || Boolean(deliveryError) || !deliveryOptions.some((option) => option.value === watchDelivery)}
                     className="bg-gradient-primary hover:shadow-glow min-w-[160px]"
                   >
                     {submitting ? (

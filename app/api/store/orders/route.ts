@@ -4,7 +4,7 @@ import {
   getRequiredSupabaseServiceEnv,
   isSupabaseConfigurationError,
 } from '@/lib/supabase/env';
-import { DEFAULT_DELIVERY_OPTIONS, IGNORED_SHIPPING_SETTING_KEYS } from '@/lib/shipping';
+import { parseDeliveryOptions } from '@/lib/shipping';
 import { createCheckoutToken } from '@/lib/checkout-token';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
@@ -95,37 +95,23 @@ export async function POST(request: NextRequest) {
 
     if (shippingError) {
       console.error('Shipping settings fetch error:', shippingError);
+      return NextResponse.json(
+        { error: 'Nie udało się pobrać aktualnych metod dostawy.' },
+        { status: 503, headers: { 'Retry-After': '60' } }
+      );
     }
 
-    const availableShippingSettings = (shippingSettings || []).filter(
-      (setting: { key: string | null }) =>
-        Boolean(setting.key) && !IGNORED_SHIPPING_SETTING_KEYS.has(String(setting.key))
-    );
-    const deliverySetting = availableShippingSettings.find((setting: { key: string | null }) => {
-      const key = String(setting.key);
-      return key === parsed.data.deliveryType || key.replace(/_price$/, '') === parsed.data.deliveryType;
-    });
-    const defaultDelivery =
-      shippingError || availableShippingSettings.length === 0
-        ? DEFAULT_DELIVERY_OPTIONS.find((option) => option.value === parsed.data.deliveryType)
-        : undefined;
+    const deliverySetting = parseDeliveryOptions(shippingSettings || [])
+      .find((option) => option.value === parsed.data.deliveryType);
 
-    if (!deliverySetting && !defaultDelivery) {
+    if (!deliverySetting) {
       return NextResponse.json(
         { error: 'Wybrana metoda dostawy jest niedostępna. Odśwież stronę i wybierz metodę ponownie.' },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
-    const shippingCost = deliverySetting
-      ? Number(String(deliverySetting.value ?? '0').replace(',', '.'))
-      : Number(defaultDelivery?.price ?? 0);
-    if (!Number.isFinite(shippingCost) || shippingCost < 0) {
-      return NextResponse.json(
-        { error: 'Konfiguracja kosztu dostawy jest nieprawidłowa.' },
-        { status: 500 }
-      );
-    }
+    const shippingCost = deliverySetting.price;
 
     const { data: order, error: orderError } = await admin.rpc('create_store_order_with_stock', {
       p_user_id: auth.user?.id || null,
@@ -137,7 +123,7 @@ export async function POST(request: NextRequest) {
         name: parsed.data.customer.name,
         phone: parsed.data.customer.phone,
         delivery_type: parsed.data.deliveryType,
-        delivery_label: deliverySetting?.label || deliverySetting?.key || defaultDelivery?.label,
+        delivery_label: deliverySetting.label,
       },
       p_billing_address: parsed.data.billingAddress,
       p_shipping_cost: shippingCost,

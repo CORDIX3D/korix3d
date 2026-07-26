@@ -12,8 +12,7 @@ import { OptimizedImage } from '@/components/ui/optimized-image';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
 import {
-  DEFAULT_DELIVERY_OPTIONS,
-  IGNORED_SHIPPING_SETTING_KEYS,
+  parseDeliveryOptions,
   type DeliveryOption,
 } from '@/lib/shipping';
 import { isValidPolishNip } from '@/lib/store-order-validation';
@@ -39,8 +38,9 @@ export default function CheckoutPage() {
   const appliedProfileId = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>(DEFAULT_DELIVERY_OPTIONS);
-  const [deliveryType, setDeliveryType] = useState(DEFAULT_DELIVERY_OPTIONS[0].value);
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[]>([]);
+  const [deliveryType, setDeliveryType] = useState('');
+  const [deliveryLoading, setDeliveryLoading] = useState(true);
   const [deliveryError, setDeliveryError] = useState('');
   const [paymentNotice, setPaymentNotice] = useState('');
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
@@ -53,7 +53,7 @@ export default function CheckoutPage() {
     amount: number;
     cartSignature: string;
   } | null>(null);
-  const selectedDelivery = deliveryOptions.find((option) => option.value === deliveryType) || deliveryOptions[0];
+  const selectedDelivery = deliveryOptions.find((option) => option.value === deliveryType);
   const cartSignature = items
     .map((item) => `${item.id}:${item.quantity}`)
     .sort()
@@ -103,6 +103,7 @@ export default function CheckoutPage() {
   }
 
   const fetchDeliveryOptions = useCallback(async () => {
+    setDeliveryLoading(true);
     setDeliveryError('');
 
     try {
@@ -114,21 +115,20 @@ export default function CheckoutPage() {
 
       if (error) throw error;
 
-      const options = (data || [])
-        .filter((setting: { key: string | null }) => setting.key && !IGNORED_SHIPPING_SETTING_KEYS.has(setting.key))
-        .map((setting: { key: string; label: string | null; value: string | number | null }) => {
-          const price = Number(String(setting.value ?? '0').replace(',', '.'));
-          return {
-            value: setting.key.replace(/_price$/, ''),
-            label: setting.label || setting.key.replace(/_/g, ' '),
-            price: Number.isFinite(price) ? price : 0,
-          };
-        });
-
-      setDeliveryOptions(options.length > 0 ? options : DEFAULT_DELIVERY_OPTIONS);
+      const options = parseDeliveryOptions(data || []);
+      setDeliveryOptions(options);
+      setDeliveryType((current) =>
+        options.some((option) => option.value === current) ? current : options[0]?.value || ''
+      );
+      if (options.length === 0) {
+        setDeliveryError('Brak skonfigurowanych metod dostawy. Skontaktuj się z nami przed złożeniem zamówienia.');
+      }
     } catch {
-      setDeliveryOptions(DEFAULT_DELIVERY_OPTIONS);
-      setDeliveryError('Nie udało się pobrać aktualnych metod dostawy. Pokazujemy domyślne opcje.');
+      setDeliveryOptions([]);
+      setDeliveryType('');
+      setDeliveryError('Nie udało się pobrać aktualnych metod dostawy. Spróbuj ponownie.');
+    } finally {
+      setDeliveryLoading(false);
     }
   }, []);
 
@@ -216,6 +216,11 @@ export default function CheckoutPage() {
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
+
+    if (deliveryLoading || deliveryError || !selectedDelivery) {
+      setError('Nie można potwierdzić aktualnej metody dostawy. Odśwież listę i spróbuj ponownie.');
+      return;
+    }
 
     const hasInvalidCartItem = items.some(
       (item) =>
@@ -575,8 +580,16 @@ export default function CheckoutPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {deliveryError && (
-                <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3 text-sm text-muted-foreground">
-                  {deliveryError}
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  <p>{deliveryError}</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-3" onClick={fetchDeliveryOptions} disabled={deliveryLoading}>
+                    {deliveryLoading ? 'Pobieranie...' : 'Spróbuj ponownie'}
+                  </Button>
+                </div>
+              )}
+              {deliveryLoading && !deliveryError && (
+                <div className="flex items-center gap-2 rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Pobieranie aktualnych metod dostawy...
                 </div>
               )}
               <div className="grid gap-3 sm:grid-cols-3">
@@ -701,7 +714,7 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="w-full" disabled={submitting || deliveryLoading || !selectedDelivery || Boolean(deliveryError)}>
               {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
               {submitting ? 'Przygotowywanie płatności...' : 'Przejdź do płatności'}
             </Button>

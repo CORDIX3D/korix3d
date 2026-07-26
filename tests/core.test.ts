@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildProductSalesReport } from '../lib/accounting/product-ranking';
 import { calculateDiscount, normalizeCouponCode } from '../lib/discount';
+import { parseDeliveryOptions } from '../lib/shipping';
 import {
   addCartItem,
   getCartSummary,
@@ -376,4 +377,23 @@ test('zamówienie przyjmuje poprawny kupon i odrzuca powtórzony produkt', () =>
     }).success,
     false
   );
+});
+
+test('metody dostawy pochodzą wyłącznie z poprawnej konfiguracji administratora', () => {
+  assert.deepEqual(
+    parseDeliveryOptions([
+      { key: 'free_shipping_threshold', label: 'Próg', value: '200' },
+      { key: 'courier_price', label: 'Kurier', value: '18,99' },
+      { key: 'pickup_price', label: 'Odbiór osobisty', value: 0 },
+      { key: 'broken_price', label: 'Błędna', value: 'brak' },
+      { key: 'empty_price', label: 'Błędna', value: null },
+      { key: 'negative_price', label: 'Błędna', value: -1 },
+      { key: 'courier', label: 'Duplikat', value: 1 },
+    ]),
+    [
+      { value: 'courier', label: 'Kurier', price: 18.99 },
+      { value: 'pickup', label: 'Odbiór osobisty', price: 0 },
+    ]
+  );
+  assert.deepEqual(parseDeliveryOptions([]), []);
 });

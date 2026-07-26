@@ -25,6 +25,7 @@ export default function Page() {
             key: 'priority',
             label: 'Priorytet',
             defaultValue: 'standard',
+            readOnlyOnEdit: true,
             options: [
               { label: 'Standard', value: 'standard' },
               { label: 'Express', value: 'express' },

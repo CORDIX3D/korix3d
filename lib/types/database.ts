@@ -262,6 +262,7 @@ export interface Database {
           priority: 'standard' | 'express' | 'urgent';
           delivery_type: string | null;
           delivery_cost: number | null;
+          pricing_settings_snapshot: Json | null;
           notes: string | null;
           status: 'new' | 'quoted' | 'accepted' | 'queued' | 'printing' | 'post_processing' | 'packed' | 'shipped' | 'completed' | 'cancelled';
           files: Json;
@@ -302,6 +303,7 @@ export interface Database {
           priority?: 'standard' | 'express' | 'urgent';
           delivery_type?: string | null;
           delivery_cost?: number | null;
+          pricing_settings_snapshot?: Json | null;
           notes?: string | null;
           status?: 'new' | 'quoted' | 'accepted' | 'queued' | 'printing' | 'post_processing' | 'packed' | 'shipped' | 'completed' | 'cancelled';
           files?: Json;
@@ -342,6 +344,7 @@ export interface Database {
           priority?: 'standard' | 'express' | 'urgent';
           delivery_type?: string | null;
           delivery_cost?: number | null;
+          pricing_settings_snapshot?: Json | null;
           notes?: string | null;
           status?: 'new' | 'quoted' | 'accepted' | 'queued' | 'printing' | 'post_processing' | 'packed' | 'shipped' | 'completed' | 'cancelled';
           files?: Json;

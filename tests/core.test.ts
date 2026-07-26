@@ -3,7 +3,10 @@ import test from 'node:test';
 import { buildProductSalesReport } from '../lib/accounting/product-ranking';
 import { calculateDiscount, normalizeCouponCode } from '../lib/discount';
 import { parseDeliveryOptions } from '../lib/shipping';
-import { parseQuotePricingSettings } from '../lib/quote-pricing';
+import {
+  createQuotePricingSnapshot,
+  parseQuotePricingSettings,
+} from '../lib/quote-pricing';
 import {
   addCartItem,
   getCartSummary,
@@ -428,4 +431,42 @@ test('kalkulator wymaga kompletnego i poprawnego cennika administratora', () => 
     parseQuotePricingSettings(rows.map((row) => row.key === 'vat_rate' ? { ...row, value: '101' } : row)),
     null
   );
+});
+
+test('wycena zapisuje niezmienną migawkę stawek i kosztu dostawy', () => {
+  const settings = parseQuotePricingSettings([
+    ['printing_hour_cost', '50'],
+    ['electricity_hour_cost', '2.5'],
+    ['maintenance_hour_cost', '5'],
+    ['packaging_cost', '5'],
+    ['default_margin', '25'],
+    ['vat_rate', '23'],
+    ['minimum_order_value', '20'],
+    ['express_surcharge', '65'],
+    ['urgent_surcharge', '120'],
+  ].map(([key, value]) => ({ key, value })));
+
+  assert.ok(settings);
+  assert.deepEqual(createQuotePricingSnapshot(settings, {
+    materialPricePerKg: 82.129,
+    deliveryCost: 18.999,
+    priority: 'express',
+    capturedAt: '2026-07-26T10:00:00.000Z',
+  }), {
+    ...settings,
+    material_price_per_kg: 82.13,
+    delivery_cost: 19,
+    priority: 'express',
+    captured_at: '2026-07-26T10:00:00.000Z',
+  });
+  assert.equal(createQuotePricingSnapshot(settings, {
+    materialPricePerKg: 0,
+    deliveryCost: 18.99,
+    priority: 'standard',
+  }), null);
+  assert.equal(createQuotePricingSnapshot(settings, {
+    materialPricePerKg: 80,
+    deliveryCost: 18.99,
+    priority: 'overnight',
+  }), null);
 });

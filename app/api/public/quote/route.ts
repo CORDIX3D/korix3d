@@ -10,7 +10,10 @@ import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-l
 import {
   parseDeliveryOptions,
 } from '@/lib/shipping';
-import { parseQuotePricingSettings } from '@/lib/quote-pricing';
+import {
+  createQuotePricingSnapshot,
+  parseQuotePricingSettings,
+} from '@/lib/quote-pricing';
 import { validateQuoteFiles } from '@/lib/quote-files';
 
 export const dynamic = 'force-dynamic';
@@ -174,6 +177,20 @@ export async function POST(request: NextRequest) {
       }
 
       const deliveryCost = deliverySetting.price;
+      const pricingSnapshot = createQuotePricingSnapshot(pricingSettings, {
+        materialPricePerKg: Number(filament.price_per_kg || 0) > 0
+          ? Number(filament.price_per_kg)
+          : Number(material.price_per_kg || 0),
+        deliveryCost,
+        priority,
+      });
+
+      if (!pricingSnapshot) {
+        return NextResponse.json(
+          { error: 'Nie udało się zabezpieczyć warunków wyceny. Spróbuj ponownie później.' },
+          { status: 503, headers: { 'Retry-After': '60' } }
+        );
+      }
 
       const canonicalColor = `${filament.color}${filament.brand ? ` (${filament.brand})` : ''}`;
       const canonicalColorHex =
@@ -198,6 +215,7 @@ export async function POST(request: NextRequest) {
             priority,
             delivery_type: deliveryType,
             delivery_cost: deliveryCost,
+            pricing_settings_snapshot: pricingSnapshot,
             notes,
             status: 'new',
             files: [],

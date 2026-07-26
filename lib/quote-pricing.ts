@@ -14,6 +14,15 @@ export type QuotePricingKey = (typeof QUOTE_PRICING_KEYS)[number];
 
 export type QuotePricingSettings = Record<QuotePricingKey, number>;
 
+export type QuotePriority = 'standard' | 'express' | 'urgent';
+
+export type QuotePricingSnapshot = QuotePricingSettings & {
+  material_price_per_kg: number;
+  delivery_cost: number;
+  priority: QuotePriority;
+  captured_at: string;
+};
+
 export type QuotePricingSettingRow = {
   key: string | null;
   value: string | number | null;
@@ -54,4 +63,39 @@ export function parseQuotePricingSettings(
 
   if (parsed.size !== QUOTE_PRICING_KEYS.length) return null;
   return Object.fromEntries(parsed) as QuotePricingSettings;
+}
+
+export function createQuotePricingSnapshot(
+  settings: QuotePricingSettings,
+  input: {
+    materialPricePerKg: number;
+    deliveryCost: number;
+    priority: string;
+    capturedAt?: string;
+  }
+): QuotePricingSnapshot | null {
+  const materialPricePerKg = Number(input.materialPricePerKg);
+  const deliveryCost = Number(input.deliveryCost);
+  const capturedAt = input.capturedAt || new Date().toISOString();
+
+  if (
+    !Number.isFinite(materialPricePerKg)
+    || materialPricePerKg <= 0
+    || materialPricePerKg > 1_000_000
+    || !Number.isFinite(deliveryCost)
+    || deliveryCost < 0
+    || deliveryCost > 10_000
+    || !['standard', 'express', 'urgent'].includes(input.priority)
+    || !Number.isFinite(Date.parse(capturedAt))
+  ) {
+    return null;
+  }
+
+  return {
+    ...settings,
+    material_price_per_kg: Math.round((materialPricePerKg + Number.EPSILON) * 100) / 100,
+    delivery_cost: Math.round((deliveryCost + Number.EPSILON) * 100) / 100,
+    priority: input.priority as QuotePriority,
+    captured_at: capturedAt,
+  };
 }

@@ -103,6 +103,27 @@ for (const table of applicationTables) {
   }
 }
 
+const requiredSecurityGuards = [
+  {
+    name: 'limit przesyłania plików wyceny',
+    sql: 'create or replace function public.can_upload_quote_file',
+  },
+  {
+    name: 'weryfikacja obiektów plików wyceny',
+    sql: 'create or replace function public.validate_order_3d_file_objects',
+  },
+  {
+    name: 'ochrona sfinalizowanych plików wyceny',
+    sql: 'create policy quote_files_owner_delete',
+  },
+];
+
+for (const guard of requiredSecurityGuards) {
+  if (!allSql.includes(guard.sql)) {
+    throw new Error(`Brak zabezpieczenia migracji: ${guard.name}.`);
+  }
+}
+
 console.log(
   `Migracje Supabase są spójne statycznie: ${migrations.length} plików, ${applicationTables.length} wymaganych tabel.`
 );

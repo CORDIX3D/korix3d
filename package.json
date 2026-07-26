@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsc -p tsconfig.tests.json && node --test .test-build/tests/core.test.js",
     "test:smoke": "node scripts/smoke-built-app.mjs",
+    "check:db": "node scripts/check-migrations.mjs",
     "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {

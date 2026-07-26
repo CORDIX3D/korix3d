@@ -43,6 +43,9 @@ jobs:
       - name: Secret scan
         run: npm run check:secrets
 
+      - name: Database migration check
+        run: npm run check:db
+
       - name: Production build
         run: npm run build
 

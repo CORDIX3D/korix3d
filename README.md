@@ -17,4 +17,4 @@ npm run check:secrets
 npm run build
 ```
 
-Pełna kolejność konfiguracji Supabase, Stripe i Netlify znajduje się w [instrukcji wdrożenia](docs/WDROZENIE.md).
+Pełna kolejność konfiguracji Supabase, Stripe i Vercel znajduje się w [instrukcji wdrożenia](docs/WDROZENIE.md).

@@ -115,7 +115,7 @@ export default function AdminSlicerPage() {
     ? {
         ready: false,
         title: 'Brakuje tokenu zdalnego workera',
-        description: 'Dodaj CREALITY_SLICER_WORKER_TOKEN w Netlify i ten sam token na serwerze slicera.',
+        description: 'Dodaj CREALITY_SLICER_WORKER_TOKEN w Vercelu i ten sam token na serwerze slicera.',
       }
     : !data.heartbeat_available
       ? {

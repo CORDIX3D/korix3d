@@ -1,13 +1,13 @@
 # KORIX3D Creality Print worker
 
-Ten proces uruchamia Creality Print poza Netlify. Pobiera prywatne modele z
+Ten proces uruchamia Creality Print poza Vercel. Pobiera prywatne modele z
 krótkotrwałych adresów Supabase, wykonuje slicing i zwraca do KORIX3D czas
 druku oraz zużycie filamentu. Nie korzysta z OpenAI.
 
 ## Wymagane zmienne
 
 - `KORIX3D_SITE_URL` — produkcyjny adres witryny, bez ukośnika na końcu.
-- `CREALITY_SLICER_WORKER_TOKEN` — ten sam długi, losowy sekret co w Netlify.
+- `CREALITY_SLICER_WORKER_TOKEN` — ten sam długi, losowy sekret co w Vercelu.
 - `CREALITY_PRINT_BIN` — ścieżka do pliku wykonywalnego Creality Print.
 - `CREALITY_PRINT_ARGS_JSON` — argumenty CLI zapisane jako tablica JSON.
 - `CREALITY_PRINTER_PROFILE` — profil konkretnej drukarki.

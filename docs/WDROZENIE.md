@@ -4,11 +4,11 @@
 
 - Nie zapisuj kluczy w kodzie, plikach śledzonych przez Git ani wiadomościach.
 - Każdy klucz ujawniony wcześniej w rozmowie, zrzucie ekranu lub historii terminala należy unieważnić i wygenerować ponownie.
-- Do Netlify wpisuj sekrety bezpośrednio w `Project configuration > Environment variables`.
+- Do Vercela wpisuj sekrety bezpośrednio w `Project Settings > Environment Variables`.
 - Klucz `SUPABASE_SERVICE_ROLE_KEY` i sekret Stripe mogą być używane wyłącznie po stronie serwera.
 - Projekt nie wymaga klucza OpenAI. KORIX AI działa lokalnie i nie korzysta z płatnych modeli.
 
-## 2. Wymagane zmienne Netlify
+## 2. Wymagane zmienne Vercel
 
 Dodaj poniższe nazwy jako zmienne projektu dostępne dla wdrożenia produkcyjnego:
 
@@ -22,7 +22,7 @@ Dodaj poniższe nazwy jako zmienne projektu dostępne dla wdrożenia produkcyjne
 | `STRIPE_WEBHOOK_SECRET` | Stripe, szczegóły webhooka | Weryfikacja zdarzeń płatności |
 | `CREALITY_SLICER_WORKER_TOKEN` | Wygenerowany losowy sekret | Dostęp zdalnego workera Creality Print |
 
-Zmienne publiczne Supabase są częścią konfiguracji aplikacji. Pozostałe wartości oznacz w Netlify jako zawierające sekret.
+Zmienne publiczne Supabase są częścią konfiguracji aplikacji. Pozostałe wartości są sekretami serwera. Wszystkie zmienne dodaj do środowiska `Production`; dla bezpiecznych testów możesz dodać osobne klucze testowe do `Preview`.
 
 ## 3. Supabase
 
@@ -37,24 +37,22 @@ Zmienne publiczne Supabase są częścią konfiguracji aplikacji. Pozostałe war
 
 Nie uruchamiaj checkoutu, dopóki najnowsze migracje sklepu nie zostały zastosowane. Rezerwacja i zwrot stanu magazynowego odbywają się w funkcjach bazodanowych.
 
-## 4. Netlify
+## 4. Vercel
 
-1. Połącz witrynę z repozytorium GitHub `CORDIX3D/korix3d` i gałęzią `main`.
-2. Ustaw katalog bazowy na katalog projektu, jeśli repozytorium zawiera dodatkowy folder nadrzędny.
-3. Konfigurację budowania pozostaw zgodną z `netlify.toml`:
-   - komenda: `npm run build`,
-   - Node.js: wersja 20,
-   - plugin: `@netlify/plugin-nextjs`.
-4. Dodaj zmienne środowiskowe z punktu 2.
-5. Uruchom nowe wdrożenie po każdej zmianie zmiennych.
-6. Po wdrożeniu sprawdź `https://TWOJA-DOMENA/api/health`.
+1. Projekt Vercel musi być połączony z repozytorium GitHub `CORDIX3D/korix3d` i produkcyjną gałęzią `main`.
+2. Framework Preset pozostaw jako `Next.js`. Vercel automatycznie korzysta z `npm install`/`npm run build`; wersja Node wynika z pola `engines` w `package.json`.
+3. Root Directory pozostaw pusty, ponieważ `package.json` znajduje się w katalogu głównym repozytorium.
+4. W `Project Settings > Environment Variables` dodaj zmienne z punktu 2 dla `Production`.
+5. W `Domains` przypisz `korix3d.pl` oraz opcjonalnie `www.korix3d.pl` i ustaw przekierowanie na jedną domenę kanoniczną.
+6. Po dodaniu lub zmianie zmiennych wykonaj `Redeploy` najnowszego wdrożenia. Zmiana zmiennych nie aktualizuje wcześniej zbudowanego wdrożenia.
+7. Po wdrożeniu sprawdź `https://korix3d.pl/api/health`.
 
 Status `503` oznacza brak wymaganej konfiguracji. Szczegółowy stan usług jest widoczny dla administratora przez `/api/admin/health`.
 
 ## 5. Stripe — najpierw tryb testowy
 
 1. W Stripe włącz środowisko testowe i wygeneruj nowy klucz serwerowy.
-2. W Netlify ustaw go jako `STRIPE_SECRET_KEY`.
+2. W Vercelu ustaw go jako `STRIPE_SECRET_KEY` dla środowiska `Production`.
 3. W Stripe Workbench otwórz Webhooks i utwórz destination typu Webhook.
 4. Ustaw adres endpointu:
 
@@ -65,7 +63,7 @@ Status `503` oznacza brak wymaganej konfiguracji. Szczegółowy stan usług jest
    - `checkout.session.async_payment_succeeded`,
    - `checkout.session.async_payment_failed`,
    - `checkout.session.expired`.
-6. Skopiuj nowy signing secret bezpośrednio do Netlify jako `STRIPE_WEBHOOK_SECRET`.
+6. Skopiuj nowy signing secret bezpośrednio do Vercela jako `STRIPE_WEBHOOK_SECRET`.
 7. Uruchom ponowne wdrożenie.
 8. Wykonaj testowe zamówienie i sprawdź, czy:
    - Stripe pokazuje dostarczone zdarzenie,
@@ -77,7 +75,7 @@ Kod celowo nie uruchomi płatności, jeśli brakuje sekretu webhooka. Chroni to 
 
 ## 6. Worker Creality Print
 
-Sama aplikacja internetowa nie uruchamia Creality Print. Zdalny worker musi działać na osobnej maszynie z zainstalowanym slicerem i używać tego samego `CREALITY_SLICER_WORKER_TOKEN` co Netlify.
+Sama aplikacja internetowa nie uruchamia Creality Print. Zdalny worker musi działać na osobnej maszynie z zainstalowanym slicerem i używać tego samego `CREALITY_SLICER_WORKER_TOKEN` co Vercel.
 
 Po uruchomieniu workera sprawdź w `/admin/slicer`:
 
@@ -101,4 +99,4 @@ Przed przełączeniem Stripe na tryb live:
 7. Sprawdź anulowanie płatności, wygaśnięcie sesji i ponowne dostarczenie webhooka.
 8. Dopiero po udanym teście utwórz osobny webhook i osobne klucze dla trybu live.
 
-Dokumentacja: [zmienne Netlify](https://docs.netlify.com/build/environment-variables/get-started/), [webhooki Stripe](https://docs.stripe.com/workbench/event-destinations).
+Dokumentacja: [zmienne Vercel](https://vercel.com/docs/environment-variables), [wdrażanie Next.js w Vercelu](https://vercel.com/docs/frameworks/full-stack/nextjs), [webhooki Stripe](https://docs.stripe.com/workbench/event-destinations).

@@ -20,6 +20,7 @@ import {
   isValidPolishNip,
   storeOrderSchema,
 } from '../lib/store-order-validation';
+import { createClient } from '../lib/supabase/client';
 import type { Product } from '../lib/types/database';
 
 function product(overrides: Partial<Product> = {}): Product {
@@ -269,4 +270,18 @@ test('edycja produktu wymaga wersji rekordu i ogranicza galerię do 8 zdjęć', 
     }).success,
     false
   );
+});
+
+test('brak konfiguracji Supabase zwraca błąd zamiast danych demonstracyjnych', async () => {
+  const client = createClient();
+  const queryResult = await client.from('products').select('*');
+  const authResult = await client.auth.signInWithPassword({
+    email: 'test@example.com',
+    password: 'dowolne-haslo',
+  });
+
+  assert.equal(queryResult.data, null);
+  assert.equal(queryResult.error?.name, 'SupabaseUnavailableError');
+  assert.equal(authResult.data?.session, null);
+  assert.equal(authResult.error?.name, 'SupabaseUnavailableError');
 });

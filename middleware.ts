@@ -68,7 +68,7 @@ export async function middleware(request: NextRequest) {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     if (process.env.NODE_ENV !== 'production') {
-      console.warn('Supabase env vars missing — using local development fallbacks.');
+      console.warn('Supabase env vars missing — protected features are unavailable.');
       return NextResponse.next({ request });
     }
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { buildProductSalesReport } from '../lib/accounting/product-ranking';
 import {
   addCartItem,
   getCartSummary,
@@ -284,4 +285,27 @@ test('brak konfiguracji Supabase zwraca błąd zamiast danych demonstracyjnych',
   assert.equal(queryResult.error?.name, 'SupabaseUnavailableError');
   assert.equal(authResult.data?.session, null);
   assert.equal(authResult.error?.name, 'SupabaseUnavailableError');
+});
+
+test('ranking produktów obejmuje tylko poprawne pozycje i sumuje historię sprzedaży', () => {
+  const report = buildProductSalesReport(
+    [
+      { product_id: 'a', sku: 'PLA-1', name: 'Filament PLA', quantity: 2, total: 80 },
+      { product_id: 'a', sku: 'PLA-1', name: 'Filament PLA', quantity: 1, total: 40 },
+      { product_id: 'b', sku: 'PETG-1', name: 'Filament PETG', quantity: 5, total: 100 },
+      { product_id: 'c', sku: 'BAD', name: 'Błędna pozycja', quantity: 0, total: 500 },
+      { product_id: null, sku: 'OLD-1', name: 'Produkt usunięty', quantity: 1, total: 10 },
+    ],
+    { a: 'Filamenty', b: 'Filamenty' }
+  );
+
+  assert.deepEqual(report.top, [
+    { name: 'Filament PLA', sold: 3, revenue: 120 },
+    { name: 'Filament PETG', sold: 5, revenue: 100 },
+    { name: 'Produkt usunięty', sold: 1, revenue: 10 },
+  ]);
+  assert.deepEqual(report.byCategory, {
+    Filamenty: 8,
+    'Bez kategorii': 1,
+  });
 });

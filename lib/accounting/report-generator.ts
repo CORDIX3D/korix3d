@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import { buildProductSalesReport } from '@/lib/accounting/product-ranking';
 import {
   RECOGNIZED_ORDER_3D_STATUSES,
   RECOGNIZED_STORE_ORDER_STATUSES,
@@ -172,17 +173,68 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     isRecognizedStoreOrderRevenue(order.status)
   );
   const recognizedStoreOrderIds = recognizedStoreOrders.map((order: any) => order.id);
-  const storeCostResult = recognizedStoreOrderIds.length > 0
+  const storeItemResult = recognizedStoreOrderIds.length > 0
     ? await supabase
         .from('store_order_items')
-        .select('order_id, quantity, unit_cost')
+        .select('order_id, product_id, sku, name, quantity, total, unit_cost')
         .in('order_id', recognizedStoreOrderIds)
     : { data: [], error: null };
 
-  if (storeCostResult.error) {
-    console.error('Accounting store item costs query error:', storeCostResult.error);
+  if (storeItemResult.error) {
+    console.error('Accounting store items query error:', storeItemResult.error);
     throw new Error('Accounting report source data is unavailable');
   }
+
+  const reportProductIds = [
+    ...new Set(
+      (storeItemResult.data || [])
+        .map((item: any) => item.product_id)
+        .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+    ),
+  ];
+  const reportProductsResult = reportProductIds.length > 0
+    ? await supabase
+        .from('products')
+        .select('id, category_id')
+        .in('id', reportProductIds)
+    : { data: [], error: null };
+
+  if (reportProductsResult.error) {
+    console.error('Accounting product categories query error:', reportProductsResult.error);
+    throw new Error('Accounting report source data is unavailable');
+  }
+
+  const reportCategoryIds = [
+    ...new Set(
+      (reportProductsResult.data || [])
+        .map((product: any) => product.category_id)
+        .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+    ),
+  ];
+  const reportCategoriesResult = reportCategoryIds.length > 0
+    ? await supabase
+        .from('categories')
+        .select('id, name')
+        .in('id', reportCategoryIds)
+    : { data: [], error: null };
+
+  if (reportCategoriesResult.error) {
+    console.error('Accounting categories query error:', reportCategoriesResult.error);
+    throw new Error('Accounting report source data is unavailable');
+  }
+
+  const categoryNameById = Object.fromEntries(
+    (reportCategoriesResult.data || []).map((category: any) => [
+      category.id,
+      category.name,
+    ])
+  );
+  const categoryByProductId = Object.fromEntries(
+    (reportProductsResult.data || []).map((product: any) => [
+      product.id,
+      categoryNameById[product.category_id] || 'Bez kategorii',
+    ])
+  );
 
   // A quote is not revenue. Count 3D work only after customer acceptance and
   // store orders only after successful payment.
@@ -263,7 +315,7 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     (sum: number, o: any) => sum + (o.material_cost || 0),
     0
   );
-  const storeProductCosts = (storeCostResult.data || []).reduce(
+  const storeProductCosts = (storeItemResult.data || []).reduce(
     (sum: number, item: any) => sum + Number(item.unit_cost || 0) * Number(item.quantity || 0),
     0
   );
@@ -338,9 +390,10 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // Top products (from store orders)
-  const productSales: Record<string, { name: string; sold: number; revenue: number }> = {};
-  // Detailed item ranking is unavailable until report queries include store_order_items.
+  const productSales = buildProductSalesReport(
+    storeItemResult.data || [],
+    categoryByProductId
+  );
 
   // Cash flow by month (last 6 months)
   const cashFlowByMonth = [];
@@ -439,8 +492,8 @@ async function fetchReportData(periodStart: Date, periodEnd: Date): Promise<Repo
       growth: 0 // Historical customer growth is not tracked in the MVP report.
     },
     products: {
-      top: [],
-      byCategory: {}
+      top: productSales.top,
+      byCategory: productSales.byCategory
     },
     warehouse: {
       totalValue: warehouseValue,
@@ -904,8 +957,51 @@ async function createExcelReport(data: ReportData, analysisSummary: string): Pro
   sheet8.getCell('A1').style = headerStyle as any;
   sheet8.mergeCells('A1:D1');
 
-  sheet8.getCell('A3').value = 'Top produkty będą dostępne po integracji z danymi sprzedażowymi';
-  sheet8.columns.forEach(col => col.width = 20);
+  sheet8.getCell('A3').value = 'Top produkty według przychodu';
+  sheet8.getCell('A3').style = subHeaderStyle as any;
+  sheet8.mergeCells('A3:C3');
+
+  ['Produkt', 'Sprzedane sztuki', 'Przychód'].forEach((header, index) => {
+    const cell = sheet8.getCell(String.fromCharCode(65 + index) + '4');
+    cell.value = header;
+    cell.style = subHeaderStyle as any;
+  });
+
+  if (data.products.top.length === 0) {
+    sheet8.getCell('A5').value = 'Brak opłaconych produktów w wybranym okresie';
+  } else {
+    data.products.top.forEach((product, index) => {
+      const row = 5 + index;
+      sheet8.getCell(`A${row}`).value = product.name;
+      sheet8.getCell(`B${row}`).value = product.sold;
+      sheet8.getCell(`C${row}`).value = product.revenue;
+      sheet8.getCell(`C${row}`).style = numberStyle as any;
+    });
+  }
+
+  const categoryStartRow = Math.max(17, 7 + data.products.top.length);
+  sheet8.getCell(`A${categoryStartRow}`).value = 'Sprzedaż według kategorii';
+  sheet8.getCell(`A${categoryStartRow}`).style = subHeaderStyle as any;
+  sheet8.mergeCells(`A${categoryStartRow}:B${categoryStartRow}`);
+  sheet8.getCell(`A${categoryStartRow + 1}`).value = 'Kategoria';
+  sheet8.getCell(`B${categoryStartRow + 1}`).value = 'Sprzedane sztuki';
+  sheet8.getCell(`A${categoryStartRow + 1}`).style = subHeaderStyle as any;
+  sheet8.getCell(`B${categoryStartRow + 1}`).style = subHeaderStyle as any;
+
+  const categoryEntries = Object.entries(data.products.byCategory);
+  if (categoryEntries.length === 0) {
+    sheet8.getCell(`A${categoryStartRow + 2}`).value = 'Brak danych';
+  } else {
+    categoryEntries.forEach(([category, sold], index) => {
+      const row = categoryStartRow + 2 + index;
+      sheet8.getCell(`A${row}`).value = category;
+      sheet8.getCell(`B${row}`).value = sold;
+    });
+  }
+
+  sheet8.getColumn('A').width = 34;
+  sheet8.getColumn('B').width = 20;
+  sheet8.getColumn('C').width = 20;
 
   // ==================== SHEET 09: WAREHOUSE ====================
   const sheet9 = workbook.addWorksheet('09 Magazyn');

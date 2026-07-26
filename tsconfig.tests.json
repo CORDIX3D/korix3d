@@ -17,6 +17,7 @@
   },
   "include": [
     "lib/cart.ts",
+    "lib/accounting/product-ranking.ts",
     "lib/checkout-token.ts",
     "lib/order-3d-status.ts",
     "lib/quote-files.ts",

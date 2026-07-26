@@ -9,6 +9,10 @@ import {
   isOrder3DStatus,
 } from '@/lib/order-3d-status';
 import { normalizeCouponCode } from '@/lib/discount';
+import {
+  canManageStoreOrderStatus,
+  isStoreOrderStatus,
+} from '@/lib/store-order-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,15 +55,6 @@ const PROTECTED_ORDER_FIELDS: Record<string, ReadonlySet<string>> = {
 };
 const EMPLOYEE_CRUD_FIELDS = PROTECTED_ORDER_FIELDS;
 const NON_CREATABLE_TABLES = new Set(Object.keys(PROTECTED_ORDER_FIELDS));
-const STORE_ORDER_TRANSITIONS: Record<string, ReadonlySet<string>> = {
-  pending: new Set(['pending']),
-  paid: new Set(['paid', 'processing']),
-  processing: new Set(['processing', 'shipped']),
-  shipped: new Set(['shipped', 'delivered']),
-  delivered: new Set(['delivered']),
-  cancelled: new Set(['cancelled']),
-  refunded: new Set(['refunded']),
-};
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -240,7 +235,7 @@ function validateStatusValue(table: string, payload: AdminCrudPayload) {
     return 'Niepoprawny status zamówienia 3D.';
   }
 
-  if (table === 'store_orders' && !STORE_ORDER_TRANSITIONS[status]) {
+  if (table === 'store_orders' && !isStoreOrderStatus(status)) {
     return 'Niepoprawny status zamówienia sklepu.';
   }
 
@@ -389,7 +384,7 @@ export async function POST(request: NextRequest) {
 
       const currentStatus = String(currentOrder.status || '');
       const nextStatus = String(payload.status || '');
-      if (!STORE_ORDER_TRANSITIONS[currentStatus]?.has(nextStatus)) {
+      if (!canManageStoreOrderStatus(currentStatus, nextStatus)) {
         return NextResponse.json(
           {
             error:

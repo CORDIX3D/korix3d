@@ -22,7 +22,7 @@ export type CrudField = {
   defaultValue?: string | number | boolean | null;
   options?: Array<{ label: string; value: string }>;
   readOnlyOnEdit?: boolean;
-  allowedTransitions?: Record<string, string[]>;
+  allowedTransitions?: Record<string, readonly string[]>;
 };
 
 export type CrudColumn = {

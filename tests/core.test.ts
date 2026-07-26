@@ -5,6 +5,10 @@ import { calculateDiscount, normalizeCouponCode } from '../lib/discount';
 import { parseDeliveryOptions } from '../lib/shipping';
 import { getStripeSessionBinding } from '../lib/stripe-session';
 import {
+  canManageStoreOrderStatus,
+  canTransitionStoreOrderStatus,
+} from '../lib/store-order-status';
+import {
   createQuotePricingSnapshot,
   parseQuotePricingSettings,
 } from '../lib/quote-pricing';
@@ -477,4 +481,17 @@ test('webhook Stripe rozróżnia brak, zgodność i konflikt sesji płatności',
   assert.equal(getStripeSessionBinding('', 'cs_test_new'), 'unbound');
   assert.equal(getStripeSessionBinding('cs_test_same', 'cs_test_same'), 'match');
   assert.equal(getStripeSessionBinding('cs_test_old', 'cs_test_new'), 'mismatch');
+});
+
+test('status zamówienia sklepu nie omija płatności ani etapów realizacji', () => {
+  assert.equal(canTransitionStoreOrderStatus('pending', 'paid'), true);
+  assert.equal(canTransitionStoreOrderStatus('pending', 'processing'), false);
+  assert.equal(canTransitionStoreOrderStatus('paid', 'processing'), true);
+  assert.equal(canTransitionStoreOrderStatus('processing', 'shipped'), true);
+  assert.equal(canTransitionStoreOrderStatus('shipped', 'delivered'), true);
+  assert.equal(canTransitionStoreOrderStatus('delivered', 'processing'), false);
+  assert.equal(canTransitionStoreOrderStatus('cancelled', 'paid'), false);
+  assert.equal(canTransitionStoreOrderStatus('paid', 'refunded'), true);
+  assert.equal(canManageStoreOrderStatus('pending', 'paid'), false);
+  assert.equal(canManageStoreOrderStatus('paid', 'processing'), true);
 });

@@ -1,4 +1,5 @@
 import { GenericAdminCrud } from '@/components/admin/generic-admin-crud';
+import { STORE_ORDER_ALLOWED_TRANSITIONS } from '@/lib/store-order-status';
 
 export const metadata = {
   title: 'Zamówienia sklepu | Panel administratora KORIX3D',
@@ -33,15 +34,7 @@ export default function Page() {
               { label: 'Anulowane', value: 'cancelled' },
               { label: 'Zwrócone', value: 'refunded' },
             ],
-            allowedTransitions: {
-              pending: ['pending'],
-              paid: ['paid', 'processing'],
-              processing: ['processing', 'shipped'],
-              shipped: ['shipped', 'delivered'],
-              delivered: ['delivered'],
-              cancelled: ['cancelled'],
-              refunded: ['refunded'],
-            },
+            allowedTransitions: STORE_ORDER_ALLOWED_TRANSITIONS,
           },
           { key: 'subtotal', label: 'Produkty', type: 'number', required: true, defaultValue: 0, readOnlyOnEdit: true },
           { key: 'shipping_cost', label: 'Dostawa', type: 'number', defaultValue: 0, readOnlyOnEdit: true },

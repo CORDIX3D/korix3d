@@ -28,6 +28,16 @@ function cleanString(value: unknown) {
   return String(value || '').trim();
 }
 
+function isPricingSnapshotMigrationPending(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  const code = String(candidate.code || '');
+  const message = String(candidate.message || '').toLowerCase();
+
+  return ['42703', 'PGRST204'].includes(code)
+    && message.includes('pricing_settings_snapshot');
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -198,31 +208,46 @@ export async function POST(request: NextRequest) {
           ? cleanString(filament.color_hex)
           : null;
 
-      const { data, error } = await admin
+      const orderPayload = {
+        id: orderId,
+        user_id: auth.user.id,
+        material_id: materialId,
+        filament_id: filamentId,
+        material_name: material.name,
+        color: canonicalColor,
+        color_hex: canonicalColorHex,
+        infill_percent: infillPercent,
+        layer_height: 0.2,
+        quantity,
+        priority,
+        delivery_type: deliveryType,
+        delivery_cost: deliveryCost,
+        notes,
+        status: 'new',
+        files: [],
+      };
+
+      let insertResult = await admin
         .from('orders_3d')
         .insert([
           {
-            id: orderId,
-            user_id: auth.user.id,
-            material_id: materialId,
-            filament_id: filamentId,
-            material_name: material.name,
-            color: canonicalColor,
-            color_hex: canonicalColorHex,
-            infill_percent: infillPercent,
-            layer_height: 0.2,
-            quantity,
-            priority,
-            delivery_type: deliveryType,
-            delivery_cost: deliveryCost,
+            ...orderPayload,
             pricing_settings_snapshot: pricingSnapshot,
-            notes,
-            status: 'new',
-            files: [],
           },
         ])
         .select('order_number')
         .single();
+
+      if (isPricingSnapshotMigrationPending(insertResult.error)) {
+        console.warn('Quote pricing snapshot migration is pending; using legacy insert.');
+        insertResult = await admin
+          .from('orders_3d')
+          .insert([orderPayload])
+          .select('order_number')
+          .single();
+      }
+
+      const { data, error } = insertResult;
 
       if (error) {
         console.error('Quote create error:', error);

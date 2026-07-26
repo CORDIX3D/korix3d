@@ -10,6 +10,7 @@ import {
   getStripeWebhookSecret,
   isStripeConfigurationError,
 } from '@/lib/stripe';
+import { getStripeSessionBinding } from '@/lib/stripe-session';
 
 export const dynamic = 'force-dynamic';
 const MAX_WEBHOOK_BYTES = 1024 * 1024;
@@ -75,7 +76,11 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (orderError) throw orderError;
     if (!order) return NextResponse.json({ received: true, ignored: true });
-    if (!order.stripe_session_id || order.stripe_session_id !== session.id) {
+    const sessionBinding = getStripeSessionBinding(
+      order.stripe_session_id,
+      session.id
+    );
+    if (sessionBinding === 'mismatch') {
       console.error('Stripe webhook session mismatch:', {
         orderId,
         receivedSessionId: session.id,
@@ -100,10 +105,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ received: true, ignored: true });
       }
 
-      const { data: paidOrders, error: paymentError } = await admin
+      const paymentUpdate = admin
         .from('store_orders')
         .update({
           status: 'paid',
+          stripe_session_id: session.id,
           checkout_token_hash: null,
           stripe_payment_intent_id:
             typeof session.payment_intent === 'string'
@@ -111,22 +117,35 @@ export async function POST(request: NextRequest) {
               : null,
         })
         .eq('id', order.id)
-        .eq('stripe_session_id', session.id)
-        .eq('status', 'pending')
-        .select('id');
+        .eq('status', 'pending');
+      const { data: paidOrders, error: paymentError } = sessionBinding === 'unbound'
+        ? await paymentUpdate.is('stripe_session_id', null).select('id')
+        : await paymentUpdate.eq('stripe_session_id', session.id).select('id');
       if (paymentError) throw paymentError;
       if (!paidOrders?.length && order.status !== 'paid') {
-        console.error('Stripe paid event ignored because order is no longer pending:', {
-          orderId: order.id,
-          orderStatus: order.status,
-        });
+        const { data: currentOrder, error: currentOrderError } = await admin
+          .from('store_orders')
+          .select('status, stripe_session_id')
+          .eq('id', order.id)
+          .maybeSingle();
+        if (currentOrderError) throw currentOrderError;
+        if (
+          currentOrder?.status !== 'paid'
+          || currentOrder.stripe_session_id !== session.id
+        ) {
+          throw new Error('Paid Stripe session could not be committed to the order.');
+        }
       }
     } else if (event.type === 'checkout.session.completed') {
-      const { error: sessionError } = await admin
-        .from('store_orders')
-        .update({ stripe_session_id: session.id })
-        .eq('id', orderId);
-      if (sessionError) throw sessionError;
+      if (sessionBinding === 'unbound') {
+        const { error: sessionError } = await admin
+          .from('store_orders')
+          .update({ stripe_session_id: session.id })
+          .eq('id', orderId)
+          .eq('status', 'pending')
+          .is('stripe_session_id', null);
+        if (sessionError) throw sessionError;
+      }
     } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
       const { error: cancellationError } = await admin.rpc(
         'cancel_store_order_and_restore_stock',

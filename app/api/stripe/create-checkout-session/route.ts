@@ -155,14 +155,49 @@ export async function POST(request: NextRequest) {
       { idempotencyKey: `korix3d-checkout-${order.id}` }
     );
 
-    const { error: sessionSaveError } = await admin
+    const { data: savedOrder, error: sessionSaveError } = await admin
       .from('store_orders')
       .update({ stripe_session_id: session.id })
-      .eq('id', order.id);
+      .eq('id', order.id)
+      .eq('status', 'pending')
+      .is('stripe_session_id', null)
+      .select('id')
+      .maybeSingle();
     if (sessionSaveError) {
       await stripe.checkout.sessions.expire(session.id);
       await admin.rpc('cancel_store_order_and_restore_stock', { p_order_id: order.id });
       throw sessionSaveError;
+    }
+
+    if (!savedOrder) {
+      const { data: currentOrder, error: currentOrderError } = await admin
+        .from('store_orders')
+        .select('status, stripe_session_id')
+        .eq('id', order.id)
+        .maybeSingle();
+      if (currentOrderError) throw currentOrderError;
+
+      if (
+        currentOrder?.status === 'pending'
+        && currentOrder.stripe_session_id === session.id
+      ) {
+        return NextResponse.json({ url: session.url });
+      }
+
+      if (currentOrder?.status === 'paid' && currentOrder.stripe_session_id === session.id) {
+        return NextResponse.json(
+          { error: 'Płatność dla tego zamówienia została już zakończona.' },
+          { status: 409 }
+        );
+      }
+
+      if (session.status === 'open') {
+        await stripe.checkout.sessions.expire(session.id);
+      }
+      return NextResponse.json(
+        { error: 'Stan zamówienia zmienił się podczas przygotowywania płatności. Spróbuj ponownie.' },
+        { status: 409 }
+      );
     }
     return NextResponse.json({ url: session.url });
   } catch (error) {

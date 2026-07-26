@@ -20,6 +20,7 @@
     "lib/accounting/product-ranking.ts",
     "lib/discount.ts",
     "lib/shipping.ts",
+    "lib/stripe-session.ts",
     "lib/quote-pricing.ts",
     "lib/checkout-token.ts",
     "lib/order-3d-status.ts",

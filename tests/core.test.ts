@@ -3,6 +3,7 @@ import test from 'node:test';
 import { buildProductSalesReport } from '../lib/accounting/product-ranking';
 import { calculateDiscount, normalizeCouponCode } from '../lib/discount';
 import { parseDeliveryOptions } from '../lib/shipping';
+import { getStripeSessionBinding } from '../lib/stripe-session';
 import {
   createQuotePricingSnapshot,
   parseQuotePricingSettings,
@@ -469,4 +470,11 @@ test('wycena zapisuje niezmienną migawkę stawek i kosztu dostawy', () => {
     deliveryCost: 18.99,
     priority: 'overnight',
   }), null);
+});
+
+test('webhook Stripe rozróżnia brak, zgodność i konflikt sesji płatności', () => {
+  assert.equal(getStripeSessionBinding(null, 'cs_test_new'), 'unbound');
+  assert.equal(getStripeSessionBinding('', 'cs_test_new'), 'unbound');
+  assert.equal(getStripeSessionBinding('cs_test_same', 'cs_test_same'), 'match');
+  assert.equal(getStripeSessionBinding('cs_test_old', 'cs_test_new'), 'mismatch');
 });

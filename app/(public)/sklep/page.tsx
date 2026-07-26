@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { PUBLIC_PRODUCT_SELECT } from '@/lib/public-product';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { OptimizedImage } from '@/components/ui/optimized-image';
@@ -107,7 +108,7 @@ function ShopPageContent() {
     try {
       let query = supabase
         .from('products')
-        .select('*')
+        .select(PUBLIC_PRODUCT_SELECT)
         .eq('active', true);
 
       if (selectedCategory) {

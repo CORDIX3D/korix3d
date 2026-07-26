@@ -20,7 +20,7 @@ function databaseDetails(error: unknown) {
   };
 }
 
-function productErrorResponse(error: unknown, action: 'zapisać' | 'usunąć') {
+function productErrorResponse(error: unknown, action: 'zapisać' | 'usunąć' | 'pobrać') {
   const { code, message } = databaseDetails(error);
 
   if (
@@ -59,6 +59,29 @@ function productErrorResponse(error: unknown, action: 'zapisać' | 'usunąć') {
     { error: `Nie udało się ${action} produktu.` },
     { status: 500 }
   );
+}
+
+export async function GET() {
+  try {
+    const auth = await requireAdminApiContext();
+    if (auth.response) return auth.response;
+
+    const { data, error } = await auth.context.adminClient
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    return NextResponse.json(
+      { products: data || [] },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (error) {
+    if (isSupabaseConfigurationError(error)) return adminApiUnavailableResponse();
+
+    console.error('Admin product list error:', error);
+    return productErrorResponse(error, 'pobrać');
+  }
 }
 
 export async function POST(request: NextRequest) {

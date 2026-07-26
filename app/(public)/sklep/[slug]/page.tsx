@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { ProductPurchaseActions } from '@/components/shop/product-purchase-actions';
 import type { Product } from '@/lib/types/database';
 import { OptimizedImage } from '@/components/ui/optimized-image';
+import { PUBLIC_PRODUCT_SELECT } from '@/lib/public-product';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const supabase = await createClient();
-  const { data, error } = await supabase.from('products').select('*').eq('slug', slug).eq('active', true).maybeSingle();
+  const { data, error } = await supabase.from('products').select(PUBLIC_PRODUCT_SELECT).eq('slug', slug).eq('active', true).maybeSingle();
   if (error) throw new Error('Nie udało się pobrać produktu.');
   if (!data) notFound();
   const product = data as Product;

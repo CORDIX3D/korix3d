@@ -113,22 +113,14 @@ export default function AdminWarehousePage() {
     setLoading(true);
     setError('');
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        setError('Nie udało się pobrać produktów z Supabase.');
-        setProducts([]);
-        toast.error('Błąd', { description: 'Nie udało się pobrać produktów' });
-      } else {
-        setProducts((data || []) as Product[]);
-      }
+      const response = await fetch('/api/admin/products', { cache: 'no-store' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Nie udało się pobrać produktów.');
+      setProducts((result.products || []) as Product[]);
     } catch {
-      setError('Nie udało się połączyć z Supabase podczas pobierania produktów.');
+      setError('Nie udało się pobrać produktów z chronionego API administratora.');
       setProducts([]);
-      toast.error('Błąd', { description: 'Nie udało się połączyć z Supabase' });
+      toast.error('Błąd', { description: 'Nie udało się pobrać produktów' });
     } finally {
       setLoading(false);
     }

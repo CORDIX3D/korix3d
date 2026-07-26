@@ -27,6 +27,7 @@
     "lib/order-3d-status.ts",
     "lib/quote-files.ts",
     "lib/product-validation.ts",
+    "lib/public-product.ts",
     "lib/store-order-validation.ts",
     "lib/supabase/client.ts",
     "lib/types/database.ts",

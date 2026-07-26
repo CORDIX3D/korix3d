@@ -14,6 +14,7 @@ import {
   PanelLoading,
 } from '@/components/customer/panel-state';
 import { supabase } from '@/lib/supabase/client';
+import { PUBLIC_PRODUCT_SELECT } from '@/lib/public-product';
 import { useCart } from '@/lib/cart-provider';
 import { useWishlist } from '@/lib/wishlist-provider';
 import type { Product } from '@/lib/types/database';
@@ -45,7 +46,7 @@ export function CustomerWishlist() {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select(PUBLIC_PRODUCT_SELECT)
         .in('id', productIds)
         .eq('active', true);
 

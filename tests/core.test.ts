@@ -28,6 +28,7 @@ import {
 } from '../lib/order-3d-status';
 import { validateQuoteFiles } from '../lib/quote-files';
 import { productPayloadSchema } from '../lib/product-validation';
+import { PUBLIC_PRODUCT_COLUMNS } from '../lib/public-product';
 import {
   isValidPolishNip,
   storeOrderSchema,
@@ -494,4 +495,14 @@ test('status zamówienia sklepu nie omija płatności ani etapów realizacji', (
   assert.equal(canTransitionStoreOrderStatus('paid', 'refunded'), true);
   assert.equal(canManageStoreOrderStatus('pending', 'paid'), false);
   assert.equal(canManageStoreOrderStatus('paid', 'processing'), true);
+});
+
+test('publiczny katalog nie udostępnia wewnętrznych pól produktu', () => {
+  const publicColumns = new Set<string>(PUBLIC_PRODUCT_COLUMNS);
+  assert.equal(publicColumns.has('cost_price'), false);
+  assert.equal(publicColumns.has('min_stock_quantity'), false);
+  assert.equal(publicColumns.has('stripe_price_id'), false);
+  assert.equal(publicColumns.has('price'), true);
+  assert.equal(publicColumns.has('stock_quantity'), true);
+  assert.equal(publicColumns.has('images'), true);
 });

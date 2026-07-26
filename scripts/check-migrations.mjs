@@ -116,6 +116,10 @@ const requiredSecurityGuards = [
     name: 'ochrona sfinalizowanych plików wyceny',
     sql: 'create policy quote_files_owner_delete',
   },
+  {
+    name: 'ukrycie wewnętrznych kolumn produktu',
+    sql: 'revoke select on public.products from anon, authenticated',
+  },
 ];
 
 for (const guard of requiredSecurityGuards) {

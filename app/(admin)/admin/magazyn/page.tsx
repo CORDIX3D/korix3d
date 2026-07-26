@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,12 +43,18 @@ const emptyForm = {
   stock_quantity: '0',
   min_stock_quantity: '0',
   weight_grams: '',
-  image_url: '',
   active: true,
   featured: false,
 };
 
 type ProductForm = typeof emptyForm;
+
+const ALLOWED_IMAGE_TYPES = new Map([
+  ['image/jpeg', 'jpg'],
+  ['image/png', 'png'],
+  ['image/webp', 'webp'],
+]);
+const MAX_PRODUCT_IMAGES = 8;
 
 function createSlug(value: string) {
   return value
@@ -75,9 +81,12 @@ export default function AdminWarehousePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState<ProductForm>(emptyForm);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState('');
+  const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const imagePreviewsRef = useRef<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -141,10 +150,12 @@ export default function AdminWarehousePage() {
   };
 
   const resetForm = () => {
+    imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
     setEditingProduct(null);
     setFormData(emptyForm);
-    setImageFile(null);
-    setImagePreview('');
+    setExistingImageUrls([]);
+    setImageFiles([]);
+    setImagePreviews([]);
   };
 
   const openNewDialog = () => {
@@ -153,6 +164,9 @@ export default function AdminWarehousePage() {
   };
 
   const openEditDialog = (product: Product) => {
+    const productImages = Array.isArray(product.images)
+      ? (product.images as string[]).filter(Boolean).slice(0, MAX_PRODUCT_IMAGES)
+      : [];
     setEditingProduct(product);
     setFormData({
       sku: product.sku || '',
@@ -167,55 +181,95 @@ export default function AdminWarehousePage() {
       stock_quantity: String(product.stock_quantity ?? 0),
       min_stock_quantity: String(product.min_stock_quantity ?? 0),
       weight_grams: product.weight_grams ? String(product.weight_grams) : '',
-      image_url: Array.isArray(product.images) && product.images[0] ? String(product.images[0]) : '',
       active: product.active ?? true,
       featured: product.featured ?? false,
     });
-    setImageFile(null);
-    setImagePreview(Array.isArray(product.images) && product.images[0] ? String(product.images[0]) : '');
+    imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
+    setExistingImageUrls(productImages);
+    setImageFiles([]);
+    setImagePreviews([]);
     setDialogOpen(true);
   };
 
   useEffect(() => {
-    return () => {
-      if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-    };
-  }, [imagePreview]);
+    imagePreviewsRef.current = imagePreviews;
+  }, [imagePreviews]);
+
+  useEffect(() => () => {
+    imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview));
+  }, []);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const selectedFiles = Array.from(event.target.files || []);
     event.target.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error('Wybierz plik graficzny');
+    if (selectedFiles.length === 0) return;
+
+    const availableSlots = MAX_PRODUCT_IMAGES - existingImageUrls.length - imageFiles.length;
+    if (availableSlots <= 0) {
+      toast.error('Osiągnięto limit zdjęć', { description: 'Produkt może mieć maksymalnie 8 zdjęć.' });
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Zdjęcie jest za duże', { description: 'Maksymalny rozmiar pliku to 5 MB.' });
-      return;
+
+    const accepted: File[] = [];
+    for (const file of selectedFiles.slice(0, availableSlots)) {
+      if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+        toast.error('Nieobsługiwany format zdjęcia', { description: `${file.name}: wybierz JPG, PNG lub WebP.` });
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Zdjęcie jest za duże', { description: `${file.name}: maksymalnie 5 MB.` });
+        continue;
+      }
+      accepted.push(file);
     }
-    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+
+    setImageFiles((current) => [...current, ...accepted]);
+    setImagePreviews((current) => [
+      ...current,
+      ...accepted.map((file) => URL.createObjectURL(file)),
+    ]);
   };
 
-  const removeImage = () => {
-    if (imagePreview.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
-    setImageFile(null);
-    setImagePreview('');
-    setFormData((current) => ({ ...current, image_url: '' }));
+  const removePendingImage = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index]);
+    setImageFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const uploadImage = async (file: File) => {
-    const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const fileName = `${crypto.randomUUID()}.${extension}`;
+    const extension = ALLOWED_IMAGE_TYPES.get(file.type);
+    if (!extension) throw new Error('Nieobsługiwany format zdjęcia.');
+    const fileName = `products/${crypto.randomUUID()}.${extension}`;
     const { error } = await supabase.storage.from('product-images').upload(fileName, file, {
       cacheControl: '3600',
       contentType: file.type,
       upsert: false,
     });
     if (error) throw error;
-    return supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl;
+    return {
+      path: fileName,
+      publicUrl: supabase.storage.from('product-images').getPublicUrl(fileName).data.publicUrl,
+    };
+  };
+
+  const getManagedImagePath = (value: string) => {
+    try {
+      const marker = '/storage/v1/object/public/product-images/';
+      const url = new URL(value);
+      const markerIndex = url.pathname.indexOf(marker);
+      if (markerIndex < 0) return null;
+      const path = decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
+      return path && !path.includes('..') ? path : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const removeStoredImages = async (paths: string[]) => {
+    const uniquePaths = [...new Set(paths.filter(Boolean))];
+    if (uniquePaths.length === 0) return;
+    const { error } = await supabase.storage.from('product-images').remove(uniquePaths);
+    if (error) console.error('Product image cleanup error:', error);
   };
 
   const handleNameChange = (name: string) => {
@@ -263,17 +317,11 @@ export default function AdminWarehousePage() {
       return;
     }
 
+    setSaving(true);
+    const uploadedImages: Array<{ path: string; publicUrl: string }> = [];
     try {
-      setSaving(true);
-      let imageUrl = formData.image_url;
-      if (imageFile) {
-        try {
-          imageUrl = await uploadImage(imageFile);
-        } catch {
-          toast.warning('Nie udało się dodać zdjęcia', {
-            description: 'Produkt zostanie zapisany bez nowego zdjęcia.',
-          });
-        }
+      for (const file of imageFiles) {
+        uploadedImages.push(await uploadImage(file));
       }
 
       const payload = {
@@ -289,23 +337,42 @@ export default function AdminWarehousePage() {
         stock_quantity: stockQuantity,
         min_stock_quantity: minStockQuantity,
         weight_grams: weightGrams,
-        images: imageUrl ? [imageUrl] : [],
+        images: [...existingImageUrls, ...uploadedImages.map((image) => image.publicUrl)],
         active: formData.active,
         featured: formData.featured,
-        updated_at: new Date().toISOString(),
       };
 
       const response = await fetch('/api/admin/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingProduct ? { ...payload, id: editingProduct.id } : payload),
+        body: JSON.stringify(
+          editingProduct
+            ? {
+                ...payload,
+                id: editingProduct.id,
+                expected_updated_at: editingProduct.updated_at,
+              }
+            : payload
+        ),
       });
 
       const result = await response.json().catch(() => null);
 
       if (!response.ok) {
+        await removeStoredImages(uploadedImages.map((image) => image.path));
         toast.error('Błąd zapisu', { description: result?.error || 'Nie udało się zapisać produktu.' });
         return;
+      }
+
+      if (editingProduct) {
+        const originalImages = Array.isArray(editingProduct.images)
+          ? (editingProduct.images as string[]).filter(Boolean)
+          : [];
+        const removedPaths = originalImages
+          .filter((image) => !existingImageUrls.includes(image))
+          .map(getManagedImagePath)
+          .filter((path): path is string => Boolean(path));
+        await removeStoredImages(removedPaths);
       }
 
       toast.success(editingProduct ? 'Produkt zaktualizowany' : 'Produkt dodany');
@@ -313,11 +380,35 @@ export default function AdminWarehousePage() {
       resetForm();
       fetchProducts();
     } catch (error) {
+      await removeStoredImages(uploadedImages.map((image) => image.path));
       toast.error('Błąd zapisu', {
         description: error instanceof Error ? error.message : 'Nie udało się zapisać produktu.',
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteProduct = async (product: Product) => {
+    if (deletingProductId) return;
+    if (!window.confirm(`Usunąć produkt „${product.name}” ze sklepu? Historia i zamówienia zostaną zachowane.`)) return;
+
+    setDeletingProductId(product.id);
+    try {
+      const response = await fetch(`/api/admin/products?id=${encodeURIComponent(product.id)}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || 'Nie udało się usunąć produktu ze sklepu.');
+
+      toast.success('Produkt został usunięty ze sklepu');
+      await fetchProducts();
+    } catch (error) {
+      toast.error('Błąd usuwania', {
+        description: error instanceof Error ? error.message : 'Nie udało się usunąć produktu ze sklepu.',
+      });
+    } finally {
+      setDeletingProductId(null);
     }
   };
 
@@ -471,30 +562,43 @@ export default function AdminWarehousePage() {
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <Label>Zdjęcie produktu</Label>
-                {imagePreview ? (
-                  <div className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center">
-                    <OptimizedImage src={imagePreview} alt="Podgląd zdjęcia produktu" className="h-28 w-28 rounded-md border object-cover" sizes="112px" />
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" asChild>
-                        <label className="cursor-pointer">
-                          <ImagePlus className="mr-2 h-4 w-4" />
-                          Zmień zdjęcie
-                          <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
-                        </label>
-                      </Button>
-                      <Button type="button" variant="outline" onClick={removeImage}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Usuń
-                      </Button>
-                    </div>
+                <Label>Galeria produktu</Label>
+                {(existingImageUrls.length > 0 || imagePreviews.length > 0) && (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {existingImageUrls.map((image) => (
+                      <div key={image} className="relative aspect-square overflow-hidden rounded-lg border bg-secondary">
+                        <OptimizedImage src={image} alt="Zdjęcie produktu" className="h-full w-full object-cover" sizes="160px" />
+                        <button
+                          type="button"
+                          onClick={() => setExistingImageUrls((current) => current.filter((item) => item !== image))}
+                          className="absolute right-1 top-1 rounded-full bg-background/90 p-1 text-destructive shadow"
+                          aria-label="Usuń zdjęcie z galerii"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    {imagePreviews.map((preview, index) => (
+                      <div key={preview} className="relative aspect-square overflow-hidden rounded-lg border bg-secondary">
+                        <OptimizedImage src={preview} alt="Nowe zdjęcie produktu" className="h-full w-full object-cover" sizes="160px" />
+                        <button
+                          type="button"
+                          onClick={() => removePendingImage(index)}
+                          className="absolute right-1 top-1 rounded-full bg-background/90 p-1 text-destructive shadow"
+                          aria-label="Usuń nowe zdjęcie"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ) : (
+                )}
+                {existingImageUrls.length + imageFiles.length < MAX_PRODUCT_IMAGES && (
                   <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center transition-colors hover:bg-muted/50">
                     <ImagePlus className="h-8 w-8 text-muted-foreground" />
-                    <span className="font-medium">Wybierz zdjęcie z urządzenia</span>
-                    <span className="text-xs text-muted-foreground">Obraz do 5 MB</span>
-                    <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+                    <span className="font-medium">Dodaj zdjęcia z urządzenia</span>
+                    <span className="text-xs text-muted-foreground">Do 8 plików JPG, PNG lub WebP; każdy do 5 MB</span>
+                    <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={handleImageChange} />
                   </label>
                 )}
               </div>
@@ -644,10 +748,24 @@ export default function AdminWarehousePage() {
                       <td className="p-4 text-muted-foreground">{product.min_stock_quantity || 0} szt.</td>
                       <td className="p-4">{getStockBadge(product)}</td>
                       <td className="p-4 text-right">
-                        <Button variant="outline" size="sm" onClick={() => openEditDialog(product)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edytuj
-                        </Button>
+                        <div className="inline-flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => openEditDialog(product)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edytuj
+                          </Button>
+                          {product.active && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={deletingProductId === product.id}
+                              onClick={() => deleteProduct(product)}
+                              className="text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Usuń
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

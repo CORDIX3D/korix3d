@@ -15,6 +15,7 @@ import {
   getAllowedOrder3DStatuses,
 } from '../lib/order-3d-status';
 import { validateQuoteFiles } from '../lib/quote-files';
+import { productPayloadSchema } from '../lib/product-validation';
 import {
   isValidPolishNip,
   storeOrderSchema,
@@ -209,6 +210,62 @@ test('faktura firmowa wymaga nazwy i NIP z prawidłową sumą kontrolną', () =>
     storeOrderSchema.safeParse({
       ...companyOrder,
       billingAddress: { ...companyOrder.billingAddress, nip: '1234567890' },
+    }).success,
+    false
+  );
+});
+
+const baseProductPayload = {
+  sku: 'KORIX-TEST-1',
+  name: 'Produkt testowy',
+  slug: 'produkt-testowy',
+  short_description: 'Krótki opis',
+  description: 'Opis produktu',
+  category_id: null,
+  price: 99.99,
+  compare_price: 129.99,
+  cost_price: 40,
+  stock_quantity: 10,
+  min_stock_quantity: 2,
+  weight_grams: 250,
+  images: ['https://example.com/product.webp'],
+  active: true,
+  featured: false,
+};
+
+test('produkt wymaga poprawnego SKU, ceny, slugu i stanu', () => {
+  assert.equal(productPayloadSchema.safeParse(baseProductPayload).success, true);
+  assert.equal(
+    productPayloadSchema.safeParse({ ...baseProductPayload, sku: 'złe sku!' }).success,
+    false
+  );
+  assert.equal(
+    productPayloadSchema.safeParse({ ...baseProductPayload, stock_quantity: -1 }).success,
+    false
+  );
+  assert.equal(
+    productPayloadSchema.safeParse({ ...baseProductPayload, compare_price: 50 }).success,
+    false
+  );
+});
+
+test('edycja produktu wymaga wersji rekordu i ogranicza galerię do 8 zdjęć', () => {
+  const editingProduct = {
+    ...baseProductPayload,
+    id: '00000000-0000-4000-8000-000000000001',
+  };
+  assert.equal(productPayloadSchema.safeParse(editingProduct).success, false);
+  assert.equal(
+    productPayloadSchema.safeParse({
+      ...editingProduct,
+      expected_updated_at: new Date().toISOString(),
+    }).success,
+    true
+  );
+  assert.equal(
+    productPayloadSchema.safeParse({
+      ...baseProductPayload,
+      images: Array.from({ length: 9 }, (_, index) => `https://example.com/${index}.webp`),
     }).success,
     false
   );

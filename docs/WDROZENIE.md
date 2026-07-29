@@ -54,8 +54,8 @@ Podział konfiguracji:
 3. Sprawdź, czy migracje utworzyły zasady RLS, indeksy, funkcje transakcyjne i buckety Storage.
 4. W ustawieniach Authentication dodaj docelową domenę jako Site URL.
 5. Dodaj do dozwolonych Redirect URLs:
-   - `https://TWOJA-DOMENA/auth/callback`
-   - `https://TWOJA-DOMENA/reset-password`
+   - `https://korix3d.pl/auth/callback`
+   - `https://korix3d.pl/reset-password`
 6. Utwórz pierwszego użytkownika, a następnie ustaw jego rolę w `profiles` na `admin`.
 
 Nie uruchamiaj checkoutu, dopóki najnowsze migracje sklepu nie zostały zastosowane. Rezerwacja i zwrot stanu magazynowego odbywają się w funkcjach bazodanowych.
@@ -97,7 +97,7 @@ Status `503` oznacza brak wymaganej konfiguracji. Szczegółowy stan usług jest
 3. W Stripe Workbench otwórz Webhooks i utwórz destination typu Webhook.
 4. Ustaw adres endpointu:
 
-   `https://TWOJA-DOMENA/api/stripe/webhook`
+   `https://korix3d.pl/api/stripe/webhook`
 
 5. Wybierz zdarzenia konta:
    - `checkout.session.completed`,

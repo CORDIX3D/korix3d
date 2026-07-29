@@ -128,7 +128,7 @@ Poniższe punkty nie są błędami kompilacji, lecz koniecznymi czynnościami wd
 1. **Zmienne:** utwórz osobne projekty/usługi dla stagingu i produkcji. W Vercelu ustaw nazwy z `.env.example`; nie używaj tokenów konta ani kluczy ujawnionych w rozmowach.
 2. **Migracje:** wykonaj kopię bazy i Storage, zastosuj migracje najpierw na stagingu, uruchom `npm run check:db`, `npm run check:rls` i `npm run test:rls:db`, potem zastosuj je na produkcji.
 3. **Stripe:** zacznij od trybu testowego, dodaj nowy `sk_test_...` jako `STRIPE_SECRET_KEY`; po pełnej akceptacji utwórz oddzielny klucz live.
-4. **Webhook:** dodaj `https://TWOJA-DOMENA/api/stripe/webhook`, wybierz zdarzenia opisane w `docs/WDROZENIE.md`, a nowy `whsec_...` ustaw jako `STRIPE_WEBHOOK_SECRET`.
+4. **Webhook:** dodaj `https://korix3d.pl/api/stripe/webhook`, wybierz zdarzenia opisane w `docs/WDROZENIE.md`, a nowy `whsec_...` ustaw jako `STRIPE_WEBHOOK_SECRET`.
 5. **Vercel:** połącz `CORDIX3D/korix3d`, gałąź `main`, preset Next.js, Node 20; dodaj zmienne Preview i Production, następnie wykonaj redeploy zielonego commita.
 6. **Domena:** przypisz domenę kanoniczną HTTPS; ustaw `NEXT_PUBLIC_SITE_URL`, Supabase Site URL i dozwolone callbacki logowania/resetu.
 7. **Test produkcyjny:** health, rejestracja, logowanie, formularze, sklep, adresy, faktura osoby/firmy, mała płatność, webhook, zwrot stanu, panel klienta/admina i wycena z workerem. Dopiero potem włącz Stripe live.

@@ -11,17 +11,11 @@ Aplikacja Next.js 15 z panelem klienta i administratora, sklepem, wyceną druku 
 ## Kontrola przed wdrożeniem
 
 ```text
-npm run lint
-npm run typecheck
-npm test
-npm run check:db
-npm run check:rls
-npm run check:secrets
-npm run build
-npm run check:bundle
-npm run test:smoke
+npm run verify
 npm run test:e2e:prebuilt
 ```
+
+Wymagana wersja Node.js jest zapisana w `.nvmrc`, a powtarzalna konfiguracja buildu Vercel w `vercel.json`. Wartości sekretów dodaje się wyłącznie w panelach środowiskowych, nigdy w repozytorium.
 
 ## Dokumentacja
 

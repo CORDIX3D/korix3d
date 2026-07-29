@@ -45,7 +45,7 @@ Podział konfiguracji:
 - **slicer:** `CREALITY_SLICER_WORKER_TOKEN` oraz zmienne lokalnego workera opisane w `services/creality-slicer-worker/.env.example`,
 - **AI:** brak zewnętrznego klucza — bot nie korzysta z płatnego API,
 - **e-mail:** brak zewnętrznego dostawcy w bieżącym MVP,
-- **monitoring:** zostanie skonfigurowany osobno; do tego czasu nie dodawaj przypadkowych kluczy telemetrycznych.
+- **monitoring:** wbudowane, ograniczone do minimum logi platformy i endpoint `/api/monitoring/client-error`; nie wymaga zewnętrznego klucza ani płatnej usługi.
 
 ## 3. Supabase
 
@@ -151,3 +151,15 @@ Przed przełączeniem Stripe na tryb live:
 8. Dopiero po udanym teście utwórz osobny webhook i osobne klucze dla trybu live.
 
 Dokumentacja: [zmienne Vercel](https://vercel.com/docs/environment-variables), [wdrażanie Next.js w Vercelu](https://vercel.com/docs/frameworks/full-stack/nextjs), [webhooki Stripe](https://docs.stripe.com/workbench/event-destinations).
+
+## 8. Staging, backup i rollback
+
+Przed produkcją utwórz oddzielny projekt Supabase oraz osobny zestaw kluczy Stripe test dla środowiska Vercel Preview. Na stagingu uruchom całą historię migracji, testy RLS i scenariusze płatności. Nie kopiuj danych klientów do stagingu bez anonimizacji.
+
+Migracje są stosowane jeden raz w kolejności nazw. Nie wykonuj ponownie ręcznie plików zapisanych już w historii Supabase i nie zmieniaj wdrożonych migracji. Przed zmianą schematu potwierdź świeżą kopię bazy i Storage.
+
+Szczegółowe procedury:
+
+- [architektura systemu](ARCHITEKTURA.md),
+- [backup i odtwarzanie](BACKUP_I_ODTWARZANIE.md),
+- [wdrożenie, rollback i reagowanie na awarie](OPERACJE.md).

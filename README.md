@@ -18,6 +18,16 @@ npm run check:db
 npm run check:rls
 npm run check:secrets
 npm run build
+npm run check:bundle
+npm run test:smoke
+npm run test:e2e:prebuilt
 ```
 
-Pełna kolejność konfiguracji Supabase, Stripe i Vercel znajduje się w [instrukcji wdrożenia](docs/WDROZENIE.md).
+## Dokumentacja
+
+- [Konfiguracja i wdrożenie](docs/WDROZENIE.md)
+- [Architektura i przepływy danych](docs/ARCHITEKTURA.md)
+- [Backup i odtwarzanie](docs/BACKUP_I_ODTWARZANIE.md)
+- [Obsługa produkcji i awarii](docs/OPERACJE.md)
+
+KORIX AI działa lokalnie i nie wymaga klucza OpenAI ani płatnego API.

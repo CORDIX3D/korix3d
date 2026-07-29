@@ -23,7 +23,8 @@
     "check:db": "node scripts/check-migrations.mjs",
     "check:rls": "node scripts/check-rls.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "check:bundle": "node scripts/check-bundle-size.mjs"
+    "check:bundle": "node scripts/check-bundle-size.mjs",
+    "check:docs": "node scripts/check-docs.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

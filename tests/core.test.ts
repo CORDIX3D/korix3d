@@ -14,7 +14,9 @@ import {
 } from '../lib/quote-pricing';
 import {
   addCartItem,
+  cartItemsEqual,
   getCartSummary,
+  reconcileCartItems,
   sanitizeCart,
   updateCartItemQuantity,
 } from '../lib/cart';
@@ -111,6 +113,46 @@ test('podsumowanie koszyka liczy sztuki i wartość', () => {
   ]);
 
   assert.deepEqual(getCartSummary(items), { itemCount: 5, subtotal: 36.5 });
+});
+
+test('odświeżenie koszyka pobiera aktualną cenę i ogranicza ilość do magazynu', () => {
+  const current = sanitizeCart([{
+    id: '00000000-0000-4000-8000-000000000001',
+    slug: 'stary-slug',
+    sku: 'OLD',
+    name: 'Stara nazwa',
+    price: 25,
+    image: null,
+    quantity: 5,
+    stockQuantity: 10,
+  }]);
+  const refreshed = reconcileCartItems(current, [product({
+    price: 30,
+    stock_quantity: 2,
+    sku: 'NEW',
+    name: 'Nowa nazwa',
+  })]);
+
+  assert.equal(refreshed.length, 1);
+  assert.equal(refreshed[0].price, 30);
+  assert.equal(refreshed[0].quantity, 2);
+  assert.equal(refreshed[0].stockQuantity, 2);
+  assert.equal(cartItemsEqual(current, refreshed), false);
+});
+
+test('odświeżenie koszyka usuwa nieaktywne i niedostępne produkty', () => {
+  const current = sanitizeCart([{
+    id: '00000000-0000-4000-8000-000000000001',
+    name: 'Produkt',
+    price: 25,
+    quantity: 1,
+    stockQuantity: 1,
+  }]);
+  assert.deepEqual(reconcileCartItems(current, []), []);
+  assert.deepEqual(
+    reconcileCartItems(current, [product({ active: false })]),
+    []
+  );
 });
 
 test('token płatności jest unikalny i nie akceptuje zmienionej wartości', () => {

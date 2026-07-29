@@ -16,9 +16,15 @@ import {
   type DeliveryOption,
 } from '@/lib/shipping';
 import { isValidPolishNip } from '@/lib/store-order-validation';
+import { cartItemsEqual, reconcileCartItems } from '@/lib/cart';
+import type { Product } from '@/lib/types/database';
 
 function normalizeCheckoutError(message: string) {
   const lower = message.toLowerCase();
+
+  if (lower.includes('koszyk został zaktualizowany')) {
+    return message;
+  }
 
   if (lower.includes('niedostępny') || lower.includes('koszyk')) {
     return 'Jeden z produktów nie jest już dostępny w wybranej ilości. Wróć do koszyka, odśwież pozycje i spróbuj ponownie.';
@@ -32,7 +38,7 @@ function normalizeCheckoutError(message: string) {
 }
 
 export default function CheckoutPage() {
-  const { items, subtotal, hydrated } = useCart();
+  const { items, subtotal, hydrated, replaceCart } = useCart();
   const { profile } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
   const appliedProfileId = useRef<string | null>(null);
@@ -272,6 +278,32 @@ export default function CheckoutPage() {
     let pendingPayment: { orderId: string; paymentToken: string } | null = null;
 
     try {
+      const cartResponse = await fetch('/api/store/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+        }),
+      });
+      const cartResult = await cartResponse.json().catch(() => ({}));
+      if (!cartResponse.ok || !Array.isArray(cartResult.products)) {
+        throw new Error(
+          cartResult.error || 'Nie można teraz potwierdzić aktualności koszyka.'
+        );
+      }
+
+      const refreshedItems = reconcileCartItems(
+        items,
+        cartResult.products as Product[]
+      );
+      if (!cartItemsEqual(items, refreshedItems)) {
+        replaceCart(refreshedItems);
+        setAppliedCoupon(null);
+        throw new Error(
+          'Koszyk został zaktualizowany po zmianie ceny lub dostępności. Sprawdź podsumowanie i zatwierdź ponownie.'
+        );
+      }
+
       const response = await fetch('/api/store/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -54,10 +54,12 @@ for (const [name, fragment] of requiredGuards) {
 
 const serviceOnlyFunctions = [
   'cancel_store_order_and_restore_stock',
+  'cancel_store_order_and_restore_stock_locked',
   'claim_slicing_job',
   'claim_stripe_webhook_event',
   'consume_public_api_rate_limit',
   'create_store_order_with_stock',
+  'create_store_order_with_stock_locked',
   'fail_stripe_webhook_event',
   'finish_slicing_job',
   'finish_stripe_webhook_event',

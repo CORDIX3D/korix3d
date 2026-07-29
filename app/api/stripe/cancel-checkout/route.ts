@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: cancelled, error: cancellationError } = await admin.rpc(
-      'cancel_store_order_and_restore_stock',
+      'cancel_store_order_and_restore_stock_locked',
       { p_order_id: order.id }
     );
     if (cancellationError) throw cancellationError;

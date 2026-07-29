@@ -133,6 +133,10 @@ const requiredSecurityGuards = [
     name: 'idempotencja webhooków Stripe',
     sql: 'create or replace function public.claim_stripe_webhook_event',
   },
+  {
+    name: 'deterministyczne blokady stanów magazynowych sklepu',
+    sql: 'create or replace function public.create_store_order_with_stock_locked',
+  },
 ];
 
 for (const guard of requiredSecurityGuards) {

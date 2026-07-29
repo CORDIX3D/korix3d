@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       }
       if (existing.status === 'expired') {
         const { error: cancellationError } = await admin.rpc(
-          'cancel_store_order_and_restore_stock',
+          'cancel_store_order_and_restore_stock_locked',
           { p_order_id: order.id }
         );
         if (cancellationError) throw cancellationError;
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (sessionSaveError) {
       await stripe.checkout.sessions.expire(session.id);
-      await admin.rpc('cancel_store_order_and_restore_stock', { p_order_id: order.id });
+      await admin.rpc('cancel_store_order_and_restore_stock_locked', { p_order_id: order.id });
       throw sessionSaveError;
     }
 

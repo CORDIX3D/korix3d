@@ -170,7 +170,7 @@ async function processCheckoutSession(
 
   if (shouldReleaseStockAfterStripeEvent(event.type)) {
     const { error: cancellationError } = await admin.rpc(
-      'cancel_store_order_and_restore_stock',
+      'cancel_store_order_and_restore_stock_locked',
       { p_order_id: order.id }
     );
     if (cancellationError) throw cancellationError;

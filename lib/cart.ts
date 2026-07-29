@@ -155,3 +155,55 @@ export function getCartSummary(items: CartItem[]) {
     subtotal: items.reduce((sum, item) => sum + item.price * item.quantity, 0),
   };
 }
+
+export function reconcileCartItems(
+  current: CartItem[],
+  products: Product[]
+): CartItem[] {
+  const productsById = new Map(products.map((product) => [product.id, product]));
+
+  return current.flatMap((item) => {
+    const product = productsById.get(item.id);
+    const price = Number(product?.price);
+    const stockQuantity = Math.min(
+      Math.floor(Number(product?.stock_quantity)),
+      MAX_CART_QUANTITY
+    );
+    if (
+      !product?.active
+      || !Number.isFinite(price)
+      || price < 0
+      || !Number.isFinite(stockQuantity)
+      || stockQuantity < 1
+    ) {
+      return [];
+    }
+
+    const images = Array.isArray(product.images) ? product.images as string[] : [];
+    return [{
+      id: product.id,
+      slug: product.slug,
+      sku: product.sku,
+      name: product.name,
+      price,
+      image: images[0] || null,
+      quantity: Math.min(item.quantity, stockQuantity),
+      stockQuantity,
+    }];
+  });
+}
+
+export function cartItemsEqual(left: CartItem[], right: CartItem[]) {
+  if (left.length !== right.length) return false;
+  return left.every((item, index) => {
+    const other = right[index];
+    return item.id === other?.id
+      && item.slug === other.slug
+      && item.sku === other.sku
+      && item.name === other.name
+      && item.price === other.price
+      && item.image === other.image
+      && item.quantity === other.quantity
+      && item.stockQuantity === other.stockQuantity;
+  });
+}

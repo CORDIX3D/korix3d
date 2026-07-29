@@ -33,7 +33,7 @@ async function releaseAbandonedReservations(
   await Promise.all(
     (abandoned || []).map(async (order) => {
       const { error: cancellationError } = await admin.rpc(
-        'cancel_store_order_and_restore_stock',
+        'cancel_store_order_and_restore_stock_locked',
         { p_order_id: order.id }
       );
       if (cancellationError) {
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
 
     const shippingCost = deliverySetting.price;
 
-    const { data: order, error: orderError } = await admin.rpc('create_store_order_with_stock', {
+    const { data: order, error: orderError } = await admin.rpc('create_store_order_with_stock_locked', {
       p_user_id: auth.user?.id || null,
       p_order_number: orderNumber,
       p_customer_email: parsed.data.customer.email,
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
 
       if (tokenError) {
         console.error('Store order payment token error:', tokenError);
-        await admin.rpc('cancel_store_order_and_restore_stock', { p_order_id: orderId });
+        await admin.rpc('cancel_store_order_and_restore_stock_locked', { p_order_id: orderId });
         return NextResponse.json(
           { error: 'Nie udało się bezpiecznie przygotować płatności.' },
           { status: 500 }

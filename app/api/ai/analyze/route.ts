@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 import {
   checkPublicRateLimit,
   rateLimitResponse,
@@ -9,14 +10,8 @@ import {
 export const dynamic = 'force-dynamic';
 
 function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error('Missing Supabase environment variables');
-  }
-
-  return createSupabaseClient(url, key);
+  const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+  return createSupabaseClient(url, serviceRoleKey);
 }
 
 interface STLAnalysis {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
+import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,14 +23,10 @@ async function getAdminSupabaseClient() {
     return { error: NextResponse.json({ error: 'Brak uprawnień administratora.' }, { status: 403 }) };
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (url && serviceKey) {
-    return { client: createServiceRoleClient(url, serviceKey, auth.user.id) };
-  }
-
-  return { client: sessionClient };
+  const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+  return {
+    client: createServiceRoleClient(url, serviceRoleKey, auth.user.id),
+  };
 }
 
 function normalizeSettings(settings: unknown) {

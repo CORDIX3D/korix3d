@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
-import { isSupabaseConfigurationError } from '@/lib/supabase/env';
+import {
+  getRequiredSupabaseServiceEnv,
+  isSupabaseConfigurationError,
+} from '@/lib/supabase/env';
 import { isStaffRole } from '@/lib/admin-access';
 import {
   canTransitionOrder3DStatus,
@@ -111,14 +114,11 @@ async function getAdminSupabaseClient() {
     return { error: NextResponse.json({ error: 'Brak uprawnień pracownika.' }, { status: 403 }) };
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (url && serviceKey) {
-    return { client: createServiceRoleClient(url, serviceKey, auth.user.id), role };
-  }
-
-  return { client: sessionClient, role };
+  const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+  return {
+    client: createServiceRoleClient(url, serviceRoleKey, auth.user.id),
+    role,
+  };
 }
 
 function validateTable(table: unknown) {

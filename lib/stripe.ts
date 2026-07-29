@@ -1,4 +1,8 @@
 import Stripe from 'stripe';
+import {
+  EnvironmentConfigurationError,
+  getRequiredStripeEnvironment,
+} from '@/lib/env/server';
 
 let stripeClient: Stripe | null = null;
 let stripeClientKey: string | null = null;
@@ -13,14 +17,13 @@ export class StripeConfigurationError extends Error {
 export function isStripeConfigurationError(
   error: unknown
 ): error is StripeConfigurationError {
-  return error instanceof StripeConfigurationError;
+  return error instanceof StripeConfigurationError
+    || error instanceof EnvironmentConfigurationError;
 }
 
 export function getStripeServer() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  if (!secretKey) {
-    throw new StripeConfigurationError('STRIPE_SECRET_KEY is not configured');
-  }
+  const environment = getRequiredStripeEnvironment();
+  const secretKey = environment.STRIPE_SECRET_KEY;
 
   if (!stripeClient || stripeClientKey !== secretKey) {
     stripeClient = new Stripe(secretKey, { apiVersion: '2026-06-24.dahlia' });
@@ -30,19 +33,11 @@ export function getStripeServer() {
 }
 
 export function getStripeWebhookSecret() {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) {
-    throw new StripeConfigurationError('STRIPE_WEBHOOK_SECRET is not configured');
-  }
-  return secret;
+  return getRequiredStripeEnvironment().STRIPE_WEBHOOK_SECRET;
 }
 
 export function getStripeCheckoutOrigin(fallbackOrigin: string) {
-  const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-
-  if (!configuredOrigin && process.env.NODE_ENV === 'production') {
-    throw new StripeConfigurationError('NEXT_PUBLIC_SITE_URL is not configured');
-  }
+  const configuredOrigin = getRequiredStripeEnvironment().NEXT_PUBLIC_SITE_URL;
 
   try {
     const url = new URL(configuredOrigin || fallbackOrigin);

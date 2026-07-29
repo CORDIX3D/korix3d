@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { getRequiredSupabaseServiceEnvironment } from '@/lib/env/server';
 
 type RateLimitDatabaseError = {
   code?: string;
@@ -40,7 +41,8 @@ function requestAddress(request: Request) {
 }
 
 function fingerprint(request: Request, scope: string, userId?: string | null) {
-  const salt = process.env.SUPABASE_SERVICE_ROLE_KEY || 'korix3d-local-rate-limit';
+  const salt = getRequiredSupabaseServiceEnvironment()
+    .SUPABASE_SERVICE_ROLE_KEY;
   const identity = userId
     ? `user:${userId}`
     : `anonymous:${requestAddress(request)}`;

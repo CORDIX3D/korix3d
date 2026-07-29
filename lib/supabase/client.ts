@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr';
+import { inspectPublicSupabaseEnvironment } from '@/lib/env/public';
 
 const SUPABASE_UNAVAILABLE_MESSAGE =
   'Usługa danych jest chwilowo niedostępna. Spróbuj ponownie później.';
@@ -101,13 +102,11 @@ export function createClient() {
     return getUnavailableClient();
   }
 
-  if (
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
+  const environment = inspectPublicSupabaseEnvironment();
+  if (environment.configured && environment.values) {
     cachedBrowserClient ??= createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      environment.values.NEXT_PUBLIC_SUPABASE_URL,
+      environment.values.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
     return cachedBrowserClient;
   }

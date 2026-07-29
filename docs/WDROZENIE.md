@@ -24,6 +24,29 @@ Dodaj poniższe nazwy jako zmienne projektu dostępne dla wdrożenia produkcyjne
 
 Zmienne publiczne Supabase są częścią konfiguracji aplikacji. Pozostałe wartości są sekretami serwera. Wszystkie zmienne dodaj do środowiska `Production`; dla bezpiecznych testów możesz dodać osobne klucze testowe do `Preview`.
 
+### Walidacja konfiguracji
+
+Aplikacja waliduje zmienne przez Zod. Nie wystarczy, że wartość istnieje — sprawdzany jest również jej typ i format:
+
+- adresy produkcyjne muszą używać HTTPS,
+- klucz Supabase przeglądarki musi być kluczem `anon`/`sb_publishable_`,
+- klucz serwerowy Supabase musi być kluczem `service_role`/`sb_secret_`, a nie tokenem konta `sbp_`,
+- Stripe wymaga klucza `sk_test_` albo `sk_live_`; klucze `mk_`, `pk_` i `rk_` nie zastępują klucza serwerowego,
+- sekret webhooka musi zaczynać się od `whsec_`,
+- token workera slicera musi mieć co najmniej 32 znaki.
+
+Publiczny `/api/health` zwraca jedynie stan ogólny. Szczegóły brakujących lub niepoprawnych nazw zmiennych są dostępne wyłącznie administratorowi przez `/api/admin/health`; wartości sekretów nigdy nie są zwracane.
+
+Podział konfiguracji:
+
+- **publiczne:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`,
+- **serwerowe i storage:** `SUPABASE_SERVICE_ROLE_KEY` (Storage korzysta z tego samego projektu Supabase),
+- **Stripe:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+- **slicer:** `CREALITY_SLICER_WORKER_TOKEN` oraz zmienne lokalnego workera opisane w `services/creality-slicer-worker/.env.example`,
+- **AI:** brak zewnętrznego klucza — bot nie korzysta z płatnego API,
+- **e-mail:** brak zewnętrznego dostawcy w bieżącym MVP,
+- **monitoring:** zostanie skonfigurowany osobno; do tego czasu nie dodawaj przypadkowych kluczy telemetrycznych.
+
 ## 3. Supabase
 
 1. Utwórz lub wybierz docelowy projekt Supabase.

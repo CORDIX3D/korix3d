@@ -31,6 +31,7 @@ export async function GET() {
         commit: health.commit,
         services: health.services,
         capabilities: health.capabilities,
+        configurationIssues: health.configurationIssues,
         checkedAt: health.checkedAt,
       },
       {

@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import { getRequiredSlicerServerEnvironment } from '@/lib/env/server';
 
 export const SLICER_RESPONSE_HEADERS = {
   'Cache-Control': 'no-store',
@@ -22,7 +23,13 @@ function digest(value: string) {
 }
 
 export function requireSlicerWorker(request: NextRequest) {
-  const configuredToken = process.env.CREALITY_SLICER_WORKER_TOKEN?.trim() || '';
+  let configuredToken = '';
+  try {
+    configuredToken = getRequiredSlicerServerEnvironment()
+      .CREALITY_SLICER_WORKER_TOKEN;
+  } catch {
+    // The response below intentionally does not disclose validation details.
+  }
   const authorization = request.headers.get('authorization') || '';
   const suppliedToken = authorization.startsWith('Bearer ')
     ? authorization.slice('Bearer '.length).trim()

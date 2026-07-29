@@ -1,25 +1,15 @@
-function configured(name: string) {
-  return Boolean(process.env[name]?.trim());
-}
+import { inspectServerEnvironment } from '@/lib/env/server';
 
 export function getRuntimeHealth() {
+  const environment = inspectServerEnvironment();
   const services = {
-    supabaseUrl: configured('NEXT_PUBLIC_SUPABASE_URL'),
-    supabasePublicKey: configured('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-    supabaseServiceKey: configured('SUPABASE_SERVICE_ROLE_KEY'),
-    stripeSecretKey: configured('STRIPE_SECRET_KEY'),
-    stripeWebhookSecret: configured('STRIPE_WEBHOOK_SECRET'),
-    siteUrl: configured('NEXT_PUBLIC_SITE_URL'),
+    supabase: environment.supabase.configured,
+    stripe: environment.stripe.configured,
+    slicer: environment.slicer.configured,
   };
 
-  const databaseReady =
-    services.supabaseUrl &&
-    services.supabasePublicKey &&
-    services.supabaseServiceKey;
-  const paymentsEnabled =
-    services.stripeSecretKey &&
-    services.stripeWebhookSecret &&
-    services.siteUrl;
+  const databaseReady = services.supabase;
+  const paymentsEnabled = services.stripe;
   const healthy = databaseReady && paymentsEnabled;
   const provider = process.env.VERCEL
     ? 'vercel'
@@ -41,7 +31,9 @@ export function getRuntimeHealth() {
     capabilities: {
       database: databaseReady,
       payments: paymentsEnabled,
+      slicer: services.slicer,
     },
+    configurationIssues: environment,
     checkedAt: new Date().toISOString(),
   };
 }

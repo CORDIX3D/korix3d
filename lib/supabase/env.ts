@@ -1,3 +1,9 @@
+import { inspectPublicSupabaseEnvironment } from '@/lib/env/public';
+import {
+  EnvironmentConfigurationError,
+  getRequiredSupabaseServiceEnvironment,
+} from '@/lib/env/server';
+
 export class SupabaseConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -8,17 +14,18 @@ export class SupabaseConfigurationError extends Error {
 export function isSupabaseConfigurationError(
   error: unknown
 ): error is SupabaseConfigurationError {
-  return error instanceof SupabaseConfigurationError;
+  return error instanceof SupabaseConfigurationError
+    || error instanceof EnvironmentConfigurationError;
 }
 
 export function getSupabaseEnv() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const environment = inspectPublicSupabaseEnvironment();
 
   return {
-    url,
-    anonKey,
-    isConfigured: Boolean(url && anonKey),
+    url: environment.values?.NEXT_PUBLIC_SUPABASE_URL || '',
+    anonKey: environment.values?.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    isConfigured: environment.configured,
+    issues: environment.issues,
   };
 }
 
@@ -26,21 +33,17 @@ export function getRequiredSupabaseEnv() {
   const env = getSupabaseEnv();
   if (!env.isConfigured) {
     throw new SupabaseConfigurationError(
-      'Brak konfiguracji Supabase w zmiennych środowiskowych'
+      `Nieprawidłowa konfiguracja Supabase: ${env.issues.join('; ')}`
     );
   }
   return env;
 }
 
 export function getRequiredSupabaseServiceEnv() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const environment = getRequiredSupabaseServiceEnvironment();
 
-  if (!url || !serviceRoleKey) {
-    throw new SupabaseConfigurationError(
-      'Brak konfiguracji Supabase Service Role w zmiennych środowiskowych'
-    );
-  }
-
-  return { url, serviceRoleKey };
+  return {
+    url: environment.NEXT_PUBLIC_SUPABASE_URL,
+    serviceRoleKey: environment.SUPABASE_SERVICE_ROLE_KEY,
+  };
 }

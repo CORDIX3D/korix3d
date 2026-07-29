@@ -14,6 +14,10 @@ druku oraz zużycie filamentu. Nie korzysta z OpenAI.
 - `CREALITY_PROCESS_PROFILE` — profil procesu.
 - `CREALITY_PRINT_VERSION` — wersja zainstalowanego slicera.
 
+Skopiuj `services/creality-slicer-worker/.env.example` do lokalnego, nieśledzonego pliku środowiskowego. Worker waliduje całą konfigurację przez Zod przed pobraniem pierwszego zadania i kończy się czytelnym błędem, jeżeli adres, token, limity albo tablica argumentów są niepoprawne.
+
+Sekrety procesu nadrzędnego (nazwy kończące się m.in. na `TOKEN`, `SECRET`, `PASSWORD` lub `API_KEY`) nie są przekazywane do procesu Creality Print.
+
 Argumenty mogą zawierać znaczniki: `{input}`, `{outputDir}`, `{infill}`,
 `{printerProfile}` i `{processProfile}`. Polecenie jest uruchamiane bez powłoki,
 więc wartości pochodzące ze zlecenia nie są interpretowane jako kod.

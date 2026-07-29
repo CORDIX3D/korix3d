@@ -5,6 +5,7 @@ import {
   getAdminHomePath,
   isStaffRole,
 } from '@/lib/admin-access';
+import { inspectPublicSupabaseEnvironment } from '@/lib/env/public';
 
 function createUnavailableResponse(
   request: NextRequest,
@@ -63,8 +64,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/rejestracja') ||
     pathname.startsWith('/odzyskaj-haslo') ||
     pathname.startsWith('/reset-password');
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const environment = inspectPublicSupabaseEnvironment();
+  const supabaseUrl = environment.values?.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = environment.values?.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     if (process.env.NODE_ENV !== 'production') {

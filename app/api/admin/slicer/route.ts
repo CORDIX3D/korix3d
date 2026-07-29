@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminApiContext, adminApiUnavailableResponse } from '@/lib/api/admin-context';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { isSupabaseConfigurationError } from '@/lib/supabase/env';
+import { inspectServerEnvironment } from '@/lib/env/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +56,7 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        configured: Boolean(process.env.CREALITY_SLICER_WORKER_TOKEN?.trim()),
+        configured: inspectServerEnvironment().slicer.configured,
         heartbeat_available: heartbeatAvailable,
         worker_online: activeWorkers.length > 0,
         workers,

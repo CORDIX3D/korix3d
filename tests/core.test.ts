@@ -33,6 +33,12 @@ import { PUBLIC_FILAMENT_COLUMNS } from '../lib/public-filament';
 import { PUBLIC_MATERIAL_COLUMNS } from '../lib/public-material';
 import { CUSTOMER_ORDER_3D_COLUMNS } from '../lib/customer-order';
 import {
+  publicSupabaseEnvironmentSchema,
+  slicerServerEnvironmentSchema,
+  stripeEnvironmentSchema,
+  supabaseServiceEnvironmentSchema,
+} from '../lib/env/schema';
+import {
   isValidPolishNip,
   storeOrderSchema,
 } from '../lib/store-order-validation';
@@ -547,4 +553,44 @@ test('panel klienta nie pobiera wewnętrznych składowych wyceny', () => {
   assert.equal(customerColumns.has('printing_time_hours'), true);
   assert.equal(customerColumns.has('filament_used_grams'), true);
   assert.equal(customerColumns.has('final_price'), true);
+});
+
+test('walidacja środowiska rozróżnia publiczne i serwerowe klucze Supabase', () => {
+  const publicEnvironment = {
+    NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: `sb_publishable_${'a'.repeat(32)}`,
+  };
+  assert.equal(publicSupabaseEnvironmentSchema.safeParse(publicEnvironment).success, true);
+  assert.equal(supabaseServiceEnvironmentSchema.safeParse({
+    ...publicEnvironment,
+    SUPABASE_SERVICE_ROLE_KEY: `sb_secret_${'b'.repeat(40)}`,
+  }).success, true);
+  assert.equal(supabaseServiceEnvironmentSchema.safeParse({
+    ...publicEnvironment,
+    SUPABASE_SERVICE_ROLE_KEY: `sbp_${'c'.repeat(40)}`,
+  }).success, false);
+});
+
+test('walidacja Stripe odrzuca klucz ograniczony zamiast sekretu serwerowego', () => {
+  const base = {
+    STRIPE_WEBHOOK_SECRET: `whsec_${'a'.repeat(32)}`,
+    NEXT_PUBLIC_SITE_URL: 'https://korix3d.pl',
+  };
+  assert.equal(stripeEnvironmentSchema.safeParse({
+    ...base,
+    STRIPE_SECRET_KEY: `sk_test_${'b'.repeat(32)}`,
+  }).success, true);
+  assert.equal(stripeEnvironmentSchema.safeParse({
+    ...base,
+    STRIPE_SECRET_KEY: `rk_test_${'b'.repeat(32)}`,
+  }).success, false);
+});
+
+test('token zdalnego slicera musi być odpowiednio długi i bez spacji', () => {
+  assert.equal(slicerServerEnvironmentSchema.safeParse({
+    CREALITY_SLICER_WORKER_TOKEN: 'a'.repeat(32),
+  }).success, true);
+  assert.equal(slicerServerEnvironmentSchema.safeParse({
+    CREALITY_SLICER_WORKER_TOKEN: 'za krótki token',
+  }).success, false);
 });

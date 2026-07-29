@@ -3,7 +3,10 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isStaffRole } from '@/lib/admin-access';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
-import { isSupabaseConfigurationError } from '@/lib/supabase/env';
+import {
+  getRequiredSupabaseServiceEnv,
+  isSupabaseConfigurationError,
+} from '@/lib/supabase/env';
 import {
   canTransitionOrder3DStatus,
   getAllowedOrder3DStatuses,
@@ -52,14 +55,10 @@ async function getAdminSupabaseClient() {
     return { error: NextResponse.json({ error: 'Brak uprawnień pracownika.' }, { status: 403 }) };
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (url && serviceKey) {
-    return { client: createServiceRoleClient(url, serviceKey, auth.user.id) };
-  }
-
-  return { client: sessionClient };
+  const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
+  return {
+    client: createServiceRoleClient(url, serviceRoleKey, auth.user.id),
+  };
 }
 
 function positiveNumber(value: unknown) {

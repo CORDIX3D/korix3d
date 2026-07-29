@@ -2,30 +2,69 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
+import { z } from 'zod';
 
-const siteUrl = requiredEnv('KORIX3D_SITE_URL').replace(/\/+$/, '');
-const workerToken = requiredEnv('CREALITY_SLICER_WORKER_TOKEN');
-const slicerBinary = requiredEnv('CREALITY_PRINT_BIN');
-const workerId = process.env.SLICER_WORKER_ID?.trim() || `creality-${process.pid}`;
-const slicerVersion = process.env.CREALITY_PRINT_VERSION?.trim() || null;
-const printerProfile = process.env.CREALITY_PRINTER_PROFILE?.trim() || null;
-const processProfile = process.env.CREALITY_PROCESS_PROFILE?.trim() || null;
-const pollIntervalMs = boundedInteger(process.env.SLICER_POLL_INTERVAL_MS, 5_000, 1_000, 60_000);
-const timeoutMs = boundedInteger(process.env.SLICER_JOB_TIMEOUT_MS, 12 * 60_000, 60_000, 30 * 60_000);
+const boundedInteger = (fallback, minimum, maximum) =>
+  z.preprocess(
+    (value) => value === undefined || value === '' ? fallback : value,
+    z.coerce.number().int().min(minimum).max(maximum)
+  );
+const optionalText = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() ? value.trim() : null,
+  z.string().nullable()
+);
+const workerEnvironmentSchema = z.object({
+  KORIX3D_SITE_URL: z.string().trim().url().refine(
+    (value) => ['http:', 'https:'].includes(new URL(value).protocol),
+    'KORIX3D_SITE_URL must use HTTP or HTTPS'
+  ),
+  CREALITY_SLICER_WORKER_TOKEN: z.string().trim().min(32),
+  CREALITY_PRINT_BIN: z.string().trim().min(1),
+  CREALITY_PRINT_ARGS_JSON: z.string().transform((value, context) => {
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) {
+        throw new Error('expected an array of strings');
+      }
+      return parsed;
+    } catch {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'must be a JSON array containing only strings',
+      });
+      return z.NEVER;
+    }
+  }),
+  SLICER_WORKER_ID: optionalText,
+  CREALITY_PRINT_VERSION: optionalText,
+  CREALITY_PRINTER_PROFILE: optionalText,
+  CREALITY_PROCESS_PROFILE: optionalText,
+  SLICER_POLL_INTERVAL_MS: boundedInteger(5_000, 1_000, 60_000),
+  SLICER_JOB_TIMEOUT_MS: boundedInteger(12 * 60_000, 60_000, 30 * 60_000),
+});
+const parsedEnvironment = workerEnvironmentSchema.safeParse(process.env);
+if (!parsedEnvironment.success) {
+  const issues = parsedEnvironment.error.issues
+    .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+    .join('; ');
+  throw new Error(`Invalid Creality worker environment: ${issues}`);
+}
+const workerEnvironment = parsedEnvironment.data;
+const siteUrl = workerEnvironment.KORIX3D_SITE_URL.replace(/\/+$/, '');
+const workerToken = workerEnvironment.CREALITY_SLICER_WORKER_TOKEN;
+const slicerBinary = workerEnvironment.CREALITY_PRINT_BIN;
+const workerId = workerEnvironment.SLICER_WORKER_ID || `creality-${process.pid}`;
+const slicerVersion = workerEnvironment.CREALITY_PRINT_VERSION;
+const printerProfile = workerEnvironment.CREALITY_PRINTER_PROFILE;
+const processProfile = workerEnvironment.CREALITY_PROCESS_PROFILE;
+const pollIntervalMs = workerEnvironment.SLICER_POLL_INTERVAL_MS;
+const timeoutMs = workerEnvironment.SLICER_JOB_TIMEOUT_MS;
+const slicerProcessEnvironment = Object.fromEntries(
+  Object.entries(process.env).filter(
+    ([name]) => !/(?:TOKEN|SECRET|PASSWORD|API_KEY)$/i.test(name)
+  )
+);
 const maxFileBytes = 50 * 1024 * 1024;
-
-function requiredEnv(name) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`Missing required environment variable: ${name}`);
-  return value;
-}
-
-function boundedInteger(value, fallback, minimum, maximum) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum
-    ? parsed
-    : fallback;
-}
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -61,16 +100,7 @@ async function claimJob() {
 }
 
 function commandArguments(job, inputPath, outputDirectory) {
-  const raw = requiredEnv('CREALITY_PRINT_ARGS_JSON');
-  let args;
-  try {
-    args = JSON.parse(raw);
-  } catch {
-    throw new Error('CREALITY_PRINT_ARGS_JSON must be a valid JSON array');
-  }
-  if (!Array.isArray(args) || args.some((item) => typeof item !== 'string')) {
-    throw new Error('CREALITY_PRINT_ARGS_JSON must contain only string arguments');
-  }
+  const args = workerEnvironment.CREALITY_PRINT_ARGS_JSON;
 
   const replacements = {
     '{input}': inputPath,
@@ -118,7 +148,7 @@ async function runSlicer(args) {
     const processHandle = spawn(slicerBinary, args, {
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: process.env,
+      env: slicerProcessEnvironment,
     });
     let stderr = '';
     const timer = setTimeout(() => {

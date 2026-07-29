@@ -36,3 +36,11 @@ test('formularz kontaktowy pokazuje walidację bez wysyłania danych', async ({ 
   await expect(page.getByText(/Nieprawidłowy adres email/)).toBeVisible();
   await expect(page.getByText(/co najmniej 10 znaków/)).toBeVisible();
 });
+
+test('asystent AI jest ładowany dopiero po otwarciu', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('KORIX AI', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Otwórz asystenta KORIX AI' }).click();
+  await expect(page.getByText('KORIX AI', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Zamknij asystenta KORIX AI' }).click();
+});

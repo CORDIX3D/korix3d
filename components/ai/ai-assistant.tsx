@@ -56,8 +56,8 @@ function buildMessagesPayload(messages: Message[], fullContent: string) {
   ];
 }
 
-export function AIAssistant() {
-  const [isOpen, setIsOpen] = useState(false);
+export function AIAssistant({ initiallyOpen = false }: { initiallyOpen?: boolean }) {
+  const [isOpen, setIsOpen] = useState(initiallyOpen);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);

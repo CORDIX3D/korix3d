@@ -18,6 +18,8 @@ const nextConfig = {
   outputFileTracingRoot: __dirname,
   poweredByHeader: false,
   images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 86400,
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },
       { protocol: 'https', hostname: 'korix3d.pl' },

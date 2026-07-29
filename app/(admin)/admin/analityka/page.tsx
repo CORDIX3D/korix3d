@@ -30,18 +30,16 @@ export default function Page() {
     setLoadError(null);
 
     try {
-      const next: Stats = {};
-
-      for (const [table, label] of tables) {
+      const results = await Promise.all(tables.map(async ([table, label]) => {
         const { count, error } = await (supabase as any)
           .from(table)
           .select('*', { count: 'exact', head: true });
 
         if (error) throw error;
-        next[label] = count || 0;
-      }
+        return [label, count || 0] as const;
+      }));
 
-      setStats(next);
+      setStats(Object.fromEntries(results));
     } catch (error) {
       setStats({});
       setLoadError(error instanceof Error ? error.message : 'Nie udało się pobrać danych analitycznych.');

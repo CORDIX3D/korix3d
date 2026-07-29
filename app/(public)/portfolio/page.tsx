@@ -7,10 +7,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 import { supabase } from '@/lib/supabase/client';
-import { PortfolioItem } from '@/lib/types/database';
+import {
+  PUBLIC_PORTFOLIO_COLUMNS,
+  type PublicPortfolioItem,
+} from '@/lib/public-portfolio';
 
 export default function PortfolioPage() {
-  const [items, setItems] = useState<PortfolioItem[]>([]);
+  const [items, setItems] = useState<PublicPortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -24,11 +27,11 @@ export default function PortfolioPage() {
     try {
       const { data, error: queryError } = await supabase
         .from('portfolio_items')
-        .select('*')
+        .select(PUBLIC_PORTFOLIO_COLUMNS)
         .eq('active', true)
         .order('sort_order');
       if (queryError) throw queryError;
-      setItems((data || []) as PortfolioItem[]);
+      setItems((data || []) as PublicPortfolioItem[]);
     } catch {
       setItems([]);
       setError(true);

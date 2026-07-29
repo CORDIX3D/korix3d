@@ -25,6 +25,10 @@ import {
   PUBLIC_MATERIAL_COLUMNS,
   type PublicMaterial,
 } from '@/lib/public-material';
+import {
+  PUBLIC_PORTFOLIO_COLUMNS,
+  type PublicPortfolioItem,
+} from '@/lib/public-portfolio';
 
 // Services data
 const services = [
@@ -104,7 +108,7 @@ const particles = Array.from({ length: 20 }, (_, index) => ({
 }));
 
 export default function HomePage() {
-  const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [portfolio, setPortfolio] = useState<PublicPortfolioItem[]>([]);
   const [materials, setMaterials] = useState<PublicMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
 
@@ -113,7 +117,7 @@ export default function HomePage() {
       const [portfolioResult, materialsResult] = await Promise.all([
         supabase
           .from('portfolio_items')
-          .select('*')
+          .select(PUBLIC_PORTFOLIO_COLUMNS)
           .eq('active', true)
           .eq('featured', true)
           .order('sort_order')
@@ -126,7 +130,7 @@ export default function HomePage() {
           .limit(6),
       ]);
 
-      if (portfolioResult.data) setPortfolio(portfolioResult.data);
+      if (portfolioResult.data) setPortfolio(portfolioResult.data as PublicPortfolioItem[]);
       if (materialsResult.data) setMaterials(materialsResult.data as PublicMaterial[]);
       setMaterialsLoading(false);
     };

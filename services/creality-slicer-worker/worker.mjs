@@ -41,6 +41,7 @@ const workerEnvironmentSchema = z.object({
   CREALITY_PROCESS_PROFILE: optionalText,
   SLICER_POLL_INTERVAL_MS: boundedInteger(5_000, 1_000, 60_000),
   SLICER_JOB_TIMEOUT_MS: boundedInteger(12 * 60_000, 60_000, 30 * 60_000),
+  SLICER_HTTP_TIMEOUT_MS: boundedInteger(60_000, 5_000, 5 * 60_000),
 });
 const parsedEnvironment = workerEnvironmentSchema.safeParse(process.env);
 if (!parsedEnvironment.success) {
@@ -59,6 +60,7 @@ const printerProfile = workerEnvironment.CREALITY_PRINTER_PROFILE;
 const processProfile = workerEnvironment.CREALITY_PROCESS_PROFILE;
 const pollIntervalMs = workerEnvironment.SLICER_POLL_INTERVAL_MS;
 const timeoutMs = workerEnvironment.SLICER_JOB_TIMEOUT_MS;
+const httpTimeoutMs = workerEnvironment.SLICER_HTTP_TIMEOUT_MS;
 const slicerProcessEnvironment = Object.fromEntries(
   Object.entries(process.env).filter(
     ([name]) => !/(?:TOKEN|SECRET|PASSWORD|API_KEY)$/i.test(name)
@@ -73,6 +75,7 @@ function sleep(milliseconds) {
 async function api(path, options = {}) {
   const response = await fetch(`${siteUrl}${path}`, {
     ...options,
+    signal: AbortSignal.timeout(httpTimeoutMs),
     headers: {
       Authorization: `Bearer ${workerToken}`,
       'Content-Type': 'application/json',
@@ -127,15 +130,36 @@ async function downloadInput(job, directory) {
     throw new Error('Unsupported model file extension');
   }
 
-  const response = await fetch(job.download_url);
+  const response = await fetch(job.download_url, {
+    signal: AbortSignal.timeout(httpTimeoutMs),
+  });
   if (!response.ok) throw new Error(`Model download returned ${response.status}`);
 
   const declaredLength = Number(response.headers.get('content-length') || 0);
   if (declaredLength > maxFileBytes) throw new Error('Model exceeds the 50 MB limit');
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (!buffer.length || buffer.length > maxFileBytes) {
+  if (!response.body) throw new Error('Model download returned an empty response');
+  const reader = response.body.getReader();
+  const chunks = [];
+  let downloadedBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    downloadedBytes += value.length;
+    if (downloadedBytes > maxFileBytes) {
+      await reader.cancel();
+      throw new Error('Downloaded model exceeds the 50 MB limit');
+    }
+    chunks.push(Buffer.from(value));
+  }
+
+  const buffer = Buffer.concat(chunks, downloadedBytes);
+  if (!buffer.length) {
     throw new Error('Downloaded model has an invalid size');
+  }
+  const expectedSize = Number(job.file_size || 0);
+  if (expectedSize > 0 && buffer.length !== expectedSize) {
+    throw new Error('Downloaded model size does not match the stored metadata');
   }
 
   const inputPath = join(directory, `input${extension}`);

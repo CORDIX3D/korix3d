@@ -85,17 +85,30 @@ export async function POST(
     }
 
     const admin = getSlicerServiceClient();
-    const { data, error } = await admin.rpc('finish_slicing_job', {
-      p_job_id: id,
-      p_status: status,
-      p_result: result,
-      p_error_message: errorMessage,
-      p_slicer_name: slicerName,
-      p_slicer_version: slicerVersion,
-    });
+    const { data, error } = status === 'failed'
+      ? await admin.rpc('fail_or_retry_slicing_job', {
+          p_job_id: id,
+          p_error_message: errorMessage,
+          p_slicer_name: slicerName,
+          p_slicer_version: slicerVersion,
+        })
+      : await admin.rpc('finish_slicing_job', {
+          p_job_id: id,
+          p_status: status,
+          p_result: result,
+          p_error_message: errorMessage,
+          p_slicer_name: slicerName,
+          p_slicer_version: slicerVersion,
+        });
 
     if (error) throw error;
-    if (!data) {
+    const accepted = status === 'failed'
+      ? typeof data === 'object'
+        && data !== null
+        && 'accepted' in data
+        && data.accepted === true
+      : data === true;
+    if (!accepted) {
       return NextResponse.json(
         { error: 'Zadanie nie istnieje albo zostało już zakończone.' },
         { status: 409, headers: SLICER_RESPONSE_HEADERS }
@@ -103,7 +116,14 @@ export async function POST(
     }
 
     return NextResponse.json(
-      { success: true },
+      {
+        success: true,
+        retrying: status === 'failed'
+          && typeof data === 'object'
+          && data !== null
+          && 'retrying' in data
+          && data.retrying === true,
+      },
       { headers: SLICER_RESPONSE_HEADERS }
     );
   } catch (error) {

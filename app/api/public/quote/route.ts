@@ -15,6 +15,8 @@ import {
   parseQuotePricingSettings,
 } from '@/lib/quote-pricing';
 import { validateQuoteFiles } from '@/lib/quote-files';
+import type { StoredQuoteFile } from '@/lib/quote-files';
+import { validateQuoteFileSignature } from '@/lib/quote-file-content';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,14 +30,65 @@ function cleanString(value: unknown) {
   return String(value || '').trim();
 }
 
-function isPricingSnapshotMigrationPending(error: unknown) {
-  if (!error || typeof error !== 'object') return false;
-  const candidate = error as { code?: unknown; message?: unknown };
-  const code = String(candidate.code || '');
-  const message = String(candidate.message || '').toLowerCase();
+async function readFileRange(url: string, range: string, requirePartial = false) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(url, {
+      headers: { Range: range },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!response.ok || (requirePartial && response.status !== 206) || !response.body) {
+      throw new Error('Stored file range is unavailable');
+    }
 
-  return ['42703', 'PGRST204'].includes(code)
-    && message.includes('pricing_settings_snapshot');
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (total < 131_072) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const remaining = 131_072 - total;
+      const chunk = value.length > remaining ? value.slice(0, remaining) : value;
+      chunks.push(chunk);
+      total += chunk.length;
+      if (value.length > remaining) break;
+    }
+    await reader.cancel();
+
+    const result = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return result;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function verifyStoredQuoteFiles(
+  admin: ReturnType<typeof createServiceRoleClient>,
+  files: StoredQuoteFile[]
+) {
+  for (const file of files) {
+    const bucket = String(file.bucket || '');
+    const storagePath = String(file.storage_path || '');
+    const { data, error } = await admin.storage
+      .from(bucket)
+      .createSignedUrl(storagePath, 60);
+    if (error || !data?.signedUrl) throw error || new Error('Signed file URL missing');
+
+    const head = await readFileRange(data.signedUrl, 'bytes=0-131071');
+    const tail = file.type === '3mf'
+      ? await readFileRange(data.signedUrl, 'bytes=-131072', true)
+      : head;
+    const validationError = validateQuoteFileSignature(file, head, tail);
+    if (validationError) return validationError;
+  }
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -227,7 +280,7 @@ export async function POST(request: NextRequest) {
         files: [],
       };
 
-      let insertResult = await admin
+      const insertResult = await admin
         .from('orders_3d')
         .insert([
           {
@@ -237,15 +290,6 @@ export async function POST(request: NextRequest) {
         ])
         .select('order_number')
         .single();
-
-      if (isPricingSnapshotMigrationPending(insertResult.error)) {
-        console.warn('Quote pricing snapshot migration is pending; using legacy insert.');
-        insertResult = await admin
-          .from('orders_3d')
-          .insert([orderPayload])
-          .select('order_number')
-          .single();
-      }
 
       const { data, error } = insertResult;
 
@@ -268,6 +312,23 @@ export async function POST(request: NextRequest) {
       const validationError = validateQuoteFiles(body.files, auth.user.id, orderId);
       if (validationError) {
         return NextResponse.json({ error: validationError }, { status: 400 });
+      }
+
+      let contentValidationError: string | null;
+      try {
+        contentValidationError = await verifyStoredQuoteFiles(
+          admin,
+          body.files as StoredQuoteFile[]
+        );
+      } catch (verificationError) {
+        console.error('Quote file verification error:', verificationError);
+        return NextResponse.json(
+          { error: 'Nie udało się bezpiecznie sprawdzić przesłanych plików. Spróbuj ponownie.' },
+          { status: 503, headers: { 'Retry-After': '30' } }
+        );
+      }
+      if (contentValidationError) {
+        return NextResponse.json({ error: contentValidationError }, { status: 400 });
       }
 
       const { data, error } = await supabase.rpc('finalize_quote_files', {

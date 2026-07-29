@@ -61,6 +61,7 @@ const serviceOnlyFunctions = [
   'create_store_order_with_stock',
   'create_store_order_with_stock_locked',
   'fail_stripe_webhook_event',
+  'fail_or_retry_slicing_job',
   'finish_slicing_job',
   'finish_stripe_webhook_event',
 ];

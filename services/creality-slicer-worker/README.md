@@ -13,10 +13,15 @@ druku oraz zużycie filamentu. Nie korzysta z OpenAI.
 - `CREALITY_PRINTER_PROFILE` — profil konkretnej drukarki.
 - `CREALITY_PROCESS_PROFILE` — profil procesu.
 - `CREALITY_PRINT_VERSION` — wersja zainstalowanego slicera.
+- `SLICER_HTTP_TIMEOUT_MS` — limit czasu wywołania API lub pobierania modelu (domyślnie 60 sekund).
 
 Skopiuj `services/creality-slicer-worker/.env.example` do lokalnego, nieśledzonego pliku środowiskowego. Worker waliduje całą konfigurację przez Zod przed pobraniem pierwszego zadania i kończy się czytelnym błędem, jeżeli adres, token, limity albo tablica argumentów są niepoprawne.
 
 Sekrety procesu nadrzędnego (nazwy kończące się m.in. na `TOKEN`, `SECRET`, `PASSWORD` lub `API_KEY`) nie są przekazywane do procesu Creality Print.
+
+Nieudane zadanie jest automatycznie ponawiane maksymalnie trzy razy. Każda
+próba ma limit czasu, a historia błędów pozostaje zapisana przy zadaniu bez
+utrwalania tokenu workera ani adresu pobierania pliku.
 
 Argumenty mogą zawierać znaczniki: `{input}`, `{outputDir}`, `{infill}`,
 `{printerProfile}` i `{processProfile}`. Polecenie jest uruchamiane bez powłoki,

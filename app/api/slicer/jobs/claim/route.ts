@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
     const inputFile = (job.input_file || {}) as StoredSlicerFile;
     const bucket = String(inputFile.bucket || '');
     const storagePath = String(inputFile.storage_path || '');
+    const safeFileName = storagePath.split('/').pop() || `model-${job.file_index + 1}`;
 
     if (bucket !== 'quote-files' || !storagePath) {
       await admin.rpc('finish_slicing_job', {
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
           id: job.id,
           order_id: job.order_id,
           file_index: job.file_index,
-          file_name: inputFile.name || `model-${job.file_index + 1}`,
+          file_name: safeFileName,
           file_type: inputFile.type || null,
           file_size: Number(inputFile.size || 0),
           download_url: signedFile.signedUrl,

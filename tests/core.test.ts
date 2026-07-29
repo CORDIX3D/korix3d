@@ -29,6 +29,7 @@ import {
   getAllowedOrder3DStatuses,
 } from '../lib/order-3d-status';
 import { validateQuoteFiles } from '../lib/quote-files';
+import { validateQuoteFileSignature } from '../lib/quote-file-content';
 import { productPayloadSchema } from '../lib/product-validation';
 import { PUBLIC_PRODUCT_COLUMNS } from '../lib/public-product';
 import { PUBLIC_FILAMENT_COLUMNS } from '../lib/public-filament';
@@ -213,6 +214,34 @@ test('pliki wyceny odrzucają obcego właściciela, zły typ, duży plik i dupli
   assert.match(validateQuoteFiles([{ ...valid, type: 'exe', storage_path: `${userId}/${orderId}/model.exe` }], userId, orderId) || '', /metadane/);
   assert.match(validateQuoteFiles([{ ...valid, size: 50 * 1024 * 1024 + 1 }], userId, orderId) || '', /metadane/);
   assert.match(validateQuoteFiles([valid, valid], userId, orderId) || '', /metadane/);
+  assert.match(validateQuoteFiles([{ ...valid, name: '../model.stl' }], userId, orderId) || '', /metadane/);
+  assert.match(validateQuoteFiles([{ ...valid, name: 'model.obj' }], userId, orderId) || '', /metadane/);
+});
+
+test('serwer rozpoznaje zawartość plików 3D zamiast ufać rozszerzeniu', () => {
+  const step = new TextEncoder().encode('ISO-10303-21;\nHEADER;\nENDSEC;');
+  const obj = new TextEncoder().encode('# model\nv 0 0 0\nf 1 2 3\n');
+  const html = new TextEncoder().encode('<!doctype html><script>alert(1)</script>');
+  const threeMfHead = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+  const threeMfTail = new TextEncoder().encode('[Content_Types].xml 3D/3dmodel.model');
+  const binaryStl = new Uint8Array(84);
+  new DataView(binaryStl.buffer).setUint32(80, 0, true);
+
+  assert.equal(validateQuoteFileSignature({ type: 'step', size: step.length }, step), null);
+  assert.equal(validateQuoteFileSignature({ type: 'obj', size: obj.length }, obj), null);
+  assert.equal(validateQuoteFileSignature({ type: 'stl', size: 84 }, binaryStl), null);
+  assert.equal(
+    validateQuoteFileSignature({ type: '3mf', size: 1024 }, threeMfHead, threeMfTail),
+    null
+  );
+  assert.match(
+    validateQuoteFileSignature({ type: 'stl', size: html.length }, html) || '',
+    /niebezpieczną/
+  );
+  assert.match(
+    validateQuoteFileSignature({ type: 'step', size: obj.length }, obj) || '',
+    /STEP/
+  );
 });
 
 const baseStoreOrder = {

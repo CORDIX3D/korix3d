@@ -137,6 +137,10 @@ const requiredSecurityGuards = [
     name: 'deterministyczne blokady stanów magazynowych sklepu',
     sql: 'create or replace function public.create_store_order_with_stock_locked',
   },
+  {
+    name: 'ograniczone ponawianie zadań zdalnego slicera',
+    sql: 'create or replace function public.fail_or_retry_slicing_job',
+  },
 ];
 
 for (const guard of requiredSecurityGuards) {

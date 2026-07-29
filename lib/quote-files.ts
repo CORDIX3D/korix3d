@@ -1,4 +1,4 @@
-const ALLOWED_QUOTE_FILE_TYPES = new Set(['stl', 'step', 'stp', 'obj', '3mf']);
+export const ALLOWED_QUOTE_FILE_TYPES = new Set(['stl', 'step', 'stp', 'obj', '3mf']);
 const MAX_QUOTE_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_QUOTE_TOTAL_BYTES = 200 * 1024 * 1024;
 const MAX_QUOTE_FILES = 10;
@@ -13,6 +13,17 @@ export type StoredQuoteFile = {
 
 function cleanString(value: unknown) {
   return String(value || '').trim();
+}
+
+export function isSafeQuoteFileName(name: unknown, type: unknown) {
+  const cleanName = cleanString(name);
+  const cleanType = cleanString(type).toLowerCase();
+  return cleanName.length > 0
+    && cleanName.length <= 255
+    && !cleanName.includes('..')
+    && !/[\\/\u0000-\u001f\u007f]/.test(cleanName)
+    && ALLOWED_QUOTE_FILE_TYPES.has(cleanType)
+    && cleanName.toLowerCase().endsWith(`.${cleanType}`);
 }
 
 export function validateQuoteFiles(files: unknown, userId: string, orderId: string) {
@@ -39,8 +50,7 @@ export function validateQuoteFiles(files: unknown, userId: string, orderId: stri
       storedFileName.includes('\\') ||
       storedFileName.includes('..') ||
       path.length > 1024 ||
-      !name ||
-      name.length > 255 ||
+      !isSafeQuoteFileName(name, type) ||
       !ALLOWED_QUOTE_FILE_TYPES.has(type) ||
       !storedFileName.toLowerCase().endsWith(`.${type}`) ||
       !Number.isFinite(size) ||

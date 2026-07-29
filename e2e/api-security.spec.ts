@@ -20,3 +20,11 @@ test('prywatne API nie pozwala na anonimowy dostęp', async ({ request }) => {
     expect([401, 403, 503], path).toContain(response.status());
   }
 });
+
+test('prywatne API odrzuca mutację z obcej domeny', async ({ request }) => {
+  const response = await request.patch('/api/admin/settings', {
+    headers: { origin: 'https://atak.example' },
+    data: { settings: {} },
+  });
+  expect(response.status()).toBe(403);
+});

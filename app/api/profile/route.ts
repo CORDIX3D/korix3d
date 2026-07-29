@@ -8,6 +8,10 @@ import {
   normalizeProfileUpdate,
   profileUpdateSchema,
 } from '@/lib/profile-schema';
+import {
+  crossSiteRequestResponse,
+  isTrustedMutationRequest,
+} from '@/lib/api/request-security';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +41,8 @@ function isAuthenticationServiceError(error: {
 }
 
 export async function PATCH(request: NextRequest) {
+  if (!isTrustedMutationRequest(request)) return crossSiteRequestResponse();
+
   try {
     const supabase = await createClient();
     const { data: auth, error: authError } = await supabase.auth.getUser();

@@ -52,6 +52,7 @@ import {
 } from '../lib/store-order-validation';
 import { createClient } from '../lib/supabase/client';
 import type { Product } from '../lib/types/database';
+import { isTrustedMutationRequest } from '../lib/api/request-security';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -656,6 +657,22 @@ test('brak adresu usługi zwraca błąd walidacji zamiast wyjątku', () => {
     NEXT_PUBLIC_SUPABASE_URL: '',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
   }).success, false);
+});
+
+test('ochrona mutacji dopuszcza własną domenę i blokuje obcą', () => {
+  assert.equal(isTrustedMutationRequest(new Request('https://korix3d.pl/api/profile', {
+    method: 'PATCH',
+    headers: { origin: 'https://korix3d.pl' },
+  })), true);
+  assert.equal(isTrustedMutationRequest(new Request('https://korix3d.pl/api/profile', {
+    method: 'PATCH',
+    headers: { origin: 'https://atak.example' },
+  })), false);
+  assert.equal(isTrustedMutationRequest(new Request('https://korix3d.pl/api/profile', {
+    method: 'PATCH',
+    headers: { 'sec-fetch-site': 'cross-site' },
+  })), false);
+  assert.equal(isTrustedMutationRequest(new Request('https://korix3d.pl/api/profile')), true);
 });
 
 test('walidacja Stripe odrzuca klucz ograniczony zamiast sekretu serwerowego', () => {

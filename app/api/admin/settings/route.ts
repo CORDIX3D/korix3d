@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
+import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export async function PATCH(request: NextRequest) {
     const context = await getAdminSupabaseClient();
     if (context.error) return context.error;
 
-    const body = await request.json();
+    const body = await readJsonObject(request, 64 * 1024);
     const settings = normalizeSettings(body.settings);
 
     if (
@@ -105,6 +106,12 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isJsonBodyError(error)) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
     console.error('Admin settings update error:', error);
     return NextResponse.json(
       { error: 'Nie udało się zapisać ustawień. Sprawdź połączenie i spróbuj ponownie.' },

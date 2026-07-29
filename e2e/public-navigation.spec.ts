@@ -3,6 +3,9 @@ import { expect, test } from '@playwright/test';
 test('publiczna nawigacja prowadzi do sklepu i obsługuje 404', async ({ page }) => {
   const homeResponse = await page.goto('/');
   expect(homeResponse?.status()).toBe(200);
+  expect(homeResponse?.headers()['content-security-policy']).toContain("default-src 'self'");
+  expect(homeResponse?.headers()['x-content-type-options']).toBe('nosniff');
+  expect(homeResponse?.headers()['x-frame-options']).toBe('DENY');
   await expect(page.locator('h1').first()).toBeVisible();
 
   if ((page.viewportSize()?.width ?? 1280) < 768) {

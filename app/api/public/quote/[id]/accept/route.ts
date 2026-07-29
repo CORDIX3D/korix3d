@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigurationError } from '@/lib/supabase/env';
+import {
+  crossSiteRequestResponse,
+  isTrustedMutationRequest,
+} from '@/lib/api/request-security';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,9 +18,11 @@ type DatabaseError = {
 };
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isTrustedMutationRequest(request)) return crossSiteRequestResponse();
+
   try {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) {

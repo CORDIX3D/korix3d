@@ -6,6 +6,10 @@ import {
   isStaffRole,
 } from '@/lib/admin-access';
 import { inspectPublicSupabaseEnvironment } from '@/lib/env/public';
+import {
+  crossSiteRequestResponse,
+  isTrustedMutationRequest,
+} from '@/lib/api/request-security';
 
 function createUnavailableResponse(
   request: NextRequest,
@@ -64,6 +68,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/rejestracja') ||
     pathname.startsWith('/odzyskaj-haslo') ||
     pathname.startsWith('/reset-password');
+
+  if (isPrivateApiRoute && !isTrustedMutationRequest(request)) {
+    return crossSiteRequestResponse();
+  }
   const environment = inspectPublicSupabaseEnvironment();
   const supabaseUrl = environment.values?.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = environment.values?.NEXT_PUBLIC_SUPABASE_ANON_KEY;

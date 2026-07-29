@@ -23,6 +23,10 @@ Nieudane zadanie jest automatycznie ponawiane maksymalnie trzy razy. Każda
 próba ma limit czasu, a historia błędów pozostaje zapisana przy zadaniu bez
 utrwalania tokenu workera ani adresu pobierania pliku.
 
+Produkcja wymaga stałego `SLICER_WORKER_ID`, wersji Creality oraz nazw profilu
+drukarki i procesu. Limit próby nie może przekroczyć 18 minut, ponieważ baza
+odzyskuje porzucone zadanie po 20 minutach.
+
 Argumenty mogą zawierać znaczniki: `{input}`, `{outputDir}`, `{infill}`,
 `{printerProfile}` i `{processProfile}`. Polecenie jest uruchamiane bez powłoki,
 więc wartości pochodzące ze zlecenia nie są interpretowane jako kod.
@@ -34,3 +38,6 @@ porównać wynik z aplikacją desktopową.
 
 Creality Print jest objęty licencją AGPL-3.0. Sposób wdrożenia workera i
 udostępniania jego kodu musi zachować wymagania tej licencji.
+
+Pełna instalacja jako proces startujący razem ze zdalnym hostem Windows,
+monitoring i procedura odbioru są opisane w `docs/WORKER_PRODUCTION.md`.

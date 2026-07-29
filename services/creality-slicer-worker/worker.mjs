@@ -9,10 +9,6 @@ const boundedInteger = (fallback, minimum, maximum) =>
     (value) => value === undefined || value === '' ? fallback : value,
     z.coerce.number().int().min(minimum).max(maximum)
   );
-const optionalText = z.preprocess(
-  (value) => typeof value === 'string' && value.trim() ? value.trim() : null,
-  z.string().nullable()
-);
 const workerEnvironmentSchema = z.object({
   KORIX3D_SITE_URL: z.string().trim().url().refine(
     (value) => ['http:', 'https:'].includes(new URL(value).protocol),
@@ -26,6 +22,12 @@ const workerEnvironmentSchema = z.object({
       if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) {
         throw new Error('expected an array of strings');
       }
+      const command = parsed.join(' ');
+      for (const placeholder of ['{input}', '{outputDir}', '{infill}']) {
+        if (!command.includes(placeholder)) {
+          throw new Error(`missing required placeholder ${placeholder}`);
+        }
+      }
       return parsed;
     } catch {
       context.addIssue({
@@ -35,12 +37,13 @@ const workerEnvironmentSchema = z.object({
       return z.NEVER;
     }
   }),
-  SLICER_WORKER_ID: optionalText,
-  CREALITY_PRINT_VERSION: optionalText,
-  CREALITY_PRINTER_PROFILE: optionalText,
-  CREALITY_PROCESS_PROFILE: optionalText,
+  SLICER_WORKER_ID: z.string().trim().min(3).max(120),
+  CREALITY_PRINT_VERSION: z.string().trim().min(1).max(120),
+  CREALITY_PRINTER_PROFILE: z.string().trim().min(1).max(240),
+  CREALITY_PROCESS_PROFILE: z.string().trim().min(1).max(240),
   SLICER_POLL_INTERVAL_MS: boundedInteger(5_000, 1_000, 60_000),
-  SLICER_JOB_TIMEOUT_MS: boundedInteger(12 * 60_000, 60_000, 30 * 60_000),
+  // Baza odzyskuje zadanie po 20 minutach, więc worker musi zakończyć próbę wcześniej.
+  SLICER_JOB_TIMEOUT_MS: boundedInteger(12 * 60_000, 60_000, 18 * 60_000),
   SLICER_HTTP_TIMEOUT_MS: boundedInteger(60_000, 5_000, 5 * 60_000),
 });
 const parsedEnvironment = workerEnvironmentSchema.safeParse(process.env);
@@ -54,7 +57,7 @@ const workerEnvironment = parsedEnvironment.data;
 const siteUrl = workerEnvironment.KORIX3D_SITE_URL.replace(/\/+$/, '');
 const workerToken = workerEnvironment.CREALITY_SLICER_WORKER_TOKEN;
 const slicerBinary = workerEnvironment.CREALITY_PRINT_BIN;
-const workerId = workerEnvironment.SLICER_WORKER_ID || `creality-${process.pid}`;
+const workerId = workerEnvironment.SLICER_WORKER_ID;
 const slicerVersion = workerEnvironment.CREALITY_PRINT_VERSION;
 const printerProfile = workerEnvironment.CREALITY_PRINTER_PROFILE;
 const processProfile = workerEnvironment.CREALITY_PROCESS_PROFILE;
@@ -67,6 +70,35 @@ const slicerProcessEnvironment = Object.fromEntries(
   )
 );
 const maxFileBytes = 50 * 1024 * 1024;
+let stopping = false;
+
+function sanitizeLogText(value) {
+  return String(value || '')
+    .replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]')
+    .replace(/[A-Za-z0-9_-]{32,}/g, '[REDACTED]')
+    .slice(0, 1000);
+}
+
+function log(level, event, details = {}) {
+  const record = {
+    type: 'korix3d_slicer_worker',
+    level,
+    event,
+    occurredAt: new Date().toISOString(),
+    workerId,
+    ...details,
+  };
+  const output = `${JSON.stringify(record)}\n`;
+  if (level === 'error') process.stderr.write(output);
+  else process.stdout.write(output);
+}
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    if (!stopping) log('info', 'shutdown_requested', { signal });
+    stopping = true;
+  });
+}
 
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -271,22 +303,44 @@ async function processJob(job) {
 }
 
 async function main() {
-  process.stdout.write(`KORIX3D Creality worker ${workerId} started\n`);
-  while (true) {
+  log('info', 'started', {
+    slicerVersion,
+    printerProfile,
+    processProfile,
+  });
+  let consecutiveFailures = 0;
+  while (!stopping) {
     try {
       const job = await claimJob();
       if (!job) {
+        consecutiveFailures = 0;
         await sleep(pollIntervalMs);
         continue;
       }
-      process.stdout.write(`Processing slicing job ${job.id}\n`);
+      log('info', 'job_started', { jobId: job.id, attempt: job.attempt_count });
       await processJob(job);
-      process.stdout.write(`Completed slicing job ${job.id}\n`);
+      consecutiveFailures = 0;
+      log('info', 'job_completed', { jobId: job.id });
     } catch (error) {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      await sleep(pollIntervalMs);
+      consecutiveFailures += 1;
+      const backoffMs = Math.min(
+        60_000,
+        pollIntervalMs * (2 ** Math.min(consecutiveFailures - 1, 4))
+      );
+      log('error', 'iteration_failed', {
+        message: sanitizeLogText(error instanceof Error ? error.message : error),
+        consecutiveFailures,
+        retryInMs: backoffMs,
+      });
+      if (!stopping) await sleep(backoffMs + Math.floor(Math.random() * 1000));
     }
   }
+  log('info', 'stopped');
 }
 
-await main();
+await main().catch((error) => {
+  log('error', 'fatal', {
+    message: sanitizeLogText(error instanceof Error ? error.message : error),
+  });
+  process.exitCode = 1;
+});

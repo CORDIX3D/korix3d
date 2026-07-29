@@ -67,6 +67,9 @@ jobs:
       - name: Backup and restore contract
         run: npm run check:backup
 
+      - name: Creality worker production contract
+        run: npm run check:worker
+
       - name: Operations documentation check
         run: npm run check:docs
 

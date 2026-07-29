@@ -28,11 +28,12 @@
     "check:domain": "node scripts/check-domain-production.mjs",
     "check:monitoring": "node scripts/check-monitoring-production.mjs",
     "check:backup": "node scripts/check-backup-production.mjs",
+    "check:worker": "node scripts/check-worker-production.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:env": "node scripts/check-env-contract.mjs",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "check:docs": "node scripts/check-docs.mjs",
-    "verify": "npm run check:secrets && npm run check:env && npm run lint && npm run typecheck && npm test && npm run check:supabase && npm run check:stripe && npm run check:vercel && npm run check:domain && npm run check:monitoring && npm run check:backup && npm run check:docs && npm run build && npm run check:bundle && npm run test:smoke"
+    "verify": "npm run check:secrets && npm run check:env && npm run lint && npm run typecheck && npm test && npm run check:supabase && npm run check:stripe && npm run check:vercel && npm run check:domain && npm run check:monitoring && npm run check:backup && npm run check:worker && npm run check:docs && npm run build && npm run check:bundle && npm run test:smoke"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

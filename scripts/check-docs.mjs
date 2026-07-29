@@ -13,6 +13,7 @@ const requiredDocuments = [
   ['docs/VERCEL_PRODUCTION.md', ['## Projekt i źródło wdrożenia', '## Środowiska', '## Functions i Edge Runtime', '## Rollback']],
   ['docs/DOMENA_PRODUCTION.md', ['## Stan zweryfikowany 29 lipca 2026', '## Konfiguracja DNS i Vercel', '## HTTPS, SSL i HSTS', '## Kontrola po propagacji DNS']],
   ['docs/MONITORING.md', ['## Zakres', '## Konfiguracja', '## Logi i prywatność', '## Alerty i reakcja']],
+  ['docs/WORKER_PRODUCTION.md', ['## Architektura', '## Zdalny host Windows', '## Timeout, retry i restart', '## Odbiór produkcyjny']],
 ];
 
 for (const [fileName, headings] of requiredDocuments) {

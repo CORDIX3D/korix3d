@@ -49,11 +49,8 @@ jobs:
       - name: Unit and integration tests
         run: npm test
 
-      - name: Database migration check
-        run: npm run check:db
-
-      - name: Database RLS check
-        run: npm run check:rls
+      - name: Supabase production contract
+        run: npm run check:supabase
 
       - name: Operations documentation check
         run: npm run check:docs

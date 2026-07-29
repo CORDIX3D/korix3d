@@ -1,11 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from 'jsr:@supabase/supabase-js@2';
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+import { createClient } from 'jsr:@supabase/supabase-js@2.58.0';
+import { isAdminRequest } from '../_shared/admin.ts';
+import { isAllowedBrowserOrigin, jsonResponse, responseHeaders } from '../_shared/http.ts';
 
 interface ReportRequest {
   type: 'manual' | 'scheduled';
@@ -14,15 +10,33 @@ interface ReportRequest {
 }
 
 Deno.serve(async (req: Request) => {
+  if (!isAllowedBrowserOrigin(req)) {
+    return jsonResponse(req, { error: 'Niedozwolone źródło żądania.' }, 403);
+  }
+
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
+      status: 204,
+      headers: responseHeaders(req),
     });
   }
 
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return jsonResponse(req, { error: 'Method not allowed' }, 405);
+  }
+
+  if (!(await isAdminRequest(req))) {
+    return jsonResponse(req, { error: 'Brak uprawnień administratora.' }, 403);
+  }
+
+  const corsHeaders = responseHeaders(req);
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return jsonResponse(req, { error: 'Usługa raportów jest nieskonfigurowana.' }, 503);
+  }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -275,9 +289,7 @@ Wartość magazynu: ${warehouseValue.toFixed(2)} PLN
     // (would need to track the report ID properly in production)
 
     return new Response(
-      JSON.stringify({
-        error: error.message || 'Failed to generate report'
-      }),
+      JSON.stringify({ error: 'Nie udało się wygenerować raportu.' }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

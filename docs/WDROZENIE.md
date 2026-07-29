@@ -60,6 +60,8 @@ Podział konfiguracji:
 
 Nie uruchamiaj checkoutu, dopóki najnowsze migracje sklepu nie zostały zastosowane. Rezerwacja i zwrot stanu magazynowego odbywają się w funkcjach bazodanowych.
 
+Pełny kontrakt produkcyjny, ustawienia Auth/SMTP oraz kontrolowany workflow migracji opisuje [Supabase — konfiguracja produkcyjna](SUPABASE_PRODUCTION.md).
+
 ### Testy RLS
 
 Szybka kontrola każdej zmiany migracji nie wymaga połączenia z bazą:

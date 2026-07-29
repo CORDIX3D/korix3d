@@ -39,6 +39,11 @@ import {
   supabaseServiceEnvironmentSchema,
 } from '../lib/env/schema';
 import {
+  isExpectedStripeAmount,
+  isFullStripeRefund,
+  shouldReleaseStockAfterStripeEvent,
+} from '../lib/stripe-webhook';
+import {
   isValidPolishNip,
   storeOrderSchema,
 } from '../lib/store-order-validation';
@@ -593,4 +598,24 @@ test('token zdalnego slicera musi być odpowiednio długi i bez spacji', () => {
   assert.equal(slicerServerEnvironmentSchema.safeParse({
     CREALITY_SLICER_WORKER_TOKEN: 'za krótki token',
   }).success, false);
+});
+
+test('Stripe akceptuje wyłącznie dokładną kwotę zamówienia w PLN', () => {
+  assert.equal(isExpectedStripeAmount('pln', 12345, 123.45), true);
+  assert.equal(isExpectedStripeAmount('eur', 12345, 123.45), false);
+  assert.equal(isExpectedStripeAmount('pln', 12344, 123.45), false);
+  assert.equal(isExpectedStripeAmount('pln', null, 123.45), false);
+});
+
+test('częściowy zwrot Stripe nie zamyka całego zamówienia', () => {
+  assert.equal(isFullStripeRefund({ refunded: true, amount: 10000, amountRefunded: 10000 }), true);
+  assert.equal(isFullStripeRefund({ refunded: false, amount: 10000, amountRefunded: 5000 }), false);
+  assert.equal(isFullStripeRefund({ refunded: true, amount: 10000, amountRefunded: 5000 }), false);
+});
+
+test('stan magazynowy jest zwalniany dopiero po definitywnym końcu Checkout', () => {
+  assert.equal(shouldReleaseStockAfterStripeEvent('checkout.session.expired'), true);
+  assert.equal(shouldReleaseStockAfterStripeEvent('checkout.session.async_payment_failed'), true);
+  assert.equal(shouldReleaseStockAfterStripeEvent('payment_intent.payment_failed'), false);
+  assert.equal(shouldReleaseStockAfterStripeEvent('checkout.session.completed'), false);
 });

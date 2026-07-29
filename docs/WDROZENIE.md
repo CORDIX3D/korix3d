@@ -85,16 +85,26 @@ Status `503` oznacza brak wymaganej konfiguracji. Szczegółowy stan usług jest
    - `checkout.session.completed`,
    - `checkout.session.async_payment_succeeded`,
    - `checkout.session.async_payment_failed`,
-   - `checkout.session.expired`.
+   - `checkout.session.expired`,
+   - `payment_intent.payment_failed`,
+   - `charge.refunded`.
 6. Skopiuj nowy signing secret bezpośrednio do Vercela jako `STRIPE_WEBHOOK_SECRET`.
 7. Uruchom ponowne wdrożenie.
 8. Wykonaj testowe zamówienie i sprawdź, czy:
    - Stripe pokazuje dostarczone zdarzenie,
    - zamówienie zmienia status z `pending` na `paid`,
    - anulowana lub wygasła sesja zwraca stan produktu,
+   - ponowne wysłanie tego samego zdarzenia nie wykonuje operacji drugi raz,
+   - pełny zwrot ustawia status `refunded`, a częściowy zwrot nie zamyka całego zamówienia,
    - opłacone zamówienie pojawia się w panelu klienta i administratora.
 
 Kod celowo nie uruchomi płatności, jeśli brakuje sekretu webhooka. Chroni to klienta przed zapłatą, której system nie potrafiłby przypisać do zamówienia.
+
+Każde obsługiwane zdarzenie jest rejestrowane po samym identyfikatorze w tabeli
+`stripe_webhook_events`. Tabela nie przechowuje treści webhooka ani danych klienta.
+Zdarzenie zakończone jest ignorowane przy kolejnej dostawie, a zdarzenie przerwane
+błędem może zostać bezpiecznie ponowione przez Stripe. Tabela i funkcje obsługi są
+tworzone przez migrację `20260729120000_add_stripe_webhook_idempotency.sql`.
 
 ## 6. Worker Creality Print
 

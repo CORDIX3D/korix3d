@@ -92,6 +92,7 @@ const applicationTables = [
   'slicer_workers',
   'slicing_jobs',
   'stock_movements',
+  'stripe_webhook_events',
 ];
 
 for (const table of applicationTables) {
@@ -127,6 +128,10 @@ const requiredSecurityGuards = [
   {
     name: 'ukrycie wewnętrznych kosztów wyceny klienta',
     sql: 'revoke select on public.orders_3d from anon, authenticated',
+  },
+  {
+    name: 'idempotencja webhooków Stripe',
+    sql: 'create or replace function public.claim_stripe_webhook_event',
   },
 ];
 

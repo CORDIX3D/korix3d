@@ -681,6 +681,47 @@ export interface Database {
           created_at?: string;
         };
       };
+      stripe_webhook_events: {
+        Row: {
+          event_id: string;
+          event_type: string;
+          object_id: string | null;
+          order_id: string | null;
+          status: 'processing' | 'processed' | 'ignored' | 'failed';
+          attempts: number;
+          last_error: string | null;
+          received_at: string;
+          processing_started_at: string;
+          processed_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          event_id: string;
+          event_type: string;
+          object_id?: string | null;
+          order_id?: string | null;
+          status?: 'processing' | 'processed' | 'ignored' | 'failed';
+          attempts?: number;
+          last_error?: string | null;
+          received_at?: string;
+          processing_started_at?: string;
+          processed_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          event_id?: string;
+          event_type?: string;
+          object_id?: string | null;
+          order_id?: string | null;
+          status?: 'processing' | 'processed' | 'ignored' | 'failed';
+          attempts?: number;
+          last_error?: string | null;
+          received_at?: string;
+          processing_started_at?: string;
+          processed_at?: string | null;
+          updated_at?: string;
+        };
+      };
       stock_movements: {
         Row: {
           id: string;

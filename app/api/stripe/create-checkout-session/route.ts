@@ -146,6 +146,12 @@ export async function POST(request: NextRequest) {
         customer_email: order.customer_email,
         client_reference_id: order.id,
         metadata: { order_id: order.id, order_number: order.order_number },
+        payment_intent_data: {
+          metadata: {
+            order_id: order.id,
+            order_number: order.order_number,
+          },
+        },
         success_url: `${origin}/checkout/sukces?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/checkout?cancelled=1&order=${encodeURIComponent(order.id)}`,
         billing_address_collection: 'auto',

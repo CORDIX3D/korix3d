@@ -61,6 +61,9 @@ jobs:
       - name: Domain production contract
         run: npm run check:domain
 
+      - name: Monitoring production contract
+        run: npm run check:monitoring
+
       - name: Operations documentation check
         run: npm run check:docs
 

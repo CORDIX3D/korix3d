@@ -12,6 +12,7 @@ const requiredDocuments = [
   ['docs/STRIPE_PRODUCTION.md', ['## Model płatności', '## Produkcyjny webhook', '## Przejście TEST → LIVE', '## Reakcja na błędy']],
   ['docs/VERCEL_PRODUCTION.md', ['## Projekt i źródło wdrożenia', '## Środowiska', '## Functions i Edge Runtime', '## Rollback']],
   ['docs/DOMENA_PRODUCTION.md', ['## Stan zweryfikowany 29 lipca 2026', '## Konfiguracja DNS i Vercel', '## HTTPS, SSL i HSTS', '## Kontrola po propagacji DNS']],
+  ['docs/MONITORING.md', ['## Zakres', '## Konfiguracja', '## Logi i prywatność', '## Alerty i reakcja']],
 ];
 
 for (const [fileName, headings] of requiredDocuments) {

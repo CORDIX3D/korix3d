@@ -6,6 +6,7 @@ export function getRuntimeHealth() {
     supabase: environment.supabase.configured,
     stripe: environment.stripe.configured,
     slicer: environment.slicer.configured,
+    monitoring: environment.monitoring.configured,
   };
 
   const databaseReady = services.supabase;

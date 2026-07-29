@@ -29,6 +29,7 @@ const requiredApplicationVariables = [
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'CREALITY_SLICER_WORKER_TOKEN',
+  'CRON_SECRET',
 ];
 
 const requiredWorkerVariables = [
@@ -90,6 +91,7 @@ for (const secretName of [
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'CREALITY_SLICER_WORKER_TOKEN',
+  'CRON_SECRET',
 ]) {
   if (applicationVariables.get(secretName) !== '') {
     throw new Error(`${secretName} musi pozostać bez wartości w repozytorium.`);

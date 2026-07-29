@@ -20,6 +20,10 @@ for (const [key, value] of Object.entries(expectedVercel)) {
   }
 }
 
+if (!vercel.crons?.some((entry) => entry.path === '/api/monitoring/production-health')) {
+  throw new Error('Vercel nie ma skonfigurowanej kontroli produkcyjnej.');
+}
+
 if (!String(packageJson.engines?.node || '').startsWith('>=20.')) {
   throw new Error('Produkcja Vercel wymaga jawnie przypiętej głównej wersji Node.js 20.');
 }

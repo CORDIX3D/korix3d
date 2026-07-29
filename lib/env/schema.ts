@@ -74,6 +74,14 @@ export const slicerServerEnvironmentSchema = z.object({
     .regex(/^\S+$/, 'nie może zawierać białych znaków'),
 });
 
+export const monitoringEnvironmentSchema = z.object({
+  CRON_SECRET: z
+    .string()
+    .trim()
+    .min(32, 'musi mieć co najmniej 32 znaki')
+    .regex(/^\S+$/, 'nie może zawierać białych znaków'),
+});
+
 export type PublicSupabaseEnvironment = z.infer<
   typeof publicSupabaseEnvironmentSchema
 >;

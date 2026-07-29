@@ -1,6 +1,7 @@
 import 'server-only';
 import {
   formatEnvironmentIssues,
+  monitoringEnvironmentSchema,
   slicerServerEnvironmentSchema,
   stripeEnvironmentSchema,
   supabaseServiceEnvironmentSchema,
@@ -59,6 +60,15 @@ export function getRequiredSlicerServerEnvironment() {
   );
 }
 
+export function getRequiredMonitoringEnvironment() {
+  return parseRequired(
+    'monitoringu',
+    monitoringEnvironmentSchema.safeParse({
+      CRON_SECRET: process.env.CRON_SECRET,
+    })
+  );
+}
+
 export function inspectServerEnvironment() {
   const supabase = supabaseServiceEnvironmentSchema.safeParse({
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -74,6 +84,9 @@ export function inspectServerEnvironment() {
     CREALITY_SLICER_WORKER_TOKEN:
       process.env.CREALITY_SLICER_WORKER_TOKEN,
   });
+  const monitoring = monitoringEnvironmentSchema.safeParse({
+    CRON_SECRET: process.env.CRON_SECRET,
+  });
 
   return {
     supabase: {
@@ -88,6 +101,9 @@ export function inspectServerEnvironment() {
       configured: slicer.success,
       issues: slicer.success ? [] : formatEnvironmentIssues(slicer.error),
     },
+    monitoring: {
+      configured: monitoring.success,
+      issues: monitoring.success ? [] : formatEnvironmentIssues(monitoring.error),
+    },
   };
 }
-

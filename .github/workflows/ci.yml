@@ -58,6 +58,9 @@ jobs:
       - name: Vercel production contract
         run: npm run check:vercel
 
+      - name: Domain production contract
+        run: npm run check:domain
+
       - name: Operations documentation check
         run: npm run check:docs
 

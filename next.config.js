@@ -26,6 +26,16 @@ const nextConfig = {
       { protocol: 'https', hostname: 'www.korix3d.pl' },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.korix3d.pl' }],
+        destination: 'https://korix3d.pl/:path*',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

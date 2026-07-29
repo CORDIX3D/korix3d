@@ -55,6 +55,9 @@ jobs:
       - name: Stripe production contract
         run: npm run check:stripe
 
+      - name: Vercel production contract
+        run: npm run check:vercel
+
       - name: Operations documentation check
         run: npm run check:docs
 

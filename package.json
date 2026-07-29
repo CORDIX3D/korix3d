@@ -24,11 +24,12 @@
     "check:rls": "node scripts/check-rls.mjs",
     "check:supabase": "npm run check:db && npm run check:rls && node scripts/check-supabase-production.mjs",
     "check:stripe": "node scripts/check-stripe-production.mjs",
+    "check:vercel": "node scripts/check-vercel-production.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:env": "node scripts/check-env-contract.mjs",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "check:docs": "node scripts/check-docs.mjs",
-    "verify": "npm run check:secrets && npm run check:env && npm run lint && npm run typecheck && npm test && npm run check:supabase && npm run check:stripe && npm run check:docs && npm run build && npm run check:bundle && npm run test:smoke"
+    "verify": "npm run check:secrets && npm run check:env && npm run lint && npm run typecheck && npm test && npm run check:supabase && npm run check:stripe && npm run check:vercel && npm run check:docs && npm run build && npm run check:bundle && npm run test:smoke"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

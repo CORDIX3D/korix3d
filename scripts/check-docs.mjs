@@ -10,6 +10,7 @@ const requiredDocuments = [
   ['docs/OPERACJE.md', ['## Checklista przed produkcją', '## Wdrożenie', '## Cofnięcie wdrożenia', '## Reagowanie na awarię']],
   ['docs/SUPABASE_PRODUCTION.md', ['## Ustawienia wymagane w panelu Supabase', '## Kontrolowane wdrożenie migracji', '## Kontrola zdalna']],
   ['docs/STRIPE_PRODUCTION.md', ['## Model płatności', '## Produkcyjny webhook', '## Przejście TEST → LIVE', '## Reakcja na błędy']],
+  ['docs/VERCEL_PRODUCTION.md', ['## Projekt i źródło wdrożenia', '## Środowiska', '## Functions i Edge Runtime', '## Rollback']],
 ];
 
 for (const [fileName, headings] of requiredDocuments) {

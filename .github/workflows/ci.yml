@@ -37,6 +37,9 @@ jobs:
       - name: Secret scan
         run: npm run check:secrets
 
+      - name: Environment contract check
+        run: npm run check:env
+
       - name: Lint
         run: npm run lint
 

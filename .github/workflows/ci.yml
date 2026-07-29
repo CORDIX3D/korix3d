@@ -64,6 +64,9 @@ jobs:
       - name: Monitoring production contract
         run: npm run check:monitoring
 
+      - name: Backup and restore contract
+        run: npm run check:backup
+
       - name: Operations documentation check
         run: npm run check:docs
 

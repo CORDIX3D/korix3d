@@ -17,6 +17,8 @@
 
 # production
 /build
+/backups
+*.backup
 
 # misc
 .DS_Store

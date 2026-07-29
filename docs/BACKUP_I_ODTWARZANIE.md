@@ -31,6 +31,25 @@ Retencję i dostępność point-in-time recovery należy dobrać w panelu Supaba
 5. Nie umieszczaj zrzutów bazy, plików klientów ani sekretów w GitHubie.
 6. Zapisz czas kopii, zakres, wykonawcę, sumę kontrolną i wynik w rejestrze operacyjnym.
 
+### Automatyczny eksport kontrolowany
+
+Repozytorium zawiera `scripts/backup/backup-production.ps1`. Skrypt:
+
+- wykonuje logiczny eksport ról, schematu, danych i historii migracji przez Supabase CLI;
+- pobiera wszystkie obiekty Storage wraz z konfiguracją bucketów;
+- kopiuje bezsekretowy kontrakt środowiska i konfiguracje wdrożenia;
+- liczy SHA-256 każdego obiektu i od razu uruchamia weryfikację.
+
+Uruchamiaj go na zaufanej maszynie z zainstalowanym Supabase CLI i Node.js. Wartości `SUPABASE_DB_URL`, `NEXT_PUBLIC_SUPABASE_URL` oraz `SUPABASE_SERVICE_ROLE_KEY` ustaw tylko w bieżącej sesji terminala. `KORIX3D_BACKUP_DIR` musi wskazywać zaszyfrowany katalog poza repozytorium. Skrypt celowo odmawia zapisu kopii wewnątrz projektu.
+
+Nie uruchamiaj tego eksportu w GitHub Actions ani Vercel: artefakt zawiera dane osobowe i prywatne modele klientów. Harmonogram tygodniowy ustaw w systemowym Harmonogramie zadań na dedykowanej maszynie backupowej, a wynik kopiuj do drugiej zaszyfrowanej lokalizacji.
+
+## Backup konfiguracji i sekretów
+
+Kod, migracje, Edge Functions, `vercel.json`, `supabase/config.toml` i listę nazw zmiennych chroni GitHub oraz eksport skryptu. Wartości sekretów przechowuj osobno w menedżerze haseł z MFA i kontrolą dostępu.
+
+Raz w miesiącu porównaj nazwy wpisów w menedżerze z `.env.example`, ale nie eksportuj jawnych wartości do katalogu projektu. Dla każdego sekretu zapisz właściciela, usługę, środowisko, datę ostatniej rotacji i procedurę unieważnienia. Kopia sekretów musi być zaszyfrowana innym kluczem niż dostęp do głównej stacji roboczej.
+
 ## Odtwarzanie
 
 1. Wstrzymaj nowe płatności i operacje administracyjne, jeśli dalsze zapisy mogłyby pogorszyć stan.
@@ -63,3 +82,19 @@ Migracje są przeznaczone do jednokrotnego wykonania w rosnącej kolejności. W 
 - suma stanów i rezerwacji zgadza się z zamówieniami,
 - testowy checkout i idempotentny webhook przechodzą,
 - zmierzony czas odtworzenia mieści się w przyjętym RTO.
+
+## Test odtworzenia krok po kroku
+
+Test wykonuj kwartalnie wyłącznie do nowego projektu Supabase bez ruchu klientów:
+
+1. Uruchom `node scripts/backup/verify-backup.mjs <katalog-kopii>` i zachowaj wynik.
+2. Utwórz pusty projekt testowy w tym samym lub zgodnym regionie.
+3. Zastosuj `roles.sql`, `schema.sql` i `data.sql` przez `psql --single-transaction --variable ON_ERROR_STOP=1`; postępuj zgodnie z aktualną instrukcją Supabase przy błędach ról zarządzanych.
+4. Odtwórz `history_schema.sql` i `history_data.sql`, aby zachować historię migracji.
+5. Utwórz buckety zgodnie z migracjami, a następnie wgraj obiekty z katalogu `storage` zachowując bucket i pełną ścieżkę z manifestu.
+6. Wdróż Edge Functions z repozytorium i ustaw nowe, testowe sekrety; nigdy nie kopiuj live Stripe do testu.
+7. Porównaj liczbę obiektów i SHA-256 z `storage-manifest.json` oraz kluczowe liczby rekordów w tabelach.
+8. Uruchom testy RLS, logowanie, odczyt prywatnego pliku właściciela, zakup Stripe test i jedno zadanie slicera.
+9. Zapisz rzeczywisty RPO/RTO, wszystkie ręczne poprawki i wynik testu. Usuń projekt testowy dopiero po zatwierdzeniu raportu i zgodnie z zasadami retencji danych.
+
+Zarządzane kopie bazy Supabase nie zastępują osobnego backupu obiektów Storage. PITR może wiązać się z dodatkowym kosztem i nie należy go włączać bez decyzji właściciela; przy docelowym RPO 24 godziny podstawą są codzienne kopie dostawcy i cotygodniowy zweryfikowany eksport poza usługę.

@@ -647,6 +647,17 @@ test('walidacja środowiska rozróżnia publiczne i serwerowe klucze Supabase', 
   }).success, false);
 });
 
+test('brak adresu usługi zwraca błąd walidacji zamiast wyjątku', () => {
+  assert.doesNotThrow(() => publicSupabaseEnvironmentSchema.safeParse({
+    NEXT_PUBLIC_SUPABASE_URL: '',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
+  }));
+  assert.equal(publicSupabaseEnvironmentSchema.safeParse({
+    NEXT_PUBLIC_SUPABASE_URL: '',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
+  }).success, false);
+});
+
 test('walidacja Stripe odrzuca klucz ograniczony zamiast sekretu serwerowego', () => {
   const base = {
     STRIPE_WEBHOOK_SECRET: `whsec_${'a'.repeat(32)}`,

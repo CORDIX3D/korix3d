@@ -1,17 +1,28 @@
 import { z } from 'zod';
 
+function getUrlProtocol(value: string) {
+  try {
+    return new URL(value).protocol;
+  } catch {
+    return null;
+  }
+}
+
 const httpUrlSchema = z
   .string()
   .trim()
   .url('musi być poprawnym adresem URL')
-  .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
+  .refine((value) => {
+    const protocol = getUrlProtocol(value);
+    return protocol === 'http:' || protocol === 'https:';
+  }, {
     message: 'musi używać protokołu HTTP lub HTTPS',
   });
 
 const productionUrlSchema = httpUrlSchema.superRefine((value, context) => {
   if (
     process.env.NODE_ENV === 'production' &&
-    new URL(value).protocol !== 'https:'
+    getUrlProtocol(value) === 'http:'
   ) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
@@ -73,4 +84,3 @@ export function formatEnvironmentIssues(error: z.ZodError) {
     return `${name}: ${issue.message}`;
   });
 }
-

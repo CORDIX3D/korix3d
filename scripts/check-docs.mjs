@@ -9,6 +9,7 @@ const requiredDocuments = [
   ['docs/BACKUP_I_ODTWARZANIE.md', ['## Harmonogram', '## Odtwarzanie', '## Migracje i istniejące dane']],
   ['docs/OPERACJE.md', ['## Checklista przed produkcją', '## Wdrożenie', '## Cofnięcie wdrożenia', '## Reagowanie na awarię']],
   ['docs/SUPABASE_PRODUCTION.md', ['## Ustawienia wymagane w panelu Supabase', '## Kontrolowane wdrożenie migracji', '## Kontrola zdalna']],
+  ['docs/STRIPE_PRODUCTION.md', ['## Model płatności', '## Produkcyjny webhook', '## Przejście TEST → LIVE', '## Reakcja na błędy']],
 ];
 
 for (const [fileName, headings] of requiredDocuments) {

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const admin = createSupabaseClient(url, serviceRoleKey);
     const { data: order, error: orderError } = await admin
       .from('store_orders')
-      .select('id, order_number, status, customer_email, total, shipping_cost, discount_amount, coupon_code, stripe_session_id, checkout_token_hash')
+      .select('id, order_number, status, customer_email, total, vat_amount, shipping_cost, discount_amount, coupon_code, stripe_session_id, checkout_token_hash')
       .eq('id', parsed.data.orderId)
       .maybeSingle();
 
@@ -139,19 +139,26 @@ export async function POST(request: NextRequest) {
     }
 
     const origin = getStripeCheckoutOrigin(request.nextUrl.origin);
+    const paymentMetadata = {
+      order_id: order.id,
+      order_number: order.order_number,
+      currency: 'pln',
+      vat_amount: Number(order.vat_amount || 0).toFixed(2),
+      prices_include_tax: 'true',
+    };
     const session = await stripe.checkout.sessions.create(
       {
         mode: 'payment',
         line_items: lineItems,
         customer_email: order.customer_email,
         client_reference_id: order.id,
-        metadata: { order_id: order.id, order_number: order.order_number },
+        metadata: paymentMetadata,
         payment_intent_data: {
-          metadata: {
-            order_id: order.id,
-            order_number: order.order_number,
-          },
+          metadata: paymentMetadata,
         },
+        // Ceny w bazie są końcowymi cenami brutto. Stripe Tax pozostaje wyłączony,
+        // aby podatek nie został doliczony klientowi drugi raz.
+        automatic_tax: { enabled: false },
         success_url: `${origin}/checkout/sukces?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/checkout?cancelled=1&order=${encodeURIComponent(order.id)}`,
         billing_address_collection: 'auto',

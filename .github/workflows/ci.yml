@@ -52,6 +52,9 @@ jobs:
       - name: Supabase production contract
         run: npm run check:supabase
 
+      - name: Stripe production contract
+        run: npm run check:stripe
+
       - name: Operations documentation check
         run: npm run check:docs
 

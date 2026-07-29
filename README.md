@@ -13,6 +13,9 @@ Aplikacja Next.js 15 z panelem klienta i administratora, sklepem, wyceną druku 
 ```text
 npm run lint
 npm run typecheck
+npm test
+npm run check:db
+npm run check:rls
 npm run check:secrets
 npm run build
 ```

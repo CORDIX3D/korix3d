@@ -60,6 +60,24 @@ Podział konfiguracji:
 
 Nie uruchamiaj checkoutu, dopóki najnowsze migracje sklepu nie zostały zastosowane. Rezerwacja i zwrot stanu magazynowego odbywają się w funkcjach bazodanowych.
 
+### Testy RLS
+
+Szybka kontrola każdej zmiany migracji nie wymaga połączenia z bazą:
+
+`npm run check:rls`
+
+Pełne testy ról znajdują się w `supabase/tests/database/rls.test.sql` i sprawdzają
+użytkownika anonimowego, klienta, pracownika, administratora oraz `service_role`.
+Uruchamiaj je wyłącznie na lokalnym stosie Supabase lub osobnej bazie testowej:
+
+1. zainstaluj Supabase CLI i Docker,
+2. uruchom lokalny projekt poleceniem `supabase start`,
+3. zastosuj migracje przez `supabase db reset`,
+4. uruchom `npm run test:rls:db`.
+
+Nie uruchamiaj testów pgTAP na produkcyjnej bazie. Każdy plik testowy działa w
+transakcji zakończonej `rollback`, ale środowisko testowe pozostaje obowiązkowe.
+
 ## 4. Vercel
 
 1. Projekt Vercel musi być połączony z repozytorium GitHub `CORDIX3D/korix3d` i produkcyjną gałęzią `main`.

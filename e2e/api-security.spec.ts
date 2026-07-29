@@ -6,6 +6,7 @@ test('publiczne API odrzuca nieprawidłowe dane', async ({ request }) => {
     ['/api/public/newsletter', { email: 'niepoprawny-email' }],
     ['/api/store/orders', {}],
     ['/api/stripe/create-checkout-session', {}],
+    ['/api/monitoring/client-error', {}],
   ];
 
   for (const [path, data] of cases) {

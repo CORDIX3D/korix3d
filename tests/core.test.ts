@@ -53,6 +53,10 @@ import {
 import { createClient } from '../lib/supabase/client';
 import type { Product } from '../lib/types/database';
 import { isTrustedMutationRequest } from '../lib/api/request-security';
+import {
+  normalizeMonitoringError,
+  sanitizeMonitoringText,
+} from '../lib/monitoring/sanitize';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -673,6 +677,20 @@ test('ochrona mutacji dopuszcza własną domenę i blokuje obcą', () => {
     headers: { 'sec-fetch-site': 'cross-site' },
   })), false);
   assert.equal(isTrustedMutationRequest(new Request('https://korix3d.pl/api/profile')), true);
+});
+
+test('monitoring usuwa sekrety i adresy email z komunikatów', () => {
+  const sanitized = sanitizeMonitoringText(
+    `Klucz sk_test_${'a'.repeat(32)}, whsec_${'b'.repeat(32)}, klient@example.com`
+  );
+  assert.equal(sanitized.includes('sk_test_'), false);
+  assert.equal(sanitized.includes('whsec_'), false);
+  assert.equal(sanitized.includes('klient@example.com'), false);
+  assert.equal(sanitized.includes('[REDACTED]'), true);
+  assert.equal(sanitized.includes('[EMAIL]'), true);
+
+  const normalized = normalizeMonitoringError(new Error(`Bearer ${'c'.repeat(32)}`));
+  assert.equal(normalized.message.includes('Bearer'), false);
 });
 
 test('walidacja Stripe odrzuca klucz ograniczony zamiast sekretu serwerowego', () => {

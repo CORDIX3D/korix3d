@@ -29,48 +29,14 @@ import { supabase } from '@/lib/supabase/client';
 import { Category, Product } from '@/lib/types/database';
 import { PanelError } from '@/components/customer/panel-state';
 import Link from 'next/link';
-
-const emptyForm = {
-  sku: '',
-  name: '',
-  slug: '',
-  short_description: '',
-  description: '',
-  category_id: '',
-  price: '',
-  compare_price: '',
-  cost_price: '',
-  stock_quantity: '0',
-  min_stock_quantity: '0',
-  weight_grams: '',
-  active: true,
-  featured: false,
-};
-
-type ProductForm = typeof emptyForm;
-
-const ALLOWED_IMAGE_TYPES = new Map([
-  ['image/jpeg', 'jpg'],
-  ['image/png', 'png'],
-  ['image/webp', 'webp'],
-]);
-const MAX_PRODUCT_IMAGES = 8;
-
-function createSlug(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ł/g, 'l')
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function parseDecimal(value: string) {
-  const number = Number(value.replace(',', '.'));
-  return Number.isFinite(number) ? number : NaN;
-}
+import {
+  ALLOWED_PRODUCT_IMAGE_TYPES as ALLOWED_IMAGE_TYPES,
+  MAX_PRODUCT_IMAGES,
+  createProductSlug as createSlug,
+  emptyProductForm as emptyForm,
+  parseProductDecimal as parseDecimal,
+  type ProductForm,
+} from '@/lib/admin/product-form';
 
 export default function AdminWarehousePage() {
   const [products, setProducts] = useState<Product[]>([]);

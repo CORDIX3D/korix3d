@@ -8,6 +8,17 @@ import {
   isRecognizedOrder3DRevenue,
   isRecognizedStoreOrderRevenue,
 } from '@/lib/revenue';
+import type {
+  CompanyScores,
+  ExecutiveData,
+  ExecutiveNotification,
+  ExecutiveReport,
+  Forecast,
+  Insight,
+  Recommendation,
+  Risk,
+} from '@/lib/executive/types';
+import { calculateScores } from '@/lib/executive/scoring';
 
 function getSupabaseAdmin() {
   const { url, serviceRoleKey } = getRequiredSupabaseServiceEnv();
@@ -56,126 +67,6 @@ async function rollbackExecutiveReport(
       .update({ status: 'failed' })
       .eq('id', reportId);
   }
-}
-
-interface ExecutiveData {
-  period: { start: Date; end: Date };
-  revenue: {
-    total: number;
-    previousMonth: number;
-    change: number;
-    byType: { orders3D: number; storeOrders: number };
-    byMonth: Array<{ month: string; amount: number }>;
-  };
-  expenses: {
-    total: number;
-    previousMonth: number;
-    change: number;
-    breakdown: { materials: number; electricity: number; maintenance: number; shipping: number; other: number };
-  };
-  profit: {
-    gross: number;
-    previousMonth: number;
-    margin: number;
-    previousMargin: number;
-  };
-  orders: {
-    total: number;
-    previousMonth: number;
-    averageValue: number;
-    byPriority: { standard: number; express: number; urgent: number };
-    completionRate: number;
-  };
-  production: {
-    totalHours: number;
-    utilization: number;
-    queueSize: number;
-    avgPrintTime: number;
-  };
-  warehouse: {
-    totalValue: number;
-    items: number;
-    lowStock: number;
-    lowStockItems: Array<{ name: string; quantity: number; minQuantity: number }>;
-  };
-  filaments: {
-    totalUsed: number;
-    byMaterial: Record<string, number>;
-    byColor: Array<{ color: string; grams: number }>;
-    lowStock: Array<{ material: string; color: string; remaining: number }>;
-  };
-  customers: {
-    total: number;
-    new: number;
-    returning: number;
-    top: Array<{ name: string; orders: number; value: number }>;
-    retentionRate: number;
-  };
-  topProducts: Array<{ name: string; sold: number; revenue: number; margin: number }>;
-  topMaterials: Array<{ name: string; sold: number; revenue: number; margin: number }>;
-}
-
-interface CompanyScores {
-  financialHealth: number;
-  productionEfficiency: number;
-  warehouseManagement: number;
-  customerSatisfaction: number;
-  businessGrowth: number;
-  overallScore: number;
-}
-
-interface Insight {
-  type: 'positive' | 'warning' | 'critical' | 'info';
-  category: string;
-  title: string;
-  description: string;
-  value?: number;
-  change?: number;
-  recommendation?: string;
-}
-
-interface Recommendation {
-  priority: 'high' | 'medium' | 'low';
-  category: string;
-  action: string;
-  expectedImpact: string;
-  details: string;
-}
-
-interface Risk {
-  level: 'low' | 'medium' | 'high' | 'critical';
-  category: string;
-  title: string;
-  description: string;
-  probability: number;
-  impact: string;
-  mitigation: string;
-}
-
-interface Forecast {
-  revenue: { value: number; confidence: number };
-  profit: { value: number; confidence: number };
-  orders: { value: number; confidence: number };
-  assumptions: string[];
-}
-
-interface ExecutiveReport {
-  summary: string;
-  scores: CompanyScores;
-  insights: Insight[];
-  recommendations: Recommendation[];
-  risks: Risk[];
-  forecast: Forecast;
-  ceoComment: string;
-  notifications: ExecutiveNotification[];
-}
-
-interface ExecutiveNotification {
-  type: 'warning' | 'critical' | 'info' | 'success';
-  category: string;
-  title: string;
-  message: string;
-  priority: 'high' | 'medium' | 'low';
 }
 
 async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<ExecutiveData> {
@@ -531,101 +422,6 @@ async function fetchExecutiveData(periodStart: Date, periodEnd: Date): Promise<E
     },
     topProducts,
     topMaterials: topProducts
-  };
-}
-
-function calculateScores(data: ExecutiveData): CompanyScores {
-  // Financial Health (0-100)
-  let financialHealth = 50;
-  if (data.profit.margin >= 30) financialHealth += 25;
-  else if (data.profit.margin >= 20) financialHealth += 15;
-  else if (data.profit.margin >= 10) financialHealth += 5;
-  else if (data.profit.margin < 0) financialHealth -= 20;
-
-  if (data.revenue.change > 20) financialHealth += 15;
-  else if (data.revenue.change > 10) financialHealth += 10;
-  else if (data.revenue.change > 0) financialHealth += 5;
-  else if (data.revenue.change < -10) financialHealth -= 15;
-
-  if (data.profit.gross > 0) financialHealth += 10;
-  else financialHealth -= 10;
-
-  financialHealth = Math.max(0, Math.min(100, financialHealth));
-
-  // Production Efficiency (0-100)
-  let productionEfficiency = 50;
-  if (data.production.utilization >= 80) productionEfficiency += 20;
-  else if (data.production.utilization >= 60) productionEfficiency += 10;
-  else if (data.production.utilization >= 40) productionEfficiency += 5;
-  else if (data.production.utilization < 30) productionEfficiency -= 10;
-
-  if (data.orders.completionRate >= 95) productionEfficiency += 15;
-  else if (data.orders.completionRate >= 85) productionEfficiency += 10;
-  else if (data.orders.completionRate < 70) productionEfficiency -= 10;
-
-  if (data.production.queueSize <= 5) productionEfficiency += 15;
-  else if (data.production.queueSize <= 10) productionEfficiency += 5;
-  else if (data.production.queueSize > 20) productionEfficiency -= 10;
-
-  productionEfficiency = Math.max(0, Math.min(100, productionEfficiency));
-
-  // Warehouse Management (0-100)
-  let warehouseManagement = 70;
-  if (data.warehouse.lowStock === 0) warehouseManagement += 20;
-  else if (data.warehouse.lowStock <= 3) warehouseManagement += 10;
-  else if (data.warehouse.lowStock > 10) warehouseManagement -= 20;
-  else if (data.warehouse.lowStock > 5) warehouseManagement -= 10;
-
-  if (data.filaments.lowStock.length === 0) warehouseManagement += 10;
-  else if (data.filaments.lowStock.length > 3) warehouseManagement -= 10;
-
-  warehouseManagement = Math.max(0, Math.min(100, warehouseManagement));
-
-  // Customer Satisfaction (0-100)
-  let customerSatisfaction = 60;
-  if (data.customers.retentionRate >= 40) customerSatisfaction += 20;
-  else if (data.customers.retentionRate >= 25) customerSatisfaction += 10;
-  else if (data.customers.retentionRate < 10) customerSatisfaction -= 10;
-
-  if (data.orders.completionRate >= 95) customerSatisfaction += 10;
-  else if (data.orders.completionRate < 80) customerSatisfaction -= 10;
-
-  if (data.customers.new > 0) customerSatisfaction += 10;
-
-  customerSatisfaction = Math.max(0, Math.min(100, customerSatisfaction));
-
-  // Business Growth (0-100)
-  let businessGrowth = 50;
-  if (data.revenue.change > 30) businessGrowth += 25;
-  else if (data.revenue.change > 15) businessGrowth += 15;
-  else if (data.revenue.change > 5) businessGrowth += 10;
-  else if (data.revenue.change < -10) businessGrowth -= 20;
-
-  if (data.customers.new > 5) businessGrowth += 15;
-  else if (data.customers.new > 2) businessGrowth += 10;
-  else if (data.customers.new === 0) businessGrowth -= 5;
-
-  if (data.orders.total > data.orders.previousMonth * 1.2) businessGrowth += 10;
-  else if (data.orders.total < data.orders.previousMonth * 0.8) businessGrowth -= 10;
-
-  businessGrowth = Math.max(0, Math.min(100, businessGrowth));
-
-  // Overall Score (weighted average)
-  const overallScore = Math.round(
-    financialHealth * 0.3 +
-    productionEfficiency * 0.2 +
-    warehouseManagement * 0.15 +
-    customerSatisfaction * 0.15 +
-    businessGrowth * 0.2
-  );
-
-  return {
-    financialHealth: Math.round(financialHealth),
-    productionEfficiency: Math.round(productionEfficiency),
-    warehouseManagement: Math.round(warehouseManagement),
-    customerSatisfaction: Math.round(customerSatisfaction),
-    businessGrowth: Math.round(businessGrowth),
-    overallScore
   };
 }
 
@@ -1392,4 +1188,4 @@ export async function generateExecutiveReport(
 }
 
 export { fetchExecutiveData, calculateScores, generateInsights, generateRecommendations, generateRisks, generateForecast };
-export type { ExecutiveData, CompanyScores, Insight, Recommendation, Risk, Forecast, ExecutiveReport };
+export type { ExecutiveData, CompanyScores, Insight, Recommendation, Risk, Forecast, ExecutiveReport } from '@/lib/executive/types';

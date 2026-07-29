@@ -6,7 +6,10 @@ import { CartProvider } from '@/lib/cart-provider';
 import { WishlistProvider } from '@/lib/wishlist-provider';
 
 export const metadata: Metadata = {
-  title: 'KORIX3D - Profesjonalny Druk 3D | Od pomysłu do rzeczywistości',
+  title: {
+    default: 'KORIX3D - Profesjonalny druk 3D',
+    template: '%s | KORIX3D',
+  },
   description: 'KORIX3D - Profesjonalny druk 3D, szybkie prototypowanie, części inżynieryjne. Oferujemy usługi druku 3D, sprzedaż filamentów i akcesoriów. Od pomysłu do rzeczywistości.',
   keywords: ['druk 3D', 'prototypowanie', 'filamenty', 'PLA', 'PETG', 'ABS', 'części inżynieryjne', 'produkcja', 'Warszawa', 'Polska'],
   authors: [{ name: 'KORIX3D' }],
@@ -18,9 +21,6 @@ export const metadata: Metadata = {
     telephone: false,
   },
   metadataBase: new URL('https://korix3d.pl'),
-  alternates: {
-    canonical: '/',
-  },
   openGraph: {
     type: 'website',
     locale: 'pl_PL',

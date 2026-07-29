@@ -6,6 +6,7 @@ test('publiczna nawigacja prowadzi do sklepu i obsługuje 404', async ({ page })
   expect(homeResponse?.headers()['content-security-policy']).toContain("default-src 'self'");
   expect(homeResponse?.headers()['x-content-type-options']).toBe('nosniff');
   expect(homeResponse?.headers()['x-frame-options']).toBe('DENY');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://korix3d.pl');
   await expect(page.locator('h1').first()).toBeVisible();
 
   if ((page.viewportSize()?.width ?? 1280) < 768) {
@@ -15,6 +16,7 @@ test('publiczna nawigacja prowadzi do sklepu i obsługuje 404', async ({ page })
   await page.getByRole('link', { name: 'Sklep', exact: true }).first().click();
   await expect(page).toHaveURL(/\/sklep$/);
   await expect(page.getByRole('heading', { name: 'Sklep', exact: true, level: 1 })).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://korix3d.pl/sklep');
 
   const missingResponse = await page.goto('/__brakujaca_strona_e2e__');
   expect(missingResponse?.status()).toBe(404);

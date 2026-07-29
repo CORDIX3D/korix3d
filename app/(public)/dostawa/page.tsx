@@ -1,8 +1,9 @@
 import { InformationPage } from '@/components/layout/information-page';
 
 export const metadata = {
-  title: 'Dostawa i płatności | KORIX3D',
+  title: 'Dostawa i płatności',
   description: 'Informacje o dostawie, odbiorze osobistym i rozliczeniu zamówień w KORIX3D.',
+  alternates: { canonical: '/dostawa' },
 };
 
 export default function DeliveryPage() {

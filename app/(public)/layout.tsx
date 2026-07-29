@@ -1,6 +1,11 @@
+import type { Metadata } from 'next';
 import { PublicHeader } from '@/components/layout/public-header';
 import { PublicFooter } from '@/components/layout/public-footer';
 import { AIWrapper } from '@/components/ai/ai-wrapper';
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 export default function PublicLayout({
   children,

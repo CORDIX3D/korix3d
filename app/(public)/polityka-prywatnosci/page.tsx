@@ -1,8 +1,9 @@
 import { InformationPage } from '@/components/layout/information-page';
 
 export const metadata = {
-  title: 'Polityka prywatności | KORIX3D',
+  title: 'Polityka prywatności',
   description: 'Informacje o przetwarzaniu danych osobowych w serwisie KORIX3D.',
+  alternates: { canonical: '/polityka-prywatnosci' },
 };
 
 export default function PrivacyPage() {

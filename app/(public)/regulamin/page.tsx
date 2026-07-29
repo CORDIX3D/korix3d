@@ -1,8 +1,9 @@
 import { InformationPage } from '@/components/layout/information-page';
 
 export const metadata = {
-  title: 'Regulamin | KORIX3D',
+  title: 'Regulamin',
   description: 'Zasady korzystania z serwisu KORIX3D, składania zamówień oraz realizacji usług druku 3D.',
+  alternates: { canonical: '/regulamin' },
 };
 
 export default function TermsPage() {

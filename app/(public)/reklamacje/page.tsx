@@ -1,8 +1,9 @@
 import { InformationPage } from '@/components/layout/information-page';
 
 export const metadata = {
-  title: 'Reklamacje | KORIX3D',
+  title: 'Reklamacje',
   description: 'Jak zgłosić problem z produktem, wydrukiem 3D lub realizacją zamówienia w KORIX3D.',
+  alternates: { canonical: '/reklamacje' },
 };
 
 export default function ComplaintsPage() {

@@ -57,6 +57,7 @@ import {
   normalizeMonitoringError,
   sanitizeMonitoringText,
 } from '../lib/monitoring/sanitize';
+import { absoluteSiteUrl, serializeJsonLd } from '../lib/seo';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -691,6 +692,13 @@ test('monitoring usuwa sekrety i adresy email z komunikatów', () => {
 
   const normalized = normalizeMonitoringError(new Error(`Bearer ${'c'.repeat(32)}`));
   assert.equal(normalized.message.includes('Bearer'), false);
+});
+
+test('SEO buduje bezpieczne adresy i dane strukturalne', () => {
+  assert.equal(absoluteSiteUrl('/sklep/model'), 'https://korix3d.pl/sklep/model');
+  const serialized = serializeJsonLd({ name: '</script><script>alert(1)</script>' });
+  assert.equal(serialized.includes('</script>'), false);
+  assert.equal(serialized.includes('\\u003c'), true);
 });
 
 test('walidacja Stripe odrzuca klucz ograniczony zamiast sekretu serwerowego', () => {

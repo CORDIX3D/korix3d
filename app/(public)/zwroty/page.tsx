@@ -1,8 +1,9 @@
 import { InformationPage } from '@/components/layout/information-page';
 
 export const metadata = {
-  title: 'Zwroty | KORIX3D',
+  title: 'Zwroty',
   description: 'Zasady zwrotów produktów standardowych i wydruków wykonywanych na indywidualne zamówienie.',
+  alternates: { canonical: '/zwroty' },
 };
 
 export default function ReturnsPage() {

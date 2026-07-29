@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { PUBLIC_FILAMENT_COLUMNS } from '@/lib/public-filament';
+import { seoDescription } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,7 +81,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (error) throw new Error('Nie udało się pobrać metadanych materiału.');
   if (!material) notFound();
 
-  return { title: material.name, description: material.description || undefined };
+  const description = seoDescription(material.description, `Materiał ${material.name} do profesjonalnego druku 3D.`);
+  const canonical = `/materialy/${encodeURIComponent(slug)}`;
+  return {
+    title: material.name,
+    description,
+    alternates: { canonical },
+    openGraph: { type: 'website', url: canonical, title: material.name, description },
+  };
 }
 
 export default async function MaterialDetailPage({ params }: { params: Promise<{ slug: string }> }) {

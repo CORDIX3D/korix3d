@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { buildProductSalesReport } from '../lib/accounting/product-ranking';
 import { calculateDiscount, normalizeCouponCode } from '../lib/discount';
 import { parseDeliveryOptions } from '../lib/shipping';

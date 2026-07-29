@@ -2,9 +2,6 @@
 const nextConfig = {
   outputFileTracingRoot: __dirname,
   poweredByHeader: false,
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.supabase.co' },

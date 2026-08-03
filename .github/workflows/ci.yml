@@ -82,6 +82,9 @@ jobs:
       - name: Production security contract
         run: npm run check:security
 
+      - name: Production readiness report
+        run: npm run check:production-report
+
       - name: Operations documentation check
         run: npm run check:docs
 

@@ -18,9 +18,12 @@ Dodaj poniższe nazwy jako zmienne projektu dostępne dla wdrożenia produkcyjne
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase, ustawienia API projektu | Publiczne połączenie przeglądarki |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase, ustawienia API projektu | Operacje serwerowe i transakcje |
 | `NEXT_PUBLIC_SITE_URL` | Docelowa domena HTTPS | Powroty logowania i Stripe |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Google Search Console, opcjonalnie | Weryfikacja własności witryny |
+| `NEXT_PUBLIC_BING_SITE_VERIFICATION` | Bing Webmaster Tools, opcjonalnie | Weryfikacja własności witryny |
 | `STRIPE_SECRET_KEY` | Stripe, klucze API wybranego trybu | Tworzenie sesji płatności |
 | `STRIPE_WEBHOOK_SECRET` | Stripe, szczegóły webhooka | Weryfikacja zdarzeń płatności |
 | `CREALITY_SLICER_WORKER_TOKEN` | Wygenerowany losowy sekret | Dostęp zdalnego workera Creality Print |
+| `CRON_SECRET` | Wygenerowany losowy sekret | Ochrona cyklicznego monitoringu produkcji |
 
 Zmienne publiczne Supabase są częścią konfiguracji aplikacji. Pozostałe wartości są sekretami serwera. Wszystkie zmienne dodaj do środowiska `Production`; dla bezpiecznych testów możesz dodać osobne klucze testowe do `Preview`.
 
@@ -39,13 +42,13 @@ Publiczny `/api/health` zwraca jedynie stan ogólny. Szczegóły brakujących lu
 
 Podział konfiguracji:
 
-- **publiczne:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`,
+- **publiczne:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL` oraz opcjonalne tokeny weryfikacyjne Google/Bing,
 - **serwerowe i storage:** `SUPABASE_SERVICE_ROLE_KEY` (Storage korzysta z tego samego projektu Supabase),
 - **Stripe:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
 - **slicer:** `CREALITY_SLICER_WORKER_TOKEN` oraz zmienne lokalnego workera opisane w `services/creality-slicer-worker/.env.example`,
 - **AI:** brak zewnętrznego klucza — bot nie korzysta z płatnego API,
 - **e-mail:** brak zewnętrznego dostawcy w bieżącym MVP,
-- **monitoring:** wbudowane, ograniczone do minimum logi platformy i endpoint `/api/monitoring/client-error`; nie wymaga zewnętrznego klucza ani płatnej usługi.
+- **monitoring:** `CRON_SECRET`, wbudowane logi platformy i endpoint `/api/monitoring/client-error`; nie wymaga zewnętrznej płatnej usługi.
 
 ## 3. Supabase
 

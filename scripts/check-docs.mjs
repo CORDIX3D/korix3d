@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 const requiredDocuments = [
+  ['docs/README.md', ['## Od czego zacząć', '## Platforma i integracje', '## Dane i ciągłość działania', '## Jakość produkcyjna', '## Zasady utrzymania']],
   ['docs/BEZPIECZENSTWO.md', ['## Warstwy ochrony', '## Nagłówki i przeglądarka', '## Sekrety', '## Zależności', '## Reakcja na incydent']],
   ['docs/SEO.md', ['## Zakres techniczny', '## Google Search Console', '## Bing Webmaster Tools', '## Odbiór po wdrożeniu']],
   ['docs/PERFORMANCE.md', ['## Budżety', '## Zastosowane optymalizacje', '## Cache i dane dynamiczne', '## Kontrola po wdrożeniu']],

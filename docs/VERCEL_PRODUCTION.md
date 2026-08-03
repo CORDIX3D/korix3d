@@ -26,7 +26,7 @@ Nie należy podłączać Vercel Preview do produkcyjnego service role Supabase a
 
 ## Zmienne środowiskowe
 
-W `Project Settings → Environment Variables` dodaj siedem aktywnych zmiennych z `.env.example`. Wartości Production i Preview muszą być odseparowane. Po każdej zmianie wykonaj nowe wdrożenie — istniejące deploymenty zachowują poprzedni zestaw wartości.
+W `Project Settings → Environment Variables` dodaj osiem wymaganych zmiennych z `.env.example` oraz, po uzyskaniu tokenów, dwie opcjonalne zmienne weryfikacji SEO. Wartości Production i Preview muszą być odseparowane. Po każdej zmianie wykonaj nowe wdrożenie — istniejące deploymenty zachowują poprzedni zestaw wartości.
 
 Sekrety serwerowe:
 

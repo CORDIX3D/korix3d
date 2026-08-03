@@ -19,9 +19,12 @@ Wymagana wersja Node.js jest zapisana w `.nvmrc`, a powtarzalna konfiguracja bui
 
 ## Dokumentacja
 
+- [Indeks dokumentacji produkcyjnej](docs/README.md)
 - [Konfiguracja i wdrożenie](docs/WDROZENIE.md)
 - [Architektura i przepływy danych](docs/ARCHITEKTURA.md)
 - [Backup i odtwarzanie](docs/BACKUP_I_ODTWARZANIE.md)
 - [Obsługa produkcji i awarii](docs/OPERACJE.md)
+- [Testy produkcyjne](docs/PRODUCTION_TESTS.md)
+- [Bezpieczeństwo](docs/BEZPIECZENSTWO.md)
 
 KORIX AI działa lokalnie i nie wymaga klucza OpenAI ani płatnego API.

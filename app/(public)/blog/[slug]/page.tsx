@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { OptimizedImage } from '@/components/ui/optimized-image';
@@ -8,11 +9,23 @@ import { absoluteSiteUrl, seoDescription, serializeJsonLd } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
+const BLOG_POST_SELECT = 'id, title, slug, excerpt, content, cover_image_url, category, published_at, meta_title, meta_description, created_at, updated_at';
+
+const getBlogPost = cache(async (slug: string) => {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('blog_posts')
+    .select(BLOG_POST_SELECT)
+    .eq('slug', slug)
+    .eq('published', true)
+    .maybeSingle();
+  if (error) throw new Error('Nie udało się pobrać artykułu.');
+  return data;
+});
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = await createClient();
-  const { data: post, error } = await supabase.from('blog_posts').select('title, excerpt, cover_image_url, published_at, meta_title, meta_description').eq('slug', slug).eq('published', true).maybeSingle();
-  if (error) throw new Error('Nie udało się pobrać metadanych artykułu.');
+  const post = await getBlogPost(slug);
   if (!post) notFound();
   const description = seoDescription(post.meta_description || post.excerpt, 'Artykuł KORIX3D o profesjonalnym druku 3D.');
   const canonical = `/blog/${encodeURIComponent(slug)}`;
@@ -33,9 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const supabase = await createClient();
-  const { data: post, error } = await supabase.from('blog_posts').select('*').eq('slug', slug).eq('published', true).maybeSingle();
-  if (error) throw new Error('Nie udało się pobrać artykułu.');
+  const post = await getBlogPost(slug);
   if (!post) notFound();
   const articleJsonLd = {
     '@context': 'https://schema.org',

@@ -76,7 +76,7 @@ function ShopPageContent() {
       try {
         const { data, error: categoriesError } = await supabase
           .from('categories')
-          .select('*')
+          .select('id, name, slug, sort_order')
           .eq('active', true)
           .order('sort_order');
         if (categoriesError) {

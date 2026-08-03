@@ -33,7 +33,7 @@ export default function FAQPage() {
     try {
       const { data, error: queryError } = await supabase
         .from('faq_items')
-        .select('*')
+        .select('id, question, answer, category, sort_order')
         .eq('active', true)
         .order('sort_order');
 

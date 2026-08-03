@@ -73,6 +73,9 @@ jobs:
       - name: Production acceptance test plan
         run: npm run check:production-tests
 
+      - name: Production performance contract
+        run: npm run check:performance
+
       - name: Operations documentation check
         run: npm run check:docs
 

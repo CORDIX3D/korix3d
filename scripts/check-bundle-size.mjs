@@ -3,7 +3,10 @@ import path from 'node:path';
 import process from 'node:process';
 
 const manifestPath = path.join(process.cwd(), '.next', 'app-build-manifest.json');
-const maximumRouteBytes = 1_250_000;
+const routeBudget = (route) => {
+  if (route.includes('/(admin)/')) return 1_200_000;
+  return 900_000;
+};
 
 let manifest;
 try {
@@ -33,9 +36,12 @@ for (const result of results.slice(0, 8)) {
   console.log(`${(result.bytes / 1024).toFixed(1)} KB\t${result.route}`);
 }
 
-const oversized = results.filter((result) => result.bytes > maximumRouteBytes);
+const oversized = results.filter((result) => result.bytes > routeBudget(result.route));
 if (oversized.length > 0) {
-  console.error(`Przekroczono budżet ${(maximumRouteBytes / 1024).toFixed(0)} KB dla ${oversized.length} tras.`);
+  for (const result of oversized) {
+    console.error(`${result.route}: ${(result.bytes / 1024).toFixed(1)} KB / ${(routeBudget(result.route) / 1024).toFixed(0)} KB`);
+  }
+  console.error(`Przekroczono budżet JavaScript dla ${oversized.length} tras.`);
   process.exit(1);
 }
 

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { ArrowLeft, Clock, Image as ImageIcon, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { OptimizedImage } from '@/components/ui/optimized-image';
@@ -10,12 +11,24 @@ export const dynamic = 'force-dynamic';
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const PORTFOLIO_ITEM_SELECT = 'id, title, description, image_url, images, material, category, print_time_hours, created_at';
+
+const getPortfolioItem = cache(async (id: string) => {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('portfolio_items')
+    .select(PORTFOLIO_ITEM_SELECT)
+    .eq('id', id)
+    .eq('active', true)
+    .maybeSingle();
+  if (error) throw new Error('Nie udało się pobrać realizacji.');
+  return data;
+});
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) notFound();
-  const supabase = await createClient();
-  const { data: item, error } = await supabase.from('portfolio_items').select('title, description, image_url, images').eq('id', id).eq('active', true).maybeSingle();
-  if (error) throw new Error('Nie udało się pobrać metadanych realizacji.');
+  const item = await getPortfolioItem(id);
   if (!item) notFound();
   const description = seoDescription(item.description, 'Realizacja druku 3D wykonana przez KORIX3D.');
   const canonical = `/portfolio/${id}`;
@@ -32,9 +45,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function PortfolioDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID_PATTERN.test(id)) notFound();
-  const supabase = await createClient();
-  const { data: item, error } = await supabase.from('portfolio_items').select('*').eq('id', id).eq('active', true).maybeSingle();
-  if (error) throw new Error('Nie udało się pobrać realizacji.');
+  const item = await getPortfolioItem(id);
   if (!item) notFound();
   const images = Array.isArray(item.images) ? item.images as string[] : [];
   const mainImage = item.image_url || images[0];

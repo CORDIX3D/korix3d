@@ -5,7 +5,7 @@ import { cache } from 'react';
 import { ArrowLeft, Clock, Image as ImageIcon, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { OptimizedImage } from '@/components/ui/optimized-image';
-import { absoluteSiteUrl, seoDescription, serializeJsonLd } from '@/lib/seo';
+import { absoluteSiteUrl, breadcrumbJsonLd, seoDescription, serializeJsonLd } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 const UUID_PATTERN =
@@ -58,6 +58,11 @@ export default async function PortfolioDetailPage({ params }: { params: Promise<
     url: absoluteSiteUrl(`/portfolio/${id}`),
     creator: { '@type': 'Organization', name: 'KORIX3D' },
   };
+  const breadcrumbs = breadcrumbJsonLd([
+    { name: 'Strona główna', path: '/' },
+    { name: 'Portfolio', path: '/portfolio' },
+    { name: item.title, path: `/portfolio/${id}` },
+  ]);
 
-  return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(portfolioJsonLd) }} /><div className="mx-auto min-h-screen max-w-6xl px-4 py-12"><Link href="/portfolio" className="mb-8 inline-flex items-center gap-2 text-muted-foreground hover:text-primary"><ArrowLeft className="h-4 w-4" />Wróć do portfolio</Link><div className="grid gap-10 lg:grid-cols-2"><div className="aspect-square overflow-hidden rounded-2xl bg-secondary">{mainImage ? <OptimizedImage src={mainImage} alt={item.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center"><ImageIcon className="h-20 w-20 text-muted-foreground" /></div>}</div><div><p className="mb-2 text-sm uppercase tracking-wider text-primary">{item.category}</p><h1 className="mb-5 text-4xl font-bold">{item.title}</h1><p className="mb-8 whitespace-pre-wrap leading-7 text-muted-foreground">{item.description}</p><div className="space-y-3 border-t pt-6">{item.material && <p className="flex items-center gap-2"><Layers className="h-4 w-4 text-primary" />Materiał: {item.material}</p>}{item.print_time_hours && <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-primary" />Czas druku: {item.print_time_hours} godz.</p>}</div></div></div></div></>;
+  return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(portfolioJsonLd) }} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbs) }} /><div className="mx-auto min-h-screen max-w-6xl px-4 py-12"><Link href="/portfolio" className="mb-8 inline-flex items-center gap-2 text-muted-foreground hover:text-primary"><ArrowLeft className="h-4 w-4" />Wróć do portfolio</Link><div className="grid gap-10 lg:grid-cols-2"><div className="aspect-square overflow-hidden rounded-2xl bg-secondary">{mainImage ? <OptimizedImage src={mainImage} alt={item.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center"><ImageIcon className="h-20 w-20 text-muted-foreground" /></div>}</div><div><p className="mb-2 text-sm uppercase tracking-wider text-primary">{item.category}</p><h1 className="mb-5 text-4xl font-bold">{item.title}</h1><p className="mb-8 whitespace-pre-wrap leading-7 text-muted-foreground">{item.description}</p><div className="space-y-3 border-t pt-6">{item.material && <p className="flex items-center gap-2"><Layers className="h-4 w-4 text-primary" />Materiał: {item.material}</p>}{item.print_time_hours && <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-primary" />Czas druku: {item.print_time_hours} godz.</p>}</div></div></div></div></>;
 }

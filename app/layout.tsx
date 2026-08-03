@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/lib/providers';
 import { CartProvider } from '@/lib/cart-provider';
 import { WishlistProvider } from '@/lib/wishlist-provider';
+import { serializeJsonLd } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: {
@@ -65,16 +66,39 @@ export const metadata: Metadata = {
     apple: '/apple-touch-icon.png',
   },
   manifest: '/site.webmanifest',
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+    other: process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
+      ? { 'msvalidate.01': process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION }
+      : undefined,
+  },
 };
 
-const organizationJsonLd = {
+const businessJsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: 'KORIX3D',
-  url: 'https://korix3d.pl/',
-  logo: 'https://korix3d.pl/branding/korix3d-logo-512.png',
-  email: 'kontakt@korix3d.pl',
-  telephone: '+48512354965',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': 'https://korix3d.pl/#organization',
+      name: 'KORIX3D',
+      url: 'https://korix3d.pl/',
+      logo: 'https://korix3d.pl/branding/korix3d-logo-512.png',
+      email: 'kontakt@korix3d.pl',
+      telephone: '+48512354965',
+    },
+    {
+      '@type': 'LocalBusiness',
+      '@id': 'https://korix3d.pl/#localbusiness',
+      name: 'KORIX3D',
+      url: 'https://korix3d.pl/',
+      image: 'https://korix3d.pl/branding/korix3d-logo-1200x630.png',
+      email: 'kontakt@korix3d.pl',
+      telephone: '+48512354965',
+      priceRange: '$$',
+      areaServed: { '@type': 'Country', name: 'Polska' },
+      parentOrganization: { '@id': 'https://korix3d.pl/#organization' },
+    },
+  ],
 };
 
 export default function RootLayout({
@@ -88,7 +112,7 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationJsonLd),
+            __html: serializeJsonLd(businessJsonLd),
           }}
         />
         <AuthProvider>

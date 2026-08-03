@@ -1,8 +1,10 @@
 {
   "name": "KORIX3D",
   "short_name": "KORIX3D",
-  "description": "Druk 3D, projektowanie CAD, prototypowanie i produkcja ma?oseryjna.",
+  "description": "Druk 3D, projektowanie CAD, prototypowanie i produkcja małoseryjna.",
   "start_url": "/",
+  "scope": "/",
+  "lang": "pl",
   "display": "standalone",
   "background_color": "#0C0B0B",
   "theme_color": "#FF7900",

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { ArrowLeft, Layers, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,42 +9,11 @@ import { createClient } from '@/lib/supabase/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { PUBLIC_FILAMENT_COLUMNS } from '@/lib/public-filament';
-import { seoDescription } from '@/lib/seo';
+import { breadcrumbJsonLd, seoDescription, serializeJsonLd } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
-async function fetchMaterialForMetadata(slug: string) {
-  const supabase = await createClient();
-  const normalizedSlug = decodeURIComponent(slug).trim();
-  const normalizedName = normalizedSlug.replace(/-/g, ' ');
-
-  const bySlug = await supabase
-    .from('materials')
-    .select('name, description')
-    .eq('slug', normalizedSlug)
-    .eq('available', true)
-    .maybeSingle();
-
-  if (bySlug.data || bySlug.error) return bySlug;
-
-  const byExactName = await supabase
-    .from('materials')
-    .select('name, description')
-    .ilike('name', normalizedSlug)
-    .eq('available', true)
-    .maybeSingle();
-
-  if (byExactName.data || byExactName.error || normalizedName === normalizedSlug) return byExactName;
-
-  return supabase
-    .from('materials')
-    .select('name, description')
-    .ilike('name', normalizedName)
-    .eq('available', true)
-    .maybeSingle();
-}
-
-async function fetchMaterialForPage(slug: string) {
+const fetchMaterial = cache(async (slug: string) => {
   const supabase = await createClient();
   const normalizedSlug = decodeURIComponent(slug).trim();
   const normalizedName = normalizedSlug.replace(/-/g, ' ');
@@ -72,11 +42,11 @@ async function fetchMaterialForPage(slug: string) {
     .ilike('name', normalizedName)
     .eq('available', true)
     .maybeSingle();
-}
+});
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const { data: material, error } = await fetchMaterialForMetadata(slug);
+  const { data: material, error } = await fetchMaterial(slug);
 
   if (error) throw new Error('Nie udało się pobrać metadanych materiału.');
   if (!material) notFound();
@@ -93,7 +63,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function MaterialDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { data: material, error } = await fetchMaterialForPage(slug);
+  const { data: material, error } = await fetchMaterial(slug);
 
   if (error) throw new Error('Nie udało się pobrać materiału.');
   if (!material) notFound();
@@ -110,9 +80,14 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
   if (filamentsError) {
     throw new Error('Nie udało się pobrać dostępnych filamentów.');
   }
+  const breadcrumbs = breadcrumbJsonLd([
+    { name: 'Strona główna', path: '/' },
+    { name: 'Materiały', path: '/materialy' },
+    { name: material.name, path: `/materialy/${encodeURIComponent(slug)}` },
+  ]);
 
   return (
-    <div className="mx-auto min-h-screen max-w-5xl px-4 py-12">
+    <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbs) }} /><div className="mx-auto min-h-screen max-w-5xl px-4 py-12">
       <Link href="/materialy" className="mb-8 inline-flex items-center gap-2 text-muted-foreground hover:text-primary">
         <ArrowLeft className="h-4 w-4" />
         Wróć do materiałów
@@ -155,6 +130,6 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
           </Button>
         </div>
       </div>
-    </div>
+    </div></>
   );
 }

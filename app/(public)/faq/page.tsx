@@ -14,6 +14,7 @@ import { Search, HelpCircle, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { FAQItem } from '@/lib/types/database';
+import { serializeJsonLd } from '@/lib/seo';
 
 export default function FAQPage() {
   const [faqs, setFaqs] = useState<FAQItem[]>([]);
@@ -61,9 +62,19 @@ export default function FAQPage() {
       faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((faq) => ({
+      '@type': 'Question',
+      name: faq.question,
+      acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+    })),
+  };
 
   return (
     <div className="min-h-screen bg-background">
+      {faqs.length > 0 && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqJsonLd) }} />}
       {/* Hero */}
       <section className="relative py-16 bg-gradient-to-b from-primary/10 to-transparent">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

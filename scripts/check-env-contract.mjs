@@ -9,6 +9,7 @@ const workerExample = await readFile(
 
 const requiredSections = [
   'PUBLIC',
+  'SEO',
   'SERVER',
   'SUPABASE',
   'STRIPE',
@@ -23,6 +24,8 @@ const requiredSections = [
 
 const requiredApplicationVariables = [
   'NEXT_PUBLIC_SITE_URL',
+  'NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION',
+  'NEXT_PUBLIC_BING_SITE_VERIFICATION',
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',

@@ -12,3 +12,16 @@ export function seoDescription(value: string | null | undefined, fallback: strin
   const normalized = String(value || fallback).replace(/\s+/g, ' ').trim();
   return normalized.slice(0, 200);
 }
+
+export function breadcrumbJsonLd(items: Array<{ name: string; path: string }>) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: item.name,
+      item: absoluteSiteUrl(item.path),
+    })),
+  };
+}

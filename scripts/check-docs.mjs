@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 const requiredDocuments = [
+  ['docs/PRODUCTION_TESTS.md', ['## Zasady bezpieczeństwa', '## Macierz odbioru', '## Stan testów 29 lipca 2026']],
   ['README.md', ['## Uruchomienie lokalne', '## Kontrola przed wdrożeniem', '## Dokumentacja']],
   ['docs/WDROZENIE.md', ['## 2. Wymagane zmienne Vercel', '## 3. Supabase', '## 4. Vercel', '## 5. Stripe', '## 8. Staging, backup i rollback']],
   ['docs/ARCHITEKTURA.md', ['## Główne elementy', '## Krytyczne przepływy', '## Dane i migracje', '## Monitoring']],

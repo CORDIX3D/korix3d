@@ -1,0 +1,33 @@
+name: KORIX3D production smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Read-only tests against korix3d.pl
+        run: npx playwright test --config playwright.production.config.ts
+        env:
+          PRODUCTION_BASE_URL: https://korix3d.pl
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-report
+          path: playwright-report-production/
+          if-no-files-found: ignore
+          retention-days: 7

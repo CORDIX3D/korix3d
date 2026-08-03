@@ -10,6 +10,8 @@
 /.test-build
 /playwright-report
 /test-results
+/playwright-report-production
+/test-results-production
 
 # next.js
 /.next/

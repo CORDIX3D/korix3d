@@ -70,6 +70,9 @@ jobs:
       - name: Creality worker production contract
         run: npm run check:worker
 
+      - name: Production acceptance test plan
+        run: npm run check:production-tests
+
       - name: Operations documentation check
         run: npm run check:docs
 

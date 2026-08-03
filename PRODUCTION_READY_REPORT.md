@@ -7,9 +7,9 @@ Commit raportu: bieżący `HEAD` gałęzi `main`
 
 ## Werdykt
 
-**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 85/100.**
+**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 89/100.**
 
-Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, a produkcyjne wdrożenie Vercel ma status `Ready`. Stripe działa wyłącznie w trybie testowym, nowy klucz zastąpił ujawniony sekret, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany kompletem migracji i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Pozostają: rekord DNS `www` u operatora home.pl, zewnętrzna kopia i próba odtworzenia, pełny odbiór paneli, realny test Stripe Checkout oraz stały worker Creality Print. Stripe live pozostaje wyłączony.
+Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, CI #71 dla `44ec078` jest zielone, a dokładnie ten commit ma produkcyjne wdrożenie Vercel `Ready`. Stripe działa wyłącznie w trybie testowym, nowy klucz zastąpił ujawniony sekret, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany kompletem migracji i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór; poprawiono wyścig ładowania roli oraz bezpieczny odczyt wewnętrznych danych zamówień. Pozostają: rekord DNS `www` u operatora home.pl, zewnętrzna kopia i próba odtworzenia, realny test Stripe Checkout oraz stały worker Creality Print. Stripe live pozostaje wyłączony.
 
 ## Podsumowanie wykonawcze
 
@@ -20,7 +20,7 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, a produkcyjne w
 - KORIX AI działa lokalnie na regułach i danych magazynowych; repozytorium nie wymaga OpenAI API ani płatnego AI.
 - Publiczna strona główna działa na `korix3d.pl`; test przeglądarkowy nie wykrył `Application error`.
 - Rozjazd schematu produkcyjnego Supabase został usunięty; wszystkie tabele i kolumny wymagane przez typy aplikacji są obecne.
-- Próba wejścia na `/admin` przekierowuje testowane konto do `/panel`; pełny panel administratora nie został odebrany.
+- Konto właściciela ma rolę `admin`; dashboard i 15 kluczowych modułów administratora otwierają się bez błędu danych.
 - Supabase Auth używa `https://korix3d.pl`, ma dwa dokładne redirecty, potwierdzenie e-mail, bezpieczną zmianę hasła, wymaganie bieżącego hasła i minimum 8 znaków.
 - GitHub `main` był zsynchronizowany przed migracją naprawczą, a automatyczne wdrożenia Vercel z `main` mają status `Ready` i obsługują `korix3d.pl`.
 - Vercel ma wymagane zmienne Supabase, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `STRIPE_SECRET_KEY` i `STRIPE_WEBHOOK_SECRET`. Brakuje wyłącznie tokenu stałego workera slicera.
@@ -38,7 +38,7 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, a produkcyjne w
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
 | 8 | Backup | eksport DB/Storage, checksumy i próba restore | wewnętrzna kopia 31 tabel/278 rekordów wykonana; zewnętrzny eksport i restore oczekują | Częściowo |
 | 9 | Worker Creality | timeout, retry, heartbeat, instalator Windows i profile | host oraz realne formaty nieodebrane | Blokada |
-| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | 10/12 smoke PASS; 2 błędy wyłącznie przez brak DNS `www`; panele/Stripe/worker oczekują | Częściowo |
+| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | 10/12 smoke PASS; 2 błędy wyłącznie przez DNS `www`; panel klienta 8/8 i kluczowe widoki admina 16/16 PASS | Częściowo |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | Core Web Vitals po wdrożeniu oczekują | Zakończony lokalnie |
 | 12 | SEO | canonical, sitemap, robots, manifest i pełne schema.org | kod SEO wdrożony; Google/Bing niezweryfikowane | Częściowo |
 | 13 | Bezpieczeństwo | role, RLS, CSRF, CSP, webhook, upload, Dependabot, security.txt | CI i nagłówki produkcyjne potwierdzone; `npm audit` bez wyniku | Częściowo |
@@ -59,7 +59,7 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, a produkcyjne w
 | `npm test` | PASS | 4 pliki, 49/49 testów |
 | `npm audit --omit=dev --audit-level=high` | BLOCKED | ograniczone środowisko nie połączyło się z endpointem npm; brak wyniku nie oznacza braku podatności |
 | produkcyjny Playwright smoke | PARTIAL | 10/12 PASS; oba błędy dotyczą wyłącznie `www.korix3d.pl` bez rekordu DNS |
-| pełne CI GitHub | PASS | workflow #58 dla `9bdcb51`, 2 min 42 s |
+| pełne CI GitHub | PASS | workflow #71 dla `44ec078`, 2 min 15 s |
 
 ## Testy działającej witryny
 
@@ -69,9 +69,10 @@ Stan sprawdzony w zalogowanej przeglądarce 3 sierpnia 2026:
 | --- | --- | --- |
 | Strona główna | PASS | tytuł, jeden H1, brak `Application error` |
 | KORIX AI | PASS częściowy | wcześniej potwierdzona odpowiedź na podstawie widocznych filamentów; brak płatnego API |
-| `/panel` | DO PONOWNEGO ODBIORU | brakujące tabele zostały dodane; wymagany test zalogowanego klienta |
-| `/panel/zamowienia` | DO PONOWNEGO ODBIORU | schemat naprawiony; wymagany test danych konta |
-| `/admin` | BLOCKED | przekierowanie do `/panel`; konto nie ma roli admin |
+| `/panel` | PASS | poprawne podsumowanie konta, 2 zamówienia i wartość 230 zł |
+| 7 zakładek `/panel/*` | PASS | zamówienia, wyceny, lista życzeń, pliki, powiadomienia, wiadomości i ustawienia bez błędów |
+| `/admin` | PASS | poprawny dashboard właściciela z rolą `admin` |
+| 15 kluczowych `/admin/*` | PASS | zamówienia, wyceny, produkcja, katalog, magazyn, filamenty, dostawa, historia, slicer, AI, księgowość, raporty i ustawienia bez błędów |
 | `/api/health` | PASS | HTTP 200, `{"status":"ok"}`; CSP/HSTS i `no-store` poprawne |
 | `korix3d.pl` DNS | PASS | rekord A `76.76.21.21` |
 | `www.korix3d.pl` DNS | FAIL | domena i redirect 308 są w Vercel; brakuje CNAME u operatora home.pl |
@@ -83,14 +84,13 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 1. Dodać w home.pl rekord CNAME `www` wskazany przez Vercel i potwierdzić redirect 308.
 2. Wykonać zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją.
 3. Naprawić historię `supabase_migrations` oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ponawiać migracji.
-4. Ponownie odebrać wszystkie moduły panelu klienta i administratora po migracjach.
-5. Uruchomić worker na stałym hoście Windows z rzeczywistym Creality Print i odebrać STL, STEP, OBJ oraz 3MF.
-6. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
-7. Wykonać pełną macierz akceptacyjną na stagingu i obserwować produkcję minimum 30 minut.
+4. Uruchomić worker na stałym hoście Windows z rzeczywistym Creality Print i odebrać STL, STEP, OBJ oraz 3MF.
+5. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
+6. Wykonać pełną macierz akceptacyjną na stagingu i obserwować produkcję minimum 30 minut.
 
 ## Kolejność bezpiecznego uruchomienia
 
-1. GitHub, zielone CI i Vercel — wykonane dla poprzedniego `HEAD`; migracja naprawcza oczekuje na commit i CI.
+1. GitHub, zielone CI #71 i Vercel `Ready` dla `44ec078` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
 3. DNS `www`, zewnętrzny backup i oficjalna naprawa historii migracji.
 4. Staging: pełne testy formularzy, paneli, magazynu, wyceny i Stripe test.

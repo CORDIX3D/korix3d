@@ -53,47 +53,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   useEffect(() => {
-    // Get initial session and set up auth listener
+    let active = true;
+    let sessionRequestId = 0;
+
+    const applySession = async (nextSession: Session | null) => {
+      const requestId = ++sessionRequestId;
+
+      setLoading(true);
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      const profileData = nextSession?.user
+        ? await fetchProfile(nextSession.user.id)
+        : null;
+
+      if (!active || requestId !== sessionRequestId) return;
+
+      setProfile(profileData);
+      setLoading(false);
+    };
+
+    // Get initial session and set up auth listener.
     const getInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          const profileData = await fetchProfile(session.user.id);
-          setProfile(profileData);
-        }
+        await applySession(session);
       } catch (error) {
         console.error('Error getting session:', error);
-      } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    getInitialSession();
+    void getInitialSession();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event: string, session: Session | null) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          // Use async IIFE to avoid deadlock
-          (async () => {
-            const profileData = await fetchProfile(session.user.id);
-            setProfile(profileData);
-          })();
-        } else {
-          setProfile(null);
-        }
-
-        setLoading(false);
+      (_event: string, nextSession: Session | null) => {
+        // Do not await inside the callback: Supabase may hold its auth lock
+        // until the callback returns.
+        void applySession(nextSession);
       }
     );
 
     return () => {
+      active = false;
       subscription.unsubscribe();
     };
   }, [fetchProfile, supabase.auth]);

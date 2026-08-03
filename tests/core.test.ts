@@ -677,6 +677,13 @@ test('ochrona mutacji dopuszcza własną domenę i blokuje obcą', () => {
     method: 'PATCH',
     headers: { 'sec-fetch-site': 'cross-site' },
   })), false);
+  assert.equal(isTrustedMutationRequest(new Request('https://korix3d.pl/api/profile', {
+    method: 'PATCH',
+    headers: { 'sec-fetch-site': 'same-origin' },
+  })), true);
+  assert.equal(isTrustedMutationRequest(new Request('https://korix3d.pl/api/profile', {
+    method: 'PATCH',
+  })), false);
   assert.equal(isTrustedMutationRequest(new Request('https://korix3d.pl/api/profile')), true);
 });
 

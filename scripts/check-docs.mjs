@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 const requiredDocuments = [
+  ['docs/BEZPIECZENSTWO.md', ['## Warstwy ochrony', '## Nagłówki i przeglądarka', '## Sekrety', '## Zależności', '## Reakcja na incydent']],
   ['docs/SEO.md', ['## Zakres techniczny', '## Google Search Console', '## Bing Webmaster Tools', '## Odbiór po wdrożeniu']],
   ['docs/PERFORMANCE.md', ['## Budżety', '## Zastosowane optymalizacje', '## Cache i dane dynamiczne', '## Kontrola po wdrożeniu']],
   ['docs/PRODUCTION_TESTS.md', ['## Zasady bezpieczeństwa', '## Macierz odbioru', '## Stan testów 29 lipca 2026']],

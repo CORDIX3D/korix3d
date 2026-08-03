@@ -79,6 +79,9 @@ jobs:
       - name: Production SEO contract
         run: npm run check:seo
 
+      - name: Production security contract
+        run: npm run check:security
+
       - name: Operations documentation check
         run: npm run check:docs
 

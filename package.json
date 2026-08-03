@@ -33,11 +33,12 @@
     "check:production-tests": "node scripts/check-production-test-plan.mjs",
     "check:performance": "node scripts/check-performance-production.mjs",
     "check:seo": "node scripts/check-seo-production.mjs",
+    "check:security": "node scripts/check-security-production.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:env": "node scripts/check-env-contract.mjs",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "check:docs": "node scripts/check-docs.mjs",
-    "verify": "npm run check:secrets && npm run check:env && npm run lint && npm run typecheck && npm test && npm run check:supabase && npm run check:stripe && npm run check:vercel && npm run check:domain && npm run check:monitoring && npm run check:backup && npm run check:worker && npm run check:production-tests && npm run check:performance && npm run check:seo && npm run check:docs && npm run build && npm run check:bundle && npm run test:smoke"
+    "verify": "npm run check:secrets && npm run check:env && npm run lint && npm run typecheck && npm test && npm run check:supabase && npm run check:stripe && npm run check:vercel && npm run check:domain && npm run check:monitoring && npm run check:backup && npm run check:worker && npm run check:production-tests && npm run check:performance && npm run check:seo && npm run check:security && npm run check:docs && npm run build && npm run check:bundle && npm run test:smoke"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

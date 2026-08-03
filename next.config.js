@@ -12,6 +12,10 @@ const contentSecurityPolicy = [
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
+  "frame-src 'none'",
+  "media-src 'self' blob:",
+  'upgrade-insecure-requests',
+  'block-all-mixed-content',
 ].join('; ');
 
 const nextConfig = {
@@ -49,6 +53,9 @@ const nextConfig = {
           { key: 'Content-Security-Policy', value: contentSecurityPolicy },
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          { key: 'X-DNS-Prefetch-Control', value: 'off' },
+          { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
+          { key: 'Origin-Agent-Cluster', value: '?1' },
         ],
       },
     ];

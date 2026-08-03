@@ -9,7 +9,7 @@ export function isTrustedMutationRequest(request: Request) {
   if (fetchSite === 'cross-site') return false;
 
   const origin = request.headers.get('origin');
-  if (!origin) return true;
+  if (!origin) return fetchSite === 'same-origin' || fetchSite === 'same-site';
   if (origin === 'null') return false;
 
   try {

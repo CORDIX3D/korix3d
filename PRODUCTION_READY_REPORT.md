@@ -22,7 +22,7 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, zielone CI potw
 - Produkcyjny panel klienta nie pobiera podsumowania ani zamówień. Logi Supabase potwierdzają odpowiedzi 404 dla brakujących tabel, więc nie jest to już hipoteza.
 - Próba wejścia na `/admin` przekierowuje testowane konto do `/panel`; pełny panel administratora nie został odebrany.
 - Supabase Auth używa `https://korix3d.pl`, ma dwa dokładne redirecty, potwierdzenie e-mail, bezpieczną zmianę hasła, wymaganie bieżącego hasła i minimum 8 znaków.
-- GitHub `main`, zielone CI i produkcyjny Vercel wskazują commit `9bdcb51`; deployment `AEZhV6RhSJTzUA5VgFQpfxDYhwgt` ma status `Ready` i obsługuje `korix3d.pl`.
+- GitHub `main` jest zsynchronizowany, CI dla bazowego commita funkcjonalnego `9bdcb51` jest zielone, a automatyczne wdrożenia Vercel z `main` mają status `Ready` i obsługują `korix3d.pl`.
 - Vercel ma pięć z ośmiu wymaganych zmiennych: trzy Supabase, `NEXT_PUBLIC_SITE_URL` i wygenerowany `CRON_SECRET`. Brakuje Stripe oraz tokenu workera.
 
 ## Stan 15 etapów
@@ -33,7 +33,7 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, zielone CI potw
 | 2 | Environment | pełny `.env.example`, walidacja Zod i kontrola CI | potwierdzono 5/8 wymaganych zmiennych Vercel | Częściowo |
 | 3 | Supabase | 58 migracji, RLS, indeksy, FK, Storage i testy pgTAP | produkcja: 29 tabel, brak historii migracji, 18 brakujących tabel, 2 buckety i brak backupu | Blokada |
 | 4 | Stripe | checkout, podpisany/idempotentny webhook, zwroty i dokumentacja | test mode/live i webhook zdalny nieodebrane | Częściowo |
-| 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | commit `9bdcb51`, GitHub i domena podłączone, deployment `Ready`; env niekompletne | Częściowo |
+| 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | GitHub `main` i domena podłączone, deploymenty `Ready`; env niekompletne | Częściowo |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | apex DNS działa; brak DNS `www` | Częściowo |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 503 przez brak Stripe | Częściowo |
 | 8 | Backup | eksport DB/Storage, checksumy i próba restore | realna zaszyfrowana kopia i restore nie wykonane | Blokada |
@@ -104,7 +104,7 @@ Przyczyną błędów panelu jest potwierdzony rozjazd schematu produkcyjnego Sup
 
 ## Git i wdrożenie
 
-Commit `9bdcb51` jest wysłany do `CORDIX3D/korix3d` na gałąź `main`. GitHub Actions workflow #58 zakończył się powodzeniem, a Vercel wdrożył ten sam commit jako bieżącą produkcję dla `korix3d.pl`.
+Gałąź `main` jest zsynchronizowana z `CORDIX3D/korix3d`. GitHub Actions workflow #58 dla bazowego commita funkcjonalnego `9bdcb51` zakończył się powodzeniem, a Vercel automatycznie wdraża kolejne commity dokumentacyjne z `main` jako produkcję dla `korix3d.pl`.
 
 Zmiany lokalne obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
 

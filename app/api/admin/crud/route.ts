@@ -304,6 +304,107 @@ function databaseErrorResponse(error: unknown, action: 'zapisać' | 'usunąć') 
   );
 }
 
+type AdminReadFilter = {
+  field: string;
+  operator: 'eq' | 'in' | 'neq';
+  value: unknown;
+};
+
+function parseReadFilters(value: string | null): AdminReadFilter[] | null {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.length > 10) return null;
+
+    const filters: AdminReadFilter[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+
+      const field = String(item.field || '').trim();
+      const operator = String(item.operator || 'eq');
+      const filterValue = item.value;
+
+      if (
+        !/^[a-z][a-z0-9_]*$/.test(field) ||
+        !['eq', 'in', 'neq'].includes(operator) ||
+        (operator === 'in' && (!Array.isArray(filterValue) || filterValue.length > 100))
+      ) {
+        return null;
+      }
+
+      filters.push({
+        field,
+        operator: operator as AdminReadFilter['operator'],
+        value: filterValue,
+      });
+    }
+
+    return filters;
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const context = await getAdminSupabaseClient();
+    if (context.error) return context.error;
+
+    const table = validateTable(request.nextUrl.searchParams.get('table'));
+    const orderBy = String(
+      request.nextUrl.searchParams.get('orderBy') || 'created_at'
+    ).trim();
+    const filters = parseReadFilters(request.nextUrl.searchParams.get('filters'));
+
+    if (!table || !/^[a-z][a-z0-9_]*$/.test(orderBy) || !filters) {
+      return NextResponse.json(
+        { error: 'Niepoprawne parametry pobierania danych.' },
+        { status: 400, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    if (!canEmployeeAccessTable(context.role, table)) {
+      return NextResponse.json(
+        { error: 'Nie masz uprawnień do odczytu tych danych.' },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    let query = context.client.from(table).select('*');
+    for (const filter of filters) {
+      if (filter.operator === 'in') {
+        query = query.in(filter.field, filter.value as unknown[]);
+      } else if (filter.operator === 'neq') {
+        query = query.neq(filter.field, filter.value);
+      } else {
+        query = query.eq(filter.field, filter.value);
+      }
+    }
+
+    const { data, error } = await query
+      .order(orderBy, { ascending: false })
+      .limit(1000);
+
+    if (error) {
+      console.error('Admin CRUD database read error:', error);
+      return NextResponse.json(
+        { error: 'Nie udało się pobrać danych.' },
+        { status: 500, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    return NextResponse.json(
+      { rows: data || [] },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  } catch (error) {
+    if (isSupabaseConfigurationError(error)) return unavailableResponse();
+    console.error('Admin CRUD read error:', error);
+    return unavailableResponse();
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const context = await getAdminSupabaseClient();

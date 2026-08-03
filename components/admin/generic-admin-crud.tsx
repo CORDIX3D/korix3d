@@ -135,24 +135,26 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     setLoading(true);
     setLoadError(null);
     try {
-      let query = (supabase as any).from(config.table).select('*');
-      for (const filter of config.filters || []) {
-        if (filter.operator === 'in') {
-          query = query.in(filter.field, filter.value);
-        } else if (filter.operator === 'neq') {
-          query = query.neq(filter.field, filter.value);
-        } else {
-          query = query.eq(filter.field, filter.value);
-        }
+      const params = new URLSearchParams({
+        table: config.table,
+        orderBy: config.orderBy || 'created_at',
+      });
+      if (config.filters?.length) {
+        params.set('filters', JSON.stringify(config.filters));
       }
-      if (config.orderBy) query = query.order(config.orderBy, { ascending: false });
-      const { data, error } = await query;
-      if (error) {
-        toast.error(`Nie udało się pobrać danych: ${config.title}`, { description: error.message });
-        setLoadError(error.message);
+
+      const response = await fetch(`/api/admin/crud?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message = result.error || 'Nie udało się pobrać danych.';
+        toast.error(`Nie udało się pobrać danych: ${config.title}`, { description: message });
+        setLoadError(message);
         setRows([]);
       } else {
-        setRows((data || []) as DbRow[]);
+        setRows((result.rows || []) as DbRow[]);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Nieoczekiwany błąd pobierania danych.';

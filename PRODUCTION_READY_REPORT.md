@@ -1,15 +1,15 @@
 # PRODUCTION READY REPORT — KORIX3D
 
-Data audytu: 3 sierpnia 2026  
+Data audytu: 4 sierpnia 2026
 Domena: `https://korix3d.pl`  
 Gałąź: `main`  
 Commit raportu: bieżący `HEAD` gałęzi `main`
 
 ## Werdykt
 
-**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 89/100.**
+**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 90/100.**
 
-Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, CI #71 dla `44ec078` jest zielone, a dokładnie ten commit ma produkcyjne wdrożenie Vercel `Ready`. Stripe działa wyłącznie w trybie testowym, nowy klucz zastąpił ujawniony sekret, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany kompletem migracji i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór; poprawiono wyścig ładowania roli oraz bezpieczny odczyt wewnętrznych danych zamówień. Pozostają: rekord DNS `www` u operatora home.pl, zewnętrzna kopia i próba odtworzenia, realny test Stripe Checkout oraz stały worker Creality Print. Stripe live pozostaje wyłączony.
+Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, CI #71 dla `44ec078` jest zielone, a dokładnie ten commit ma produkcyjne wdrożenie Vercel `Ready`. Stripe działa wyłącznie w trybie testowym, nowy klucz zastąpił ujawniony sekret, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany kompletem migracji i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór; poprawiono wyścig ładowania roli oraz bezpieczny odczyt wewnętrznych danych zamówień. DNS `www`, certyfikat TLS i przekierowanie 308 są aktywne. Pozostają: zewnętrzna kopia i próba odtworzenia, realny test Stripe Checkout oraz stały worker Creality Print. Stripe live pozostaje wyłączony.
 
 ## Podsumowanie wykonawcze
 
@@ -34,11 +34,11 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, CI #71 dla `44e
 | 3 | Supabase | 59 migracji, RLS, indeksy, FK, Storage i testy pgTAP | 51 tabel, 124 polityki, 0 tabel bez RLS, 4 buckety; zgodność typów potwierdzona | Zakończony |
 | 4 | Stripe | checkout, podpisany/idempotentny webhook, zwroty i dokumentacja | test mode, nowy klucz i webhook 5 zdarzeń skonfigurowane; pełny checkout oczekuje | Częściowo |
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | produkcyjny redeploy `Ready`, domena i sekrety testowe podłączone | Zakończony |
-| 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | `www` dodane w Vercel z 308; oczekuje CNAME w home.pl | Częściowo |
+| 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
 | 8 | Backup | eksport DB/Storage, checksumy i próba restore | wewnętrzna kopia 31 tabel/278 rekordów wykonana; zewnętrzny eksport i restore oczekują | Częściowo |
 | 9 | Worker Creality | timeout, retry, heartbeat, instalator Windows i profile | host oraz realne formaty nieodebrane | Blokada |
-| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | 10/12 smoke PASS; 2 błędy wyłącznie przez DNS `www`; panel klienta 8/8 i kluczowe widoki admina 16/16 PASS | Częściowo |
+| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | wcześniejsze 10/12 smoke PASS; oba brakujące przypadki `www` potwierdzone osobno po naprawie DNS; pełny automatyczny rerun zablokował limit wykonawczy Codex; panel klienta 8/8 i kluczowe widoki admina 16/16 PASS | Częściowo |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | Core Web Vitals po wdrożeniu oczekują | Zakończony lokalnie |
 | 12 | SEO | canonical, sitemap, robots, manifest i pełne schema.org | kod SEO wdrożony; Google/Bing niezweryfikowane | Częściowo |
 | 13 | Bezpieczeństwo | role, RLS, CSRF, CSP, webhook, upload, Dependabot, security.txt | CI i nagłówki produkcyjne potwierdzone; `npm audit` bez wyniku | Częściowo |
@@ -58,12 +58,12 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, CI #71 dla `44e
 | pozostałe `check:*` | PASS | env, Supabase, Stripe, Vercel, domena, monitoring, backup, worker, test plan, performance, SEO, security, docs |
 | `npm test` | PASS | 4 pliki, 49/49 testów |
 | `npm audit --omit=dev --audit-level=high` | BLOCKED | ograniczone środowisko nie połączyło się z endpointem npm; brak wyniku nie oznacza braku podatności |
-| produkcyjny Playwright smoke | PARTIAL | 10/12 PASS; oba błędy dotyczą wyłącznie `www.korix3d.pl` bez rekordu DNS |
+| produkcyjny Playwright smoke | PARTIAL | wcześniejsze 10/12 PASS; DNS `www`, TLS i redirect 308 po naprawie PASS w kontroli bezpośredniej; pełny rerun 12 przypadków nie wystartował z powodu limitu wykonawczego Codex |
 | pełne CI GitHub | PASS | workflow #71 dla `44ec078`, 2 min 15 s |
 
 ## Testy działającej witryny
 
-Stan sprawdzony w zalogowanej przeglądarce 3 sierpnia 2026:
+Stan sprawdzony w zalogowanej przeglądarce 3–4 sierpnia 2026:
 
 | Obszar | Wynik | Dowód |
 | --- | --- | --- |
@@ -75,24 +75,23 @@ Stan sprawdzony w zalogowanej przeglądarce 3 sierpnia 2026:
 | 15 kluczowych `/admin/*` | PASS | zamówienia, wyceny, produkcja, katalog, magazyn, filamenty, dostawa, historia, slicer, AI, księgowość, raporty i ustawienia bez błędów |
 | `/api/health` | PASS | HTTP 200, `{"status":"ok"}`; CSP/HSTS i `no-store` poprawne |
 | `korix3d.pl` DNS | PASS | rekord A `76.76.21.21` |
-| `www.korix3d.pl` DNS | FAIL | domena i redirect 308 są w Vercel; brakuje CNAME u operatora home.pl |
+| `www.korix3d.pl` DNS i HTTPS | PASS | CNAME `b157fac3bf0a0f6a.vercel-dns-017.com`, TTL 60; Vercel `Valid Configuration`; aktywny TLS i redirect 308 do `https://korix3d.pl/` |
 
 Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29 publicznych oraz metadane `storage.buckets` i `storage.objects`), 278 rekordów i około 1,9 MB. Następnie zastosowano w jednej transakcji komplet 59 migracji. Produkcja ma 51 tabel publicznych, 124 polityki, 0 tabel bez RLS i buckety `accounting-reports`, `cms-media`, `product-images`, `quote-files`. Automatyczne porównanie z `lib/types/database.ts` nie wykazało brakujących tabel ani kolumn.
 
 ## Krytyczne blokady przed produkcją
 
-1. Dodać w home.pl rekord CNAME `www` wskazany przez Vercel i potwierdzić redirect 308.
-2. Wykonać zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją.
-3. Naprawić historię `supabase_migrations` oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ponawiać migracji.
-4. Uruchomić worker na stałym hoście Windows z rzeczywistym Creality Print i odebrać STL, STEP, OBJ oraz 3MF.
-5. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
-6. Wykonać pełną macierz akceptacyjną na stagingu i obserwować produkcję minimum 30 minut.
+1. Wykonać zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją.
+2. Naprawić historię `supabase_migrations` oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ponawiać migracji.
+3. Uruchomić worker na stałym hoście Windows z rzeczywistym Creality Print i odebrać STL, STEP, OBJ oraz 3MF.
+4. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
+5. Wykonać pełną macierz akceptacyjną na stagingu i obserwować produkcję minimum 30 minut.
 
 ## Kolejność bezpiecznego uruchomienia
 
 1. GitHub, zielone CI #71 i Vercel `Ready` dla `44ec078` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
-3. DNS `www`, zewnętrzny backup i oficjalna naprawa historii migracji.
+3. DNS `www`, HTTPS i redirect 308 — wykonane; pozostały zewnętrzny backup i oficjalna naprawa historii migracji.
 4. Staging: pełne testy formularzy, paneli, magazynu, wyceny i Stripe test.
 5. Produkcja bez Stripe live: testy logowania, paneli i kontrolowany checkout testowy.
 6. Worker Creality Print: stały host, token, heartbeat i test czterech formatów.

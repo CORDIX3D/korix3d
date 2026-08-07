@@ -1,13 +1,13 @@
 # PRODUCTION READY REPORT — KORIX3D
 
-Data audytu: 4 sierpnia 2026
+Data audytu: 7 sierpnia 2026
 Domena: `https://korix3d.pl`  
 Gałąź: `main`  
 Commit raportu: bieżący `HEAD` gałęzi `main`
 
 ## Werdykt
 
-**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 90/100.**
+**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 91/100.**
 
 Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, CI #71 dla `44ec078` jest zielone, a dokładnie ten commit ma produkcyjne wdrożenie Vercel `Ready`. Stripe działa wyłącznie w trybie testowym, nowy klucz zastąpił ujawniony sekret, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany kompletem migracji i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór; poprawiono wyścig ładowania roli oraz bezpieczny odczyt wewnętrznych danych zamówień. DNS `www`, certyfikat TLS i przekierowanie 308 są aktywne. Pozostają: zewnętrzna kopia i próba odtworzenia, realny test Stripe Checkout oraz stały worker Creality Print. Stripe live pozostaje wyłączony.
 
@@ -38,7 +38,7 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, CI #71 dla `44e
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
 | 8 | Backup | eksport DB/Storage, checksumy i próba restore | wewnętrzna kopia 31 tabel/278 rekordów wykonana; zewnętrzny eksport i restore oczekują | Częściowo |
 | 9 | Worker Creality | timeout, retry, heartbeat, instalator Windows i profile | host oraz realne formaty nieodebrane | Blokada |
-| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | wcześniejsze 10/12 smoke PASS; oba brakujące przypadki `www` potwierdzone osobno po naprawie DNS; pełny automatyczny rerun zablokował limit wykonawczy Codex; panel klienta 8/8 i kluczowe widoki admina 16/16 PASS | Częściowo |
+| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; panel klienta 8/8 i kluczowe widoki admina 16/16 PASS | Częściowo |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | Core Web Vitals po wdrożeniu oczekują | Zakończony lokalnie |
 | 12 | SEO | canonical, sitemap, robots, manifest i pełne schema.org | kod SEO wdrożony; Google/Bing niezweryfikowane | Częściowo |
 | 13 | Bezpieczeństwo | role, RLS, CSRF, CSP, webhook, upload, Dependabot, security.txt | CI i nagłówki produkcyjne potwierdzone; `npm audit` bez wyniku | Częściowo |
@@ -58,12 +58,12 @@ Kod, migracje, zabezpieczenia i procedury są zapisane w GitHub, CI #71 dla `44e
 | pozostałe `check:*` | PASS | env, Supabase, Stripe, Vercel, domena, monitoring, backup, worker, test plan, performance, SEO, security, docs |
 | `npm test` | PASS | 4 pliki, 49/49 testów |
 | `npm audit --omit=dev --audit-level=high` | BLOCKED | ograniczone środowisko nie połączyło się z endpointem npm; brak wyniku nie oznacza braku podatności |
-| produkcyjny Playwright smoke | PARTIAL | wcześniejsze 10/12 PASS; DNS `www`, TLS i redirect 308 po naprawie PASS w kontroli bezpośredniej; pełny rerun 12 przypadków nie wystartował z powodu limitu wykonawczego Codex |
+| produkcyjny Playwright smoke | PASS | 12/12 PASS na desktopie i mobile po aktywacji DNS `www`, TLS i redirectu 308 |
 | pełne CI GitHub | PASS | workflow #71 dla `44ec078`, 2 min 15 s |
 
 ## Testy działającej witryny
 
-Stan sprawdzony w zalogowanej przeglądarce 3–4 sierpnia 2026:
+Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–7 sierpnia 2026:
 
 | Obszar | Wynik | Dowód |
 | --- | --- | --- |
@@ -100,7 +100,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Git i wdrożenie
 
-Gałąź `main` jest zsynchronizowana z `CORDIX3D/korix3d`. GitHub Actions workflow #58 dla bazowego commita funkcjonalnego `9bdcb51` zakończył się powodzeniem, a Vercel automatycznie wdraża kolejne commity dokumentacyjne z `main` jako produkcję dla `korix3d.pl`.
+Gałąź `main` jest zsynchronizowana z `CORDIX3D/korix3d`. Commit `050a7d4` został opublikowany w GitHub, kontrola Vercel w GitHub ma status `success`, a produkcyjne wdrożenie `dpl_2UhPCJ4fDXbHv12VzmFWDoCgmPtW` ma status `READY` i obsługuje aliasy `korix3d.pl`, `www.korix3d.pl` oraz `korix3d.vercel.app`.
 
 Zmiany lokalne obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
 

@@ -163,6 +163,42 @@ async function claimJob() {
   return response.job || null;
 }
 
+async function sendHeartbeat() {
+  await api('/api/slicer/heartbeat', {
+    method: 'POST',
+    body: JSON.stringify({
+      worker_id: workerId,
+      printer_profile: printerProfile,
+      process_profile: processProfile,
+      slicer_version: slicerVersion,
+    }),
+  });
+  updateRuntimeState({ last_connected_at: new Date().toISOString() });
+}
+
+async function processJobWithHeartbeat(job) {
+  let heartbeatInFlight = false;
+  const timer = setInterval(() => {
+    if (heartbeatInFlight || stopping) return;
+    heartbeatInFlight = true;
+    sendHeartbeat()
+      .catch((error) => {
+        log('warn', 'heartbeat_failed', {
+          message: sanitizeLogText(error instanceof Error ? error.message : error),
+        });
+      })
+      .finally(() => {
+        heartbeatInFlight = false;
+      });
+  }, 30_000);
+  timer.unref();
+  try {
+    return await processJob(job);
+  } finally {
+    clearInterval(timer);
+  }
+}
+
 async function downloadInput(job, directory) {
   const extension = extname(job.file_name || '').toLowerCase();
   if (!['.stl', '.step', '.stp', '.obj', '.3mf'].includes(extension)) {
@@ -240,21 +276,18 @@ async function processJob(job) {
       timeoutMs,
     });
     const warnings = [];
-    let gcodePath;
-    try {
-      gcodePath = await slice(inputPath);
-    } catch (error) {
-      if (extname(inputPath).toLowerCase() !== '.3mf') throw error;
+    let modelPath = inputPath;
+    if (extname(inputPath).toLowerCase() === '.3mf') {
       const fallbackPath = join(directory, 'input-3mf-compatibility.stl');
       const conversion = await convert3mfToBinaryStl(inputPath, fallbackPath);
-      warnings.push('Plik 3MF wymagał konwersji zgodności przed analizą w Creality Print.');
-      log('info', 'three_mf_fallback_started', {
+      warnings.push('Plik 3MF został przygotowany jako neutralna geometria przed analizą w Creality Print.');
+      log('info', 'three_mf_compatibility_prepared', {
         jobId: job.id,
         triangleCount: conversion.triangleCount,
-        originalError: sanitizeLogText(error instanceof Error ? error.message : error),
       });
-      gcodePath = await slice(fallbackPath);
+      modelPath = fallbackPath;
     }
+    const gcodePath = await slice(modelPath);
     const result = parseGcode(await readFile(gcodePath, 'utf8'));
     await completeJob(job.id, {
       status: 'completed',
@@ -334,7 +367,7 @@ async function main() {
         last_error: null,
       });
       log('info', 'job_started', { jobId: job.id, attempt: job.attempt_count });
-      await processJob(job);
+      await processJobWithHeartbeat(job);
       consecutiveFailures = 0;
       updateRuntimeState({
         status: 'idle',

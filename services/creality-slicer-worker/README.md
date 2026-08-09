@@ -43,15 +43,19 @@ stabilny G-code, również gdy aplikacja Windows wcześniej zamknie proces
 startowy. Polecenie nie korzysta z powłoki, a sekrety nie są przekazywane do
 Creality Print.
 
-Jeżeli Creality Print 7.1 zakończy się awarią przy otwieraniu pliku 3MF, worker
-automatycznie wydobywa z kontenera 3MF neutralną siatkę STL i ponawia analizę
-w tym samym Creality Print, z tym samym profilem drukarki, filamentu oraz
-wypełnienia. Informacja o użyciu tej ścieżki jest zapisywana w ostrzeżeniach
+Każdy plik 3MF jest od razu przygotowywany jako neutralna siatka STL, a następnie
+analizowany w Creality Print z tym samym profilem drukarki, filamentu oraz
+wypełnienia. Pomija to długie zawieszenie znane z bezpośredniego trybu CLI
+Creality Print 7.1. Informacja o tej ścieżce jest zapisywana w ostrzeżeniach
 wyniku. Konwersja odbywa się lokalnie i nie korzysta z płatnego API.
 
 Nieudane zadanie jest ponawiane maksymalnie trzy razy. Próba kończy się przed
 20-minutowym progiem odzyskania zadania przez bazę. Szczegóły instalacji,
 monitoringu i odbioru opisuje `docs/WORKER_PRODUCTION.md`.
+
+Podczas długiego cięcia worker wysyła osobny heartbeat co 30 sekund. Panel
+administratora nie oznacza dzięki temu działającego workera jako offline, gdy
+Creality Print nadal analizuje duży model.
 
 Creality Print jest objęty AGPL-3.0; sposób wdrożenia musi zachować warunki tej
 licencji.

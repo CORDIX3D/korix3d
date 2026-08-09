@@ -7,6 +7,7 @@ const workerLibrary = await readFile(join(root, 'services/creality-slicer-worker
 const threeMfFallback = await readFile(join(root, 'services/creality-slicer-worker/three-mf-to-stl.mjs'), 'utf8');
 const installer = await readFile(join(root, 'services/creality-slicer-worker/install-windows-task.ps1'), 'utf8');
 const claim = await readFile(join(root, 'app/api/slicer/jobs/claim/route.ts'), 'utf8');
+const heartbeat = await readFile(join(root, 'app/api/slicer/heartbeat/route.ts'), 'utf8');
 const completion = await readFile(join(root, 'app/api/slicer/jobs/[id]/complete/route.ts'), 'utf8');
 const retryMigration = await readFile(join(root, 'supabase/migrations/20260729150000_retry_failed_slicing_jobs.sql'), 'utf8');
 
@@ -18,7 +19,9 @@ for (const requirement of [
   'buildCrealityArguments',
   'selectFilamentProfile',
   'convert3mfToBinaryStl',
-  'three_mf_fallback_started',
+  'three_mf_compatibility_prepared',
+  'processJobWithHeartbeat',
+  "api('/api/slicer/heartbeat'",
   'process.exitCode = 1',
 ]) {
   if (!worker.includes(requirement)) throw new Error(`Worker nie zawiera: ${requirement}`);
@@ -49,6 +52,9 @@ for (const requirement of ['-RestartCount 999', '-MultipleInstances IgnoreNew', 
 }
 if (!claim.includes('createSignedUrl(storagePath, 15 * 60)')) {
   throw new Error('Worker nie otrzymuje krótkotrwałego adresu pobierania.');
+}
+if (!heartbeat.includes("from('slicer_workers').upsert") || !heartbeat.includes('requireSlicerWorker')) {
+  throw new Error('Endpoint heartbeat nie zapisuje podpisanego stanu workera.');
 }
 if (!claim.includes('material_name: job.material_name')) {
   throw new Error('API workera nie zwraca jednoznacznej nazwy materiału.');

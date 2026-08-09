@@ -30,11 +30,12 @@ i `--outputdir`. Ścieżki profilu maszyny i procesu są ustawiane osobno, a map
 `CREALITY_FILAMENT_PROFILES_JSON` dobiera profil do materiału ze zlecenia.
 Brak profilu kończy zadanie czytelnym błędem zamiast użycia złego materiału.
 
-Dla plików 3MF worker ma automatyczną ścieżkę zgodności. Gdy Creality Print
-7.1 ulegnie awarii podczas bezpośredniego otwierania 3MF, geometria z modelu
-jest lokalnie konwertowana do binarnego STL i ponownie cięta w Creality Print
-z niezmienionym profilem drukarki, materiału i wypełnienia. Wynik zawiera
-ostrzeżenie o konwersji; proces nie korzysta z usług AI ani zewnętrznego API.
+Dla plików 3MF worker zawsze używa szybkiej ścieżki zgodności. Geometria z
+modelu jest lokalnie konwertowana do binarnego STL i cięta w Creality Print
+z niezmienionym profilem drukarki, materiału i wypełnienia. Pomija to znane
+zawieszanie bezpośredniego trybu CLI Creality Print 7.1. Wynik zawiera
+ostrzeżenie o przygotowaniu geometrii; proces nie korzysta z usług AI ani
+zewnętrznego API.
 
 Test lokalny na pliku technicznym:
 
@@ -51,6 +52,8 @@ node --env-file=worker.env verify-local.mjs
 - SIGTERM i SIGINT zatrzymują pobieranie nowych zadań;
 - logi JSON nie zawierają tokenu ani podpisanego adresu pliku;
 - `/admin/slicer` pokazuje heartbeat, profil i stan kolejki.
+- podczas aktywnego cięcia osobny heartbeat jest wysyłany co 30 sekund, więc
+  status online nie zależy od czasu potrzebnego na wygenerowanie G-code;
 
 Przy awarii sprawdź najpierw `/admin/slicer`, następnie stan zadania Windows i
 log workera. Jeżeli klucz prywatny mógł wyciec, wygeneruj nową parę kluczy,

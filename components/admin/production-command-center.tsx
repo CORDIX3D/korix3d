@@ -206,6 +206,9 @@ export function ProductionCommandCenter() {
   }, [load]);
 
   useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker.register('/production-sw.js', { scope: '/' });
+    }
     const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
     setStandalone(
       window.matchMedia('(display-mode: standalone)').matches

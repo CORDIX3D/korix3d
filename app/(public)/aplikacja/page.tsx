@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Apple, ArrowRight, Download, Monitor, ShieldCheck, Smartphone } from 'lucide-react';
+import { Apple, ArrowRight, Monitor, ShieldCheck, Smartphone } from 'lucide-react';
+import { PwaInstallButton } from '@/components/pwa-install-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -62,16 +63,12 @@ export default function ApplicationDownloadPage() {
               </div>
               <h2 className="mt-6 text-2xl font-bold">Aplikacja na Windows</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Wersja przenośna bez instalatora, PowerShella i uprawnień administratora. Uruchamia KORIX3D w osobnym oknie systemowym.
+                Instalowana bezpośrednio z Edge lub Chrome. Nie pobiera ZIP-a, nie wymaga rozpakowywania ani uprawnień administratora.
               </p>
               <div className="mt-5 rounded-xl border border-white/5 bg-black/20 p-4 text-sm text-zinc-300">
-                Rozpakuj ZIP i kliknij dwukrotnie „KORIX3D.cmd”. To wszystko — nie trzeba niczego instalować.
+                Kliknij jeden przycisk poniżej i potwierdź instalację. KORIX3D pojawi się w menu Start i będzie otwierać się w osobnym oknie.
               </div>
-              <Button asChild className="mt-7 w-full">
-                <a href="/downloads/KORIX3D-Windows.zip" download>
-                  <Download className="mr-2 h-4 w-4" />Pobierz prostą wersję Windows
-                </a>
-              </Button>
+              <PwaInstallButton />
             </CardContent>
           </Card>
         </div>

@@ -9,7 +9,7 @@ Commit raportu: bieżący `HEAD` gałęzi `main`
 
 **NIEGOTOWE DO PEŁNEJ PRODUKCJI — 92/100.**
 
-Kod aplikacji jest wdrożony na Vercel, najnowsze CI GitHub dla `6624bee` jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany kompletem migracji i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Uprawnienia 35 funkcji `SECURITY DEFINER` zostały ograniczone. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór. Aplikacja KORIX3D działa jako PWA na iPhone oraz jako osobne okno systemowe na Windows; produkcyjny ZIP został pobrany i sprawdzony. Pozostają: publikacja oczekującej migracji Supabase, zewnętrzna kopia i próba odtworzenia, realny test Stripe Checkout oraz stały worker Creality Print po wymaganym restarcie Windows. Stripe live pozostaje wyłączony.
+Kod aplikacji jest wdrożony na Vercel, najnowsze CI GitHub dla `6624bee` jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany kompletem migracji i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Uprawnienia 35 funkcji `SECURITY DEFINER` zostały ograniczone. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows, bez ZIP-a i skryptów uruchamiających. Pozostają: publikacja oczekującej migracji Supabase, zewnętrzna kopia i próba odtworzenia, realny test Stripe Checkout oraz stały worker Creality Print po wymaganym restarcie Windows. Stripe live pozostaje wyłączony.
 
 ## Podsumowanie wykonawcze
 
@@ -75,7 +75,7 @@ Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–9 sierp
 | 16 kluczowych `/admin/*` | PASS | zamówienia, wyceny, produkcja, katalog, magazyn, filamenty, dostawa, historia, slicer, AI, księgowość, raporty i ustawienia bez błędów |
 | `/api/health` | PASS | HTTP 200, `{"status":"ok"}`; CSP/HSTS i `no-store` poprawne |
 | Logi Vercel — ostatnie 24 h | PASS | brak zgrupowanych błędów runtime |
-| Aplikacja Windows | PASS | uproszczony produkcyjny ZIP zawiera przenośny `KORIX3D.cmd`, działa bez PowerShella, instalatora i uprawnień administratora; tryb `--app` zweryfikowany |
+| Aplikacja Windows | PASS | bezpośrednia instalacja PWA jednym przyciskiem z Edge/Chrome, bez ZIP-a, skryptów i uprawnień administratora |
 | Aplikacja iPhone | PASS | manifest HTTP 200, `start_url=/admin/produkcja`, `display=standalone` |
 | `korix3d.pl` DNS | PASS | rekord A `76.76.21.21` |
 | `www.korix3d.pl` DNS i HTTPS | PASS | CNAME `b157fac3bf0a0f6a.vercel-dns-017.com`, TTL 60; Vercel `Valid Configuration`; aktywny TLS i redirect 308 do `https://korix3d.pl/` |

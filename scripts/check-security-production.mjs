@@ -46,7 +46,21 @@ if (!middleware.includes('getUser()') || !middleware.includes('canAccessAdminPat
 if (!csrf.includes("fetchSite === 'same-origin'") || !csrf.includes('new URL(origin).origin')) {
   throw new Error('Mutacje nie wymagają zaufanego Origin/Sec-Fetch-Site.');
 }
-if (!admin.includes("profile?.role !== 'admin'") || !admin.includes('createServiceRoleClient')) {
+for (const marker of [
+  'sessionClient.auth.getUser()',
+  ".from('profiles')",
+  ".select('role')",
+  'hasAccess(profile?.role as AdminPanelRole)',
+  "(role) => role === 'admin'",
+  'isStaffRole(role)',
+  'createAdminServiceClient(auth.user.id)',
+  'createServiceRoleClient(url, serviceRoleKey, actorId)',
+]) {
+  if (!admin.includes(marker)) {
+    throw new Error(`Admin API nie zachowuje warstwy autoryzacji: ${marker}`);
+  }
+}
+if (admin.indexOf('hasAccess(profile?.role as AdminPanelRole)') > admin.indexOf('createAdminServiceClient(auth.user.id)')) {
   throw new Error('Admin API nie oddziela sesji użytkownika od service role.');
 }
 for (const marker of ['stripe-signature', 'constructEvent(', 'MAX_WEBHOOK_BYTES', 'claim_stripe_webhook_event']) {

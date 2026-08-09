@@ -8,6 +8,12 @@ export const metadata: Metadata = {
   title: 'Aplikacja KORIX3D',
   description: 'Zainstaluj bezpieczną aplikację centrum produkcji KORIX3D na iPhone lub Windows.',
   alternates: { canonical: '/aplikacja' },
+  manifest: '/production-app.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'KORIX3D Produkcja',
+    statusBarStyle: 'black-translucent',
+  },
 };
 
 export default function ApplicationDownloadPage() {
@@ -56,10 +62,10 @@ export default function ApplicationDownloadPage() {
               </div>
               <h2 className="mt-6 text-2xl font-bold">Aplikacja na Windows</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Lekka paczka z bezpiecznym skrótem do Centrum produkcji. Nie zawiera kluczy, danych klientów ani dodatkowych programów.
+                Instalator dodaje KORIX3D do pulpitu i menu Start. Aplikacja uruchamia się w osobnym oknie systemowym bez paska przeglądarki.
               </p>
               <div className="mt-5 rounded-xl border border-white/5 bg-black/20 p-4 text-sm text-zinc-300">
-                Rozpakuj plik ZIP i otwórz „KORIX3D Produkcja”. Następnie zaloguj się kontem pracownika.
+                Rozpakuj plik ZIP i uruchom „Zainstaluj KORIX3D”. Po instalacji otwieraj aplikację ikoną KORIX3D Produkcja.
               </div>
               <Button asChild className="mt-7 w-full">
                 <a href="/downloads/KORIX3D-Windows.zip" download>

@@ -27,7 +27,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authError = requireSlicerWorker(request);
+  const authError = await requireSlicerWorker(request);
   if (authError) return authError;
 
   try {

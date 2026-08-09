@@ -1,43 +1,37 @@
 # KORIX3D Creality Print worker
 
-Ten proces uruchamia Creality Print poza Vercel. Pobiera prywatne modele z
-krótkotrwałych adresów Supabase, wykonuje slicing i zwraca do KORIX3D czas
-druku oraz zużycie filamentu. Nie korzysta z OpenAI.
+Proces uruchamia Creality Print na stałym komputerze Windows. Pobiera prywatny
+model z krótkotrwałego adresu Supabase, wykonuje slicing, zwraca czas druku,
+wagę filamentu i liczbę warstw, a następnie usuwa pliki tymczasowe. Nie używa
+OpenAI ani żadnej innej płatnej usługi AI.
 
-## Wymagane zmienne
+## Konfiguracja
 
-- `KORIX3D_SITE_URL` — produkcyjny adres witryny, bez ukośnika na końcu.
-- `CREALITY_SLICER_WORKER_TOKEN` — ten sam długi, losowy sekret co w Vercelu.
-- `CREALITY_PRINT_BIN` — ścieżka do pliku wykonywalnego Creality Print.
-- `CREALITY_PRINT_ARGS_JSON` — argumenty CLI zapisane jako tablica JSON.
-- `CREALITY_PRINTER_PROFILE` — profil konkretnej drukarki.
-- `CREALITY_PROCESS_PROFILE` — profil procesu.
+- `KORIX3D_SITE_URL` — produkcyjny adres witryny.
+- `CREALITY_SLICER_WORKER_PRIVATE_KEY_PATH` — lokalna ścieżka do prywatnego klucza podpisu.
+- `CREALITY_PRINT_BIN` — pełna ścieżka do `CrealityPrint.exe`.
+- `CREALITY_MACHINE_PROFILE_PATH` — pełna ścieżka do profilu drukarki JSON.
+- `CREALITY_PROCESS_PROFILE_PATH` — pełna ścieżka do profilu procesu JSON.
+- `CREALITY_FILAMENT_PROFILES_JSON` — mapa materiałów na profile, np. PLA i PETG.
+- `CREALITY_PRINTER_PROFILE` i `CREALITY_PROCESS_PROFILE` — czytelne nazwy widoczne w panelu.
 - `CREALITY_PRINT_VERSION` — wersja zainstalowanego slicera.
-- `SLICER_HTTP_TIMEOUT_MS` — limit czasu wywołania API lub pobierania modelu (domyślnie 60 sekund).
+- `SLICER_WORKER_ID` — stały identyfikator tego komputera.
 
-Skopiuj `services/creality-slicer-worker/.env.example` do lokalnego, nieśledzonego pliku środowiskowego. Worker waliduje całą konfigurację przez Zod przed pobraniem pierwszego zadania i kończy się czytelnym błędem, jeżeli adres, token, limity albo tablica argumentów są niepoprawne.
+Skopiuj `.env.example` do lokalnego, nieśledzonego pliku `worker.env`. Worker
+waliduje zmienne i istnienie wszystkich plików przed pobraniem zadania.
 
-Sekrety procesu nadrzędnego (nazwy kończące się m.in. na `TOKEN`, `SECRET`, `PASSWORD` lub `API_KEY`) nie są przekazywane do procesu Creality Print.
+## Działanie
 
-Nieudane zadanie jest automatycznie ponawiane maksymalnie trzy razy. Każda
-próba ma limit czasu, a historia błędów pozostaje zapisana przy zadaniu bez
-utrwalania tokenu workera ani adresu pobierania pliku.
+Worker sam buduje zweryfikowane argumenty CLI Creality Print 7.1. Rodzaj
+materiału wybiera profil z `CREALITY_FILAMENT_PROFILES_JSON`, a wypełnienie
+przekazuje przez `--sparse-infill-density`. Po uruchomieniu czeka na kompletny,
+stabilny G-code, również gdy aplikacja Windows wcześniej zamknie proces
+startowy. Polecenie nie korzysta z powłoki, a sekrety nie są przekazywane do
+Creality Print.
 
-Produkcja wymaga stałego `SLICER_WORKER_ID`, wersji Creality oraz nazw profilu
-drukarki i procesu. Limit próby nie może przekroczyć 18 minut, ponieważ baza
-odzyskuje porzucone zadanie po 20 minutach.
+Nieudane zadanie jest ponawiane maksymalnie trzy razy. Próba kończy się przed
+20-minutowym progiem odzyskania zadania przez bazę. Szczegóły instalacji,
+monitoringu i odbioru opisuje `docs/WORKER_PRODUCTION.md`.
 
-Argumenty mogą zawierać znaczniki: `{input}`, `{outputDir}`, `{infill}`,
-`{printerProfile}` i `{processProfile}`. Polecenie jest uruchamiane bez powłoki,
-więc wartości pochodzące ze zlecenia nie są interpretowane jako kod.
-
-Dokładny zestaw argumentów trzeba dopasować do zainstalowanej wersji Creality
-Print oraz wyeksportowanych profili drukarki, dyszy i filamentu. Przed
-uruchomieniem produkcyjnym należy sprawdzić jedno referencyjne STL ręcznie i
-porównać wynik z aplikacją desktopową.
-
-Creality Print jest objęty licencją AGPL-3.0. Sposób wdrożenia workera i
-udostępniania jego kodu musi zachować wymagania tej licencji.
-
-Pełna instalacja jako proces startujący razem ze zdalnym hostem Windows,
-monitoring i procedura odbioru są opisane w `docs/WORKER_PRODUCTION.md`.
+Creality Print jest objęty AGPL-3.0; sposób wdrożenia musi zachować warunki tej
+licencji.

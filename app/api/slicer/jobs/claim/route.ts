@@ -24,7 +24,7 @@ function boundedString(value: unknown, maxLength: number) {
 }
 
 export async function POST(request: NextRequest) {
-  const authError = requireSlicerWorker(request);
+  const authError = await requireSlicerWorker(request);
   if (authError) return authError;
 
   try {

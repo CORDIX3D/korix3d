@@ -114,8 +114,8 @@ export default function AdminSlicerPage() {
   const connectionState = !data.configured
     ? {
         ready: false,
-        title: 'Brakuje tokenu zdalnego workera',
-        description: 'Dodaj CREALITY_SLICER_WORKER_TOKEN w Vercelu i ten sam token na serwerze slicera.',
+        title: 'Uwierzytelnienie workera jest niedostępne',
+        description: 'Sprawdź podpis cyfrowy i klucz prywatny na komputerze slicera.',
       }
     : !data.heartbeat_available
       ? {

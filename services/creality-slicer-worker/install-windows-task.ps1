@@ -8,24 +8,29 @@ $workerHome = [System.IO.Path]::GetFullPath($env:CREALITY_WORKER_HOME)
 $workerFile = Join-Path $workerHome 'worker.mjs'
 $envFile = Join-Path $workerHome 'worker.env'
 $node = (Get-Command node.exe -ErrorAction Stop).Source
+$taskName = 'KORIX3D Creality Worker'
 
-if (-not (Test-Path -LiteralPath $workerFile -PathType Leaf)) {
-  throw "Brak pliku $workerFile"
-}
-if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) {
-  throw "Brak pliku $envFile"
-}
-
-$acl = Get-Acl -LiteralPath $envFile
-if (-not $acl.AreAccessRulesProtected) {
-  throw 'Plik worker.env musi miec wylaczone dziedziczenie uprawnien NTFS.'
+foreach ($requiredFile in @($workerFile, $envFile)) {
+  if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+    throw "Brak pliku $requiredFile"
+  }
 }
 
-$action = New-ScheduledTaskAction `
-  -Execute $node `
-  -Argument "--env-file=$envFile $workerFile" `
-  -WorkingDirectory $workerHome
-$trigger = New-ScheduledTaskTrigger -AtStartup
+$privateKeyLine = Get-Content -LiteralPath $envFile |
+  Where-Object { $_ -like 'CREALITY_SLICER_WORKER_PRIVATE_KEY_PATH=*' } |
+  Select-Object -First 1
+$privateKeyPath = ($privateKeyLine -split '=', 2)[1]
+if (-not $privateKeyPath -or -not (Test-Path -LiteralPath $privateKeyPath -PathType Leaf)) {
+  throw 'Brak prywatnego klucza podpisu workera.'
+}
+
+$keyAcl = Get-Acl -LiteralPath $privateKeyPath
+if (-not $keyAcl.AreAccessRulesProtected) {
+  throw 'Prywatny klucz musi miec wylaczone dziedziczenie uprawnien NTFS.'
+}
+
+$arguments = "--env-file=`"$envFile`" `"$workerFile`""
+$action = New-ScheduledTaskAction -Execute $node -Argument $arguments -WorkingDirectory $workerHome
 $settings = New-ScheduledTaskSettingsSet `
   -RestartCount 999 `
   -RestartInterval (New-TimeSpan -Minutes 1) `
@@ -33,14 +38,32 @@ $settings = New-ScheduledTaskSettingsSet `
   -MultipleInstances IgnoreNew `
   -StartWhenAvailable
 
-Register-ScheduledTask `
-  -TaskName 'KORIX3D Creality Worker' `
-  -Description 'Zdalny worker automatycznej wyceny Creality Print' `
-  -Action $action `
-  -Trigger $trigger `
-  -Settings $settings `
-  -RunLevel Highest `
-  -Force
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = [Security.Principal.WindowsPrincipal]::new($identity)
+$isAdministrator = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
-Start-ScheduledTask -TaskName 'KORIX3D Creality Worker'
-Write-Host 'Worker zostal zainstalowany. Sprawdz heartbeat w /admin/slicer.'
+if ($isAdministrator) {
+  $trigger = New-ScheduledTaskTrigger -AtStartup
+  Register-ScheduledTask `
+    -TaskName $taskName `
+    -Description 'Zdalny worker automatycznej wyceny Creality Print' `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -RunLevel Highest `
+    -Force | Out-Null
+} else {
+  $trigger = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
+  Register-ScheduledTask `
+    -TaskName $taskName `
+    -Description 'Zdalny worker automatycznej wyceny Creality Print' `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -User $identity.Name `
+    -RunLevel Limited `
+    -Force | Out-Null
+}
+
+Start-ScheduledTask -TaskName $taskName
+Write-Host 'Worker zostal zainstalowany i uruchomiony.'

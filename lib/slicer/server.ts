@@ -1,8 +1,7 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequiredSupabaseServiceEnv } from '@/lib/supabase/env';
-import { getRequiredSlicerServerEnvironment } from '@/lib/env/server';
+import { requireSignedSlicerWorker } from '@/lib/slicer/worker-signature';
 
 export const SLICER_RESPONSE_HEADERS = {
   'Cache-Control': 'no-store',
@@ -18,41 +17,8 @@ export function getSlicerServiceClient() {
   });
 }
 
-function digest(value: string) {
-  return createHash('sha256').update(value).digest();
-}
-
 export function requireSlicerWorker(request: NextRequest) {
-  let configuredToken = '';
-  try {
-    configuredToken = getRequiredSlicerServerEnvironment()
-      .CREALITY_SLICER_WORKER_TOKEN;
-  } catch {
-    // The response below intentionally does not disclose validation details.
-  }
-  const authorization = request.headers.get('authorization') || '';
-  const suppliedToken = authorization.startsWith('Bearer ')
-    ? authorization.slice('Bearer '.length).trim()
-    : '';
-
-  if (!configuredToken) {
-    return NextResponse.json(
-      { error: 'Zdalny slicer nie jest jeszcze skonfigurowany.' },
-      { status: 503, headers: SLICER_RESPONSE_HEADERS }
-    );
-  }
-
-  if (
-    !suppliedToken ||
-    !timingSafeEqual(digest(configuredToken), digest(suppliedToken))
-  ) {
-    return NextResponse.json(
-      { error: 'Nieprawidłowe uwierzytelnienie workera.' },
-      { status: 401, headers: SLICER_RESPONSE_HEADERS }
-    );
-  }
-
-  return null;
+  return requireSignedSlicerWorker(request, SLICER_RESPONSE_HEADERS);
 }
 
 export function slicerUnavailableResponse() {

@@ -37,7 +37,6 @@ import { PUBLIC_MATERIAL_COLUMNS } from '../lib/public-material';
 import { CUSTOMER_ORDER_3D_COLUMNS } from '../lib/customer-order';
 import {
   publicSupabaseEnvironmentSchema,
-  slicerServerEnvironmentSchema,
   stripeEnvironmentSchema,
   supabaseServiceEnvironmentSchema,
 } from '../lib/env/schema';
@@ -720,15 +719,6 @@ test('walidacja Stripe odrzuca klucz ograniczony zamiast sekretu serwerowego', (
   assert.equal(stripeEnvironmentSchema.safeParse({
     ...base,
     STRIPE_SECRET_KEY: `rk_test_${'b'.repeat(32)}`,
-  }).success, false);
-});
-
-test('token zdalnego slicera musi być odpowiednio długi i bez spacji', () => {
-  assert.equal(slicerServerEnvironmentSchema.safeParse({
-    CREALITY_SLICER_WORKER_TOKEN: 'a'.repeat(32),
-  }).success, true);
-  assert.equal(slicerServerEnvironmentSchema.safeParse({
-    CREALITY_SLICER_WORKER_TOKEN: 'za krótki token',
   }).success, false);
 });
 

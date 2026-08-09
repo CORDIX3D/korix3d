@@ -19,7 +19,6 @@ const isolatedEnvironment = {
   SUPABASE_SERVICE_ROLE_KEY: '',
   STRIPE_SECRET_KEY: '',
   STRIPE_WEBHOOK_SECRET: '',
-  CREALITY_SLICER_WORKER_TOKEN: '',
   NEXT_PUBLIC_SITE_URL: origin,
 };
 

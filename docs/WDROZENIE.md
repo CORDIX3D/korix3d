@@ -22,7 +22,6 @@ Dodaj poniższe nazwy jako zmienne projektu dostępne dla wdrożenia produkcyjne
 | `NEXT_PUBLIC_BING_SITE_VERIFICATION` | Bing Webmaster Tools, opcjonalnie | Weryfikacja własności witryny |
 | `STRIPE_SECRET_KEY` | Stripe, klucze API wybranego trybu | Tworzenie sesji płatności |
 | `STRIPE_WEBHOOK_SECRET` | Stripe, szczegóły webhooka | Weryfikacja zdarzeń płatności |
-| `CREALITY_SLICER_WORKER_TOKEN` | Wygenerowany losowy sekret | Dostęp zdalnego workera Creality Print |
 | `CRON_SECRET` | Wygenerowany losowy sekret | Ochrona cyklicznego monitoringu produkcji |
 
 Zmienne publiczne Supabase są częścią konfiguracji aplikacji. Pozostałe wartości są sekretami serwera. Wszystkie zmienne dodaj do środowiska `Production`; dla bezpiecznych testów możesz dodać osobne klucze testowe do `Preview`.
@@ -45,7 +44,7 @@ Podział konfiguracji:
 - **publiczne:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL` oraz opcjonalne tokeny weryfikacyjne Google/Bing,
 - **serwerowe i storage:** `SUPABASE_SERVICE_ROLE_KEY` (Storage korzysta z tego samego projektu Supabase),
 - **Stripe:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-- **slicer:** `CREALITY_SLICER_WORKER_TOKEN` oraz zmienne lokalnego workera opisane w `services/creality-slicer-worker/.env.example`,
+- **slicer:** lokalny klucz prywatny oraz zmienne workera opisane w `services/creality-slicer-worker/.env.example`,
 - **AI:** brak zewnętrznego klucza — bot nie korzysta z płatnego API,
 - **e-mail:** brak zewnętrznego dostawcy w bieżącym MVP,
 - **monitoring:** `CRON_SECRET`, wbudowane logi platformy i endpoint `/api/monitoring/client-error`; nie wymaga zewnętrznej płatnej usługi.
@@ -131,7 +130,7 @@ tworzone przez migrację `20260729120000_add_stripe_webhook_idempotency.sql`.
 
 ## 6. Worker Creality Print
 
-Sama aplikacja internetowa nie uruchamia Creality Print. Zdalny worker musi działać na osobnej maszynie z zainstalowanym slicerem i używać tego samego `CREALITY_SLICER_WORKER_TOKEN` co Vercel.
+Sama aplikacja internetowa nie uruchamia Creality Print. Zdalny worker musi działać na osobnej maszynie z zainstalowanym slicerem i podpisywać żądania lokalnym kluczem prywatnym. Vercel weryfikuje podpis kluczem publicznym i nie przechowuje sekretu workera.
 
 Po uruchomieniu workera sprawdź w `/admin/slicer`:
 

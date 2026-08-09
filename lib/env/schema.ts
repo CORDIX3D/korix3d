@@ -66,14 +66,6 @@ export const stripeEnvironmentSchema = z.object({
   NEXT_PUBLIC_SITE_URL: productionUrlSchema,
 });
 
-export const slicerServerEnvironmentSchema = z.object({
-  CREALITY_SLICER_WORKER_TOKEN: z
-    .string()
-    .trim()
-    .min(32, 'musi mieć co najmniej 32 znaki')
-    .regex(/^\S+$/, 'nie może zawierać białych znaków'),
-});
-
 export const monitoringEnvironmentSchema = z.object({
   CRON_SECRET: z
     .string()

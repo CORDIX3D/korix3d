@@ -1,8 +1,15 @@
-import { spawn } from 'node:child_process';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { z } from 'zod';
+import {
+  buildCrealityArguments,
+  createWorkerSignatureHeaders,
+  parseFilamentProfiles,
+  parseGcode,
+  runCrealityAndWait,
+  selectFilamentProfile,
+} from './worker-lib.mjs';
 
 const boundedInteger = (fallback, minimum, maximum) =>
   z.preprocess(
@@ -14,25 +21,17 @@ const workerEnvironmentSchema = z.object({
     (value) => ['http:', 'https:'].includes(new URL(value).protocol),
     'KORIX3D_SITE_URL must use HTTP or HTTPS'
   ),
-  CREALITY_SLICER_WORKER_TOKEN: z.string().trim().min(32),
+  CREALITY_SLICER_WORKER_PRIVATE_KEY_PATH: z.string().trim().min(1),
   CREALITY_PRINT_BIN: z.string().trim().min(1),
-  CREALITY_PRINT_ARGS_JSON: z.string().transform((value, context) => {
+  CREALITY_MACHINE_PROFILE_PATH: z.string().trim().min(1),
+  CREALITY_PROCESS_PROFILE_PATH: z.string().trim().min(1),
+  CREALITY_FILAMENT_PROFILES_JSON: z.string().transform((value, context) => {
     try {
-      const parsed = JSON.parse(value);
-      if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) {
-        throw new Error('expected an array of strings');
-      }
-      const command = parsed.join(' ');
-      for (const placeholder of ['{input}', '{outputDir}', '{infill}']) {
-        if (!command.includes(placeholder)) {
-          throw new Error(`missing required placeholder ${placeholder}`);
-        }
-      }
-      return parsed;
-    } catch {
+      return parseFilamentProfiles(value);
+    } catch (error) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'must be a JSON array containing only strings',
+        message: error instanceof Error ? error.message : 'invalid filament profiles',
       });
       return z.NEVER;
     }
@@ -55,8 +54,11 @@ if (!parsedEnvironment.success) {
 }
 const workerEnvironment = parsedEnvironment.data;
 const siteUrl = workerEnvironment.KORIX3D_SITE_URL.replace(/\/+$/, '');
-const workerToken = workerEnvironment.CREALITY_SLICER_WORKER_TOKEN;
+const workerPrivateKeyPath = workerEnvironment.CREALITY_SLICER_WORKER_PRIVATE_KEY_PATH;
 const slicerBinary = workerEnvironment.CREALITY_PRINT_BIN;
+const machineProfilePath = workerEnvironment.CREALITY_MACHINE_PROFILE_PATH;
+const processProfilePath = workerEnvironment.CREALITY_PROCESS_PROFILE_PATH;
+const filamentProfiles = workerEnvironment.CREALITY_FILAMENT_PROFILES_JSON;
 const workerId = workerEnvironment.SLICER_WORKER_ID;
 const slicerVersion = workerEnvironment.CREALITY_PRINT_VERSION;
 const printerProfile = workerEnvironment.CREALITY_PRINTER_PROFILE;
@@ -64,6 +66,7 @@ const processProfile = workerEnvironment.CREALITY_PROCESS_PROFILE;
 const pollIntervalMs = workerEnvironment.SLICER_POLL_INTERVAL_MS;
 const timeoutMs = workerEnvironment.SLICER_JOB_TIMEOUT_MS;
 const httpTimeoutMs = workerEnvironment.SLICER_HTTP_TIMEOUT_MS;
+const workerPrivateKey = await readFile(workerPrivateKeyPath, 'utf8');
 const slicerProcessEnvironment = Object.fromEntries(
   Object.entries(process.env).filter(
     ([name]) => !/(?:TOKEN|SECRET|PASSWORD|API_KEY)$/i.test(name)
@@ -105,20 +108,28 @@ function sleep(milliseconds) {
 }
 
 async function api(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  const body = typeof options.body === 'string' ? options.body : '';
   const response = await fetch(`${siteUrl}${path}`, {
     ...options,
     signal: AbortSignal.timeout(httpTimeoutMs),
     headers: {
-      Authorization: `Bearer ${workerToken}`,
       'Content-Type': 'application/json',
+      ...createWorkerSignatureHeaders({
+        privateKey: workerPrivateKey,
+        workerId,
+        method,
+        pathname: path,
+        body,
+      }),
       ...(options.headers || {}),
     },
   });
-  const body = await response.json().catch(() => null);
+  const responseBody = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(body?.error || `KORIX3D API returned ${response.status}`);
+    throw new Error(responseBody?.error || `KORIX3D API returned ${response.status}`);
   }
-  return body;
+  return responseBody;
 }
 
 async function claimJob() {
@@ -132,28 +143,6 @@ async function claimJob() {
     }),
   });
   return response.job || null;
-}
-
-function commandArguments(job, inputPath, outputDirectory) {
-  const args = workerEnvironment.CREALITY_PRINT_ARGS_JSON;
-
-  const replacements = {
-    '{input}': inputPath,
-    '{outputDir}': outputDirectory,
-    '{infill}': String(job.infill_percent),
-    '{printerProfile}': job.printer_profile || '',
-    '{processProfile}': job.process_profile || '',
-  };
-
-  return args
-    .map((argument) => {
-      let prepared = argument;
-      for (const [placeholder, value] of Object.entries(replacements)) {
-        prepared = prepared.replaceAll(placeholder, value);
-      }
-      return prepared;
-    })
-    .filter(Boolean);
 }
 
 async function downloadInput(job, directory) {
@@ -199,74 +188,6 @@ async function downloadInput(job, directory) {
   return inputPath;
 }
 
-async function runSlicer(args) {
-  await new Promise((resolve, reject) => {
-    const processHandle = spawn(slicerBinary, args, {
-      shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: slicerProcessEnvironment,
-    });
-    let stderr = '';
-    const timer = setTimeout(() => {
-      processHandle.kill('SIGKILL');
-      reject(new Error('Creality Print exceeded the slicing timeout'));
-    }, timeoutMs);
-
-    processHandle.stderr.on('data', (chunk) => {
-      stderr = `${stderr}${chunk}`.slice(-8_000);
-    });
-    processHandle.once('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    processHandle.once('exit', (code) => {
-      clearTimeout(timer);
-      if (code === 0) resolve();
-      else reject(new Error(`Creality Print exited with code ${code}: ${stderr.trim()}`));
-    });
-  });
-}
-
-function timeToSeconds(value) {
-  const hours = Number(value.match(/(\d+(?:\.\d+)?)h/i)?.[1] || 0);
-  const minutes = Number(value.match(/(\d+(?:\.\d+)?)m/i)?.[1] || 0);
-  const seconds = Number(value.match(/(\d+(?:\.\d+)?)s/i)?.[1] || 0);
-  return Math.round(hours * 3600 + minutes * 60 + seconds);
-}
-
-function parseGcode(content) {
-  const timeMatch = content.match(
-    /;\s*(?:estimated printing time|total estimated time|model printing time)[^=\n]*=\s*([^\r\n]+)/i
-  );
-  const gramsMatch = content.match(
-    /;\s*(?:total filament used|filament used)\s*\[g\]\s*=\s*(\d+(?:\.\d+)?)/i
-  );
-  const layerMatch = content.match(/;\s*(?:total layer number|layer count)\s*[:=]\s*(\d+)/i);
-
-  const rawTime = timeMatch?.[1]?.trim() || '';
-  const printingTimeSeconds = /^\d+(?:\.\d+)?$/.test(rawTime)
-    ? Number(rawTime)
-    : timeToSeconds(rawTime);
-  const filamentUsedGrams = gramsMatch ? Number(gramsMatch[1]) : 0;
-
-  if (!(printingTimeSeconds > 0) || !(filamentUsedGrams > 0)) {
-    throw new Error('Creality Print output does not contain time and filament metadata');
-  }
-
-  return {
-    printing_time_seconds: printingTimeSeconds,
-    filament_used_grams: filamentUsedGrams,
-    layer_count: layerMatch ? Number(layerMatch[1]) : null,
-  };
-}
-
-async function findGcode(directory) {
-  const files = await readdir(directory, { recursive: true });
-  const gcode = files.find((file) => extname(file).toLowerCase() === '.gcode');
-  if (!gcode) throw new Error('Creality Print did not create a G-code file');
-  return join(directory, gcode);
-}
-
 async function completeJob(jobId, payload) {
   await api(`/api/slicer/jobs/${jobId}/complete`, {
     method: 'POST',
@@ -282,9 +203,22 @@ async function processJob(job) {
   const directory = await mkdtemp(join(tmpdir(), 'korix3d-slicer-'));
   try {
     const inputPath = await downloadInput(job, directory);
-    const args = commandArguments(job, inputPath, directory);
-    await runSlicer(args);
-    const gcodePath = await findGcode(directory);
+    const filamentProfilePath = selectFilamentProfile(filamentProfiles, job.material_name);
+    const args = buildCrealityArguments({
+      machineProfilePath,
+      processProfilePath,
+      filamentProfilePath,
+      infillPercent: job.infill_percent,
+      inputPath,
+      outputDirectory: directory,
+    });
+    const gcodePath = await runCrealityAndWait({
+      binary: slicerBinary,
+      args,
+      outputDirectory: directory,
+      environment: slicerProcessEnvironment,
+      timeoutMs,
+    });
     const result = parseGcode(await readFile(gcodePath, 'utf8'));
     await completeJob(job.id, {
       status: 'completed',
@@ -303,10 +237,18 @@ async function processJob(job) {
 }
 
 async function main() {
+  await Promise.all([
+    access(slicerBinary),
+    access(workerPrivateKeyPath),
+    access(machineProfilePath),
+    access(processProfilePath),
+    ...Object.values(filamentProfiles).map((profilePath) => access(profilePath)),
+  ]);
   log('info', 'started', {
     slicerVersion,
     printerProfile,
     processProfile,
+    materials: Object.keys(filamentProfiles),
   });
   let consecutiveFailures = 0;
   while (!stopping) {

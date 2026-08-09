@@ -25,9 +25,15 @@ if (-not $privateKeyPath -or -not (Test-Path -LiteralPath $privateKeyPath -PathT
 }
 
 $keyAcl = Get-Acl -LiteralPath $privateKeyPath
-if (-not $keyAcl.AreAccessRulesProtected) {
-  throw 'Prywatny klucz musi miec wylaczone dziedziczenie uprawnien NTFS.'
-}
+$keyAcl.SetAccessRuleProtection($true, $false)
+$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$currentUserRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+  $currentIdentity.Name,
+  'FullControl',
+  'Allow'
+)
+$keyAcl.SetAccessRule($currentUserRule)
+Set-Acl -LiteralPath $privateKeyPath -AclObject $keyAcl
 
 $arguments = "--env-file=`"$envFile`" `"$workerFile`""
 $action = New-ScheduledTaskAction -Execute $node -Argument $arguments -WorkingDirectory $workerHome
@@ -38,7 +44,7 @@ $settings = New-ScheduledTaskSettingsSet `
   -MultipleInstances IgnoreNew `
   -StartWhenAvailable
 
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$identity = $currentIdentity
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 $isAdministrator = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 

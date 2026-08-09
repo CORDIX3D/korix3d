@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash, sign } from 'node:crypto';
 import { readdir, stat } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 
 export function normalizeMaterialName(value) {
   return String(value || '')
@@ -82,6 +82,14 @@ export function buildCrealityArguments({
     `${infill}%`,
     '--slice',
     '0',
+    '--no-check',
+    '--allow-newer-file',
+    '--arrange',
+    '1',
+    '--orient',
+    '1',
+    '--ensure-on-bed',
+    '--allow-multicolor-oneplate',
     '--outputdir',
     outputDirectory,
     inputPath,
@@ -163,20 +171,38 @@ export async function runCrealityAndWait({
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: environment,
+    cwd: dirname(binary),
   });
   processHandle.stderr.on('data', (chunk) => {
     stderr = `${stderr}${chunk}`.slice(-8_000);
   });
-  processHandle.once('error', (error) => {
-    processError = error;
-  });
-  processHandle.once('close', (code) => {
-    exitCode = code;
+  const processExit = new Promise((resolve) => {
+    processHandle.once('error', (error) => {
+      processError = error;
+      resolve();
+    });
+    processHandle.once('close', (code) => {
+      exitCode = code;
+      resolve();
+    });
   });
 
   const startedAt = Date.now();
   try {
-    const gcodePath = await waitForStableGcode(outputDirectory, timeoutMs);
+    const gcodePath = await Promise.race([
+      waitForStableGcode(outputDirectory, timeoutMs),
+      processExit.then(async () => {
+        try {
+          return await waitForStableGcode(outputDirectory, 5_000, 200);
+        } catch {
+          if (processError) throw processError;
+          const details = stderr.trim();
+          throw new Error(
+            `Creality Print exited with code ${exitCode}${details ? `: ${details}` : ''}`
+          );
+        }
+      }),
+    ]);
     if (processError) throw processError;
     return gcodePath;
   } catch (error) {
@@ -193,10 +219,11 @@ export async function runCrealityAndWait({
 export async function probeExecutable(binary, environment, timeoutMs = 10_000) {
   await new Promise((resolve, reject) => {
     let settled = false;
-    const processHandle = spawn(binary, ['--version'], {
+    const processHandle = spawn(binary, ['--help'], {
       shell: false,
       stdio: 'ignore',
       env: environment,
+      cwd: dirname(binary),
     });
     const timer = setTimeout(() => {
       if (settled) return;
@@ -204,12 +231,12 @@ export async function probeExecutable(binary, environment, timeoutMs = 10_000) {
       if (processHandle.exitCode === null && !processHandle.killed) processHandle.kill('SIGKILL');
       reject(new Error('Creality Print startup check timed out'));
     }, timeoutMs);
-    processHandle.once('spawn', () => {
+    processHandle.once('close', (code) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      if (processHandle.exitCode === null && !processHandle.killed) processHandle.kill('SIGKILL');
-      resolve();
+      if (code === 0) resolve();
+      else reject(new Error(`Creality Print startup check exited with code ${code}`));
     });
     processHandle.once('error', (error) => {
       if (settled) return;

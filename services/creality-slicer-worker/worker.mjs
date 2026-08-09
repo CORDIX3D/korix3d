@@ -12,6 +12,7 @@ import {
   selectFilamentProfile,
 } from './worker-lib.mjs';
 import { startWorkerDashboard } from './dashboard.mjs';
+import { convert3mfToBinaryStl } from './three-mf-to-stl.mjs';
 
 const boundedInteger = (fallback, minimum, maximum) =>
   z.preprocess(
@@ -224,26 +225,42 @@ async function processJob(job) {
       filamentProfiles,
       job.material_name || job.material
     );
-    const args = buildCrealityArguments({
-      machineProfilePath,
-      processProfilePath,
-      filamentProfilePath,
-      infillPercent: job.infill_percent,
-      inputPath,
-      outputDirectory: directory,
-    });
-    const gcodePath = await runCrealityAndWait({
+    const slice = (modelPath) => runCrealityAndWait({
       binary: slicerBinary,
-      args,
+      args: buildCrealityArguments({
+        machineProfilePath,
+        processProfilePath,
+        filamentProfilePath,
+        infillPercent: job.infill_percent,
+        inputPath: modelPath,
+        outputDirectory: directory,
+      }),
       outputDirectory: directory,
       environment: slicerProcessEnvironment,
       timeoutMs,
     });
+    const warnings = [];
+    let gcodePath;
+    try {
+      gcodePath = await slice(inputPath);
+    } catch (error) {
+      if (extname(inputPath).toLowerCase() !== '.3mf') throw error;
+      const fallbackPath = join(directory, 'input-3mf-compatibility.stl');
+      const conversion = await convert3mfToBinaryStl(inputPath, fallbackPath);
+      warnings.push('Plik 3MF wymagał konwersji zgodności przed analizą w Creality Print.');
+      log('info', 'three_mf_fallback_started', {
+        jobId: job.id,
+        triangleCount: conversion.triangleCount,
+        originalError: sanitizeLogText(error instanceof Error ? error.message : error),
+      });
+      gcodePath = await slice(fallbackPath);
+    }
     const result = parseGcode(await readFile(gcodePath, 'utf8'));
     await completeJob(job.id, {
       status: 'completed',
       ...result,
       gcode_file_name: basename(gcodePath),
+      warnings,
     });
   } catch (error) {
     await completeJob(job.id, {

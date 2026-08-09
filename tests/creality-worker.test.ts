@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import JSZip from 'jszip';
 import { test } from 'vitest';
 import {
   buildCrealityArguments,
@@ -8,6 +12,39 @@ import {
   selectFilamentProfile,
 } from '../services/creality-slicer-worker/worker-lib.mjs';
 import { startWorkerDashboard } from '../services/creality-slicer-worker/dashboard.mjs';
+import { convert3mfToBinaryStl } from '../services/creality-slicer-worker/three-mf-to-stl.mjs';
+
+test('worker konwertuje standardowy model 3MF do binarnego STL z zachowaniem skali', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'korix3d-3mf-test-'));
+  const inputPath = join(directory, 'model.3mf');
+  const outputPath = join(directory, 'model.stl');
+  const zip = new JSZip();
+  zip.file('3D/3dmodel.model', `<?xml version="1.0" encoding="UTF-8"?>
+    <model unit="centimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+      <resources><object id="1" type="model"><mesh>
+        <vertices>
+          <vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/>
+        </vertices>
+        <triangles><triangle v1="0" v2="1" v3="2"/></triangles>
+      </mesh></object></resources>
+      <build><item objectid="1" transform="1 0 0 0 1 0 0 0 1 2 3 4"/></build>
+    </model>`);
+  await writeFile(inputPath, await zip.generateAsync({ type: 'nodebuffer' }));
+
+  try {
+    const result = await convert3mfToBinaryStl(inputPath, outputPath);
+    const stl = await readFile(outputPath);
+    assert.deepEqual(result, { triangleCount: 1 });
+    assert.equal(stl.readUInt32LE(80), 1);
+    assert.equal(stl.length, 134);
+    assert.deepEqual(
+      [stl.readFloatLE(96), stl.readFloatLE(100), stl.readFloatLE(104)],
+      [20, 30, 40]
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('worker buduje oficjalne argumenty CLI Creality Print 7.1', () => {
   const args = buildCrealityArguments({
@@ -28,6 +65,14 @@ test('worker buduje oficjalne argumenty CLI Creality Print 7.1', () => {
     '20%',
     '--slice',
     '0',
+    '--no-check',
+    '--allow-newer-file',
+    '--arrange',
+    '1',
+    '--orient',
+    '1',
+    '--ensure-on-bed',
+    '--allow-multicolor-oneplate',
     '--outputdir',
     'output',
     'model.stl',

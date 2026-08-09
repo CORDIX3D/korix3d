@@ -7,9 +7,11 @@ import {
   createWorkerSignatureHeaders,
   parseFilamentProfiles,
   parseGcode,
+  probeExecutable,
   runCrealityAndWait,
   selectFilamentProfile,
 } from './worker-lib.mjs';
+import { startWorkerDashboard } from './dashboard.mjs';
 
 const boundedInteger = (fallback, minimum, maximum) =>
   z.preprocess(
@@ -44,6 +46,7 @@ const workerEnvironmentSchema = z.object({
   // Baza odzyskuje zadanie po 20 minutach, więc worker musi zakończyć próbę wcześniej.
   SLICER_JOB_TIMEOUT_MS: boundedInteger(12 * 60_000, 60_000, 18 * 60_000),
   SLICER_HTTP_TIMEOUT_MS: boundedInteger(60_000, 5_000, 5 * 60_000),
+  SLICER_DASHBOARD_PORT: boundedInteger(4_317, 1_024, 65_535),
 });
 const parsedEnvironment = workerEnvironmentSchema.safeParse(process.env);
 if (!parsedEnvironment.success) {
@@ -66,6 +69,7 @@ const processProfile = workerEnvironment.CREALITY_PROCESS_PROFILE;
 const pollIntervalMs = workerEnvironment.SLICER_POLL_INTERVAL_MS;
 const timeoutMs = workerEnvironment.SLICER_JOB_TIMEOUT_MS;
 const httpTimeoutMs = workerEnvironment.SLICER_HTTP_TIMEOUT_MS;
+const dashboardPort = workerEnvironment.SLICER_DASHBOARD_PORT;
 const workerPrivateKey = await readFile(workerPrivateKeyPath, 'utf8');
 const slicerProcessEnvironment = Object.fromEntries(
   Object.entries(process.env).filter(
@@ -74,6 +78,19 @@ const slicerProcessEnvironment = Object.fromEntries(
 );
 const maxFileBytes = 50 * 1024 * 1024;
 let stopping = false;
+const runtimeState = {
+  status: 'starting',
+  started_at: new Date().toISOString(),
+  last_connected_at: null,
+  last_completed_at: null,
+  last_error: null,
+  current_job_id: null,
+  current_job_name: null,
+};
+
+function updateRuntimeState(patch) {
+  Object.assign(runtimeState, patch);
+}
 
 function sanitizeLogText(value) {
   return String(value || '')
@@ -247,6 +264,19 @@ async function main() {
     access(processProfilePath),
     ...Object.values(filamentProfiles).map((profilePath) => access(profilePath)),
   ]);
+  let dashboardServer = null;
+  try {
+    dashboardServer = await startWorkerDashboard({
+      port: dashboardPort,
+      getRuntimeState: () => ({ ...runtimeState }),
+      getOverview: () => api('/api/slicer/dashboard'),
+    });
+    log('info', 'dashboard_started', { url: `http://127.0.0.1:${dashboardPort}` });
+  } catch (error) {
+    log('error', 'dashboard_start_failed', {
+      message: sanitizeLogText(error instanceof Error ? error.message : error),
+    });
+  }
   log('info', 'started', {
     slicerVersion,
     printerProfile,
@@ -254,31 +284,73 @@ async function main() {
     materials: Object.keys(filamentProfiles),
   });
   let consecutiveFailures = 0;
+  let slicerReady = false;
   while (!stopping) {
     try {
+      if (!slicerReady) {
+        updateRuntimeState({ status: 'starting', last_error: null });
+        try {
+          await probeExecutable(slicerBinary, slicerProcessEnvironment);
+          slicerReady = true;
+          updateRuntimeState({ status: 'idle', last_error: null });
+          log('info', 'slicer_preflight_passed');
+        } catch (error) {
+          const message = sanitizeLogText(error instanceof Error ? error.message : error);
+          updateRuntimeState({ status: 'blocked', last_error: message });
+          log('error', 'slicer_preflight_failed', { message, retryInMs: 60_000 });
+          await sleep(60_000);
+          continue;
+        }
+      }
       const job = await claimJob();
+      updateRuntimeState({ last_connected_at: new Date().toISOString() });
       if (!job) {
         consecutiveFailures = 0;
+        updateRuntimeState({ status: 'idle', current_job_id: null, current_job_name: null });
         await sleep(pollIntervalMs);
         continue;
       }
+      updateRuntimeState({
+        status: 'processing',
+        current_job_id: job.id,
+        current_job_name: job.file_name || `Plik ${job.file_index + 1}`,
+        last_error: null,
+      });
       log('info', 'job_started', { jobId: job.id, attempt: job.attempt_count });
       await processJob(job);
       consecutiveFailures = 0;
+      updateRuntimeState({
+        status: 'idle',
+        last_completed_at: new Date().toISOString(),
+        current_job_id: null,
+        current_job_name: null,
+      });
       log('info', 'job_completed', { jobId: job.id });
     } catch (error) {
       consecutiveFailures += 1;
+      const message = sanitizeLogText(error instanceof Error ? error.message : error);
+      if (/spawn|access|executable|Creality Print/i.test(message)) slicerReady = false;
+      updateRuntimeState({
+        status: slicerReady ? 'error' : 'blocked',
+        last_error: message,
+        current_job_id: null,
+        current_job_name: null,
+      });
       const backoffMs = Math.min(
         60_000,
         pollIntervalMs * (2 ** Math.min(consecutiveFailures - 1, 4))
       );
       log('error', 'iteration_failed', {
-        message: sanitizeLogText(error instanceof Error ? error.message : error),
+        message,
         consecutiveFailures,
         retryInMs: backoffMs,
       });
       if (!stopping) await sleep(backoffMs + Math.floor(Math.random() * 1000));
     }
+  }
+  if (dashboardServer) {
+    dashboardServer.closeAllConnections?.();
+    await new Promise((resolve) => dashboardServer.close(resolve));
   }
   log('info', 'stopped');
 }

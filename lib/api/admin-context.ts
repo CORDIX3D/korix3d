@@ -1,5 +1,6 @@
 import type { User } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { isStaffRole, type AdminPanelRole } from '@/lib/admin-access';
 import { createClient } from '@/lib/supabase/server';
 import {
   getRequiredSupabaseServiceEnv,
@@ -34,7 +35,10 @@ export function adminApiUnavailableResponse() {
   );
 }
 
-export async function requireAdminApiContext(): Promise<AdminApiResult> {
+async function requireApiContext(
+  hasAccess: (role: AdminPanelRole) => boolean,
+  forbiddenMessage: string
+): Promise<AdminApiResult> {
   try {
     const sessionClient = await createClient();
     const { data: auth, error: authError } = await sessionClient.auth.getUser();
@@ -64,10 +68,10 @@ export async function requireAdminApiContext(): Promise<AdminApiResult> {
       return { response: adminApiUnavailableResponse() };
     }
 
-    if (profile?.role !== 'admin') {
+    if (!hasAccess(profile?.role as AdminPanelRole)) {
       return {
         response: NextResponse.json(
-          { error: 'Brak uprawnień administratora.' },
+          { error: forbiddenMessage },
           { status: 403, headers: { 'Cache-Control': 'no-store' } }
         ),
       };
@@ -85,4 +89,18 @@ export async function requireAdminApiContext(): Promise<AdminApiResult> {
     }
     return { response: adminApiUnavailableResponse() };
   }
+}
+
+export function requireAdminApiContext(): Promise<AdminApiResult> {
+  return requireApiContext(
+    (role) => role === 'admin',
+    'Brak uprawnień administratora.'
+  );
+}
+
+export function requireStaffApiContext(): Promise<AdminApiResult> {
+  return requireApiContext(
+    (role) => isStaffRole(role),
+    'Brak uprawnień pracownika.'
+  );
 }

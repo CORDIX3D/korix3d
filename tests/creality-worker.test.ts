@@ -4,8 +4,10 @@ import {
   buildCrealityArguments,
   parseFilamentProfiles,
   parseGcode,
+  probeExecutable,
   selectFilamentProfile,
 } from '../services/creality-slicer-worker/worker-lib.mjs';
+import { startWorkerDashboard } from '../services/creality-slicer-worker/dashboard.mjs';
 
 test('worker buduje oficjalne argumenty CLI Creality Print 7.1', () => {
   const args = buildCrealityArguments({
@@ -51,4 +53,33 @@ test('worker odczytuje realne metadane G-code z Creality Print', () => {
     filament_used_grams: 0.66,
     layer_count: 50,
   });
+});
+
+test('worker sprawdza możliwość uruchomienia programu przed pobraniem zadania', async () => {
+  await probeExecutable(process.execPath, process.env, 5_000);
+});
+
+test('lokalny dashboard workera udostępnia stan i dane produkcji tylko na loopback', async () => {
+  const server = await startWorkerDashboard({
+    port: 0,
+    getRuntimeState: () => ({ status: 'idle' }),
+    getOverview: async () => ({ summary: { pending_calculations: 2 } }),
+  });
+
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    assert.equal(address.address, '127.0.0.1');
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/state`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      runtime: { status: 'idle' },
+      overview: { summary: { pending_calculations: 2 } },
+    });
+    assert.equal(response.headers.get('x-frame-options'), 'DENY');
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
 });

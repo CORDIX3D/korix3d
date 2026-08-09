@@ -56,7 +56,7 @@ const adminNav = [
   {
     title: 'Produkcja',
     items: [
-      { name: 'Kolejka druku', href: '/admin/produkcja', icon: Layers },
+      { name: 'Centrum produkcji', href: '/admin/produkcja', icon: Layers },
       { name: 'Harmonogram', href: '/admin/produkcja/harmonogram', icon: Clock },
       { name: 'Statystyki', href: '/admin/produkcja/statystyki', icon: BarChart3 },
     ],

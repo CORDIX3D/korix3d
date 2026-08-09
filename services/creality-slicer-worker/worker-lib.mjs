@@ -189,3 +189,33 @@ export async function runCrealityAndWait({
     throw new Error(`${error instanceof Error ? error.message : 'Slicing failed'} (${elapsed}s)`);
   }
 }
+
+export async function probeExecutable(binary, environment, timeoutMs = 10_000) {
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    const processHandle = spawn(binary, ['--version'], {
+      shell: false,
+      stdio: 'ignore',
+      env: environment,
+    });
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      if (processHandle.exitCode === null && !processHandle.killed) processHandle.kill('SIGKILL');
+      reject(new Error('Creality Print startup check timed out'));
+    }, timeoutMs);
+    processHandle.once('spawn', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (processHandle.exitCode === null && !processHandle.killed) processHandle.kill('SIGKILL');
+      resolve();
+    });
+    processHandle.once('error', (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}

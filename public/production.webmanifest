@@ -1,0 +1,28 @@
+{
+  "id": "/admin/produkcja",
+  "name": "KORIX3D Centrum produkcji",
+  "short_name": "KORIX3D",
+  "description": "Kalkulacje, zamówienia, płatności i produkcja KORIX3D.",
+  "start_url": "/admin/produkcja",
+  "scope": "/admin/",
+  "lang": "pl",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#090909",
+  "theme_color": "#FF6A00",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

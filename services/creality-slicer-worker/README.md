@@ -16,9 +16,23 @@ OpenAI ani żadnej innej płatnej usługi AI.
 - `CREALITY_PRINTER_PROFILE` i `CREALITY_PROCESS_PROFILE` — czytelne nazwy widoczne w panelu.
 - `CREALITY_PRINT_VERSION` — wersja zainstalowanego slicera.
 - `SLICER_WORKER_ID` — stały identyfikator tego komputera.
+- `SLICER_DASHBOARD_PORT` — port lokalnego panelu, domyślnie `4317`.
 
 Skopiuj `.env.example` do lokalnego, nieśledzonego pliku `worker.env`. Worker
 waliduje zmienne i istnienie wszystkich plików przed pobraniem zadania.
+
+## Aplikacja produkcyjna
+
+Po uruchomieniu workera lokalny panel jest dostępny wyłącznie na tym komputerze
+pod adresem `http://127.0.0.1:4317`. Pokazuje rzeczywisty stan procesu,
+kalkulacje, czas i masę wydruków oraz zamówienia i płatności pobierane z
+KORIX3D podpisanym żądaniem. Panel online `/admin/produkcja` działa również jako
+instalowalna aplikacja PWA na iOS i innych urządzeniach.
+
+Przed pobraniem pierwszego zadania worker wykonuje test uruchomienia Creality
+Print. Jeżeli Windows App Control blokuje plik wykonywalny, worker nie pobiera
+zleceń i ponawia sam test co minutę. Dzięki temu błąd instalacji nie zużywa prób
+zadań klientów.
 
 ## Działanie
 

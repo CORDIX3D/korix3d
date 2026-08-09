@@ -62,14 +62,14 @@ export default function ApplicationDownloadPage() {
               </div>
               <h2 className="mt-6 text-2xl font-bold">Aplikacja na Windows</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Instalator dodaje KORIX3D do pulpitu i menu Start. Aplikacja uruchamia się w osobnym oknie systemowym bez paska przeglądarki.
+                Wersja przenośna bez instalatora, PowerShella i uprawnień administratora. Uruchamia KORIX3D w osobnym oknie systemowym.
               </p>
               <div className="mt-5 rounded-xl border border-white/5 bg-black/20 p-4 text-sm text-zinc-300">
-                Rozpakuj plik ZIP i uruchom „Zainstaluj KORIX3D”. Po instalacji otwieraj aplikację ikoną KORIX3D Produkcja.
+                Rozpakuj ZIP i kliknij dwukrotnie „KORIX3D.cmd”. To wszystko — nie trzeba niczego instalować.
               </div>
               <Button asChild className="mt-7 w-full">
                 <a href="/downloads/KORIX3D-Windows.zip" download>
-                  <Download className="mr-2 h-4 w-4" />Pobierz aplikację Windows
+                  <Download className="mr-2 h-4 w-4" />Pobierz prostą wersję Windows
                 </a>
               </Button>
             </CardContent>

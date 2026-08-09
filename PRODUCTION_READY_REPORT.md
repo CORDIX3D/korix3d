@@ -75,7 +75,7 @@ Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–9 sierp
 | 16 kluczowych `/admin/*` | PASS | zamówienia, wyceny, produkcja, katalog, magazyn, filamenty, dostawa, historia, slicer, AI, księgowość, raporty i ustawienia bez błędów |
 | `/api/health` | PASS | HTTP 200, `{"status":"ok"}`; CSP/HSTS i `no-store` poprawne |
 | Logi Vercel — ostatnie 24 h | PASS | brak zgrupowanych błędów runtime |
-| Aplikacja Windows | PASS | produkcyjny ZIP zawiera instalator `.cmd`/`.ps1`, tworzy skróty w trybie `--app`; stary plik `.url` usunięty |
+| Aplikacja Windows | PASS | uproszczony produkcyjny ZIP zawiera przenośny `KORIX3D.cmd`, działa bez PowerShella, instalatora i uprawnień administratora; tryb `--app` zweryfikowany |
 | Aplikacja iPhone | PASS | manifest HTTP 200, `start_url=/admin/produkcja`, `display=standalone` |
 | `korix3d.pl` DNS | PASS | rekord A `76.76.21.21` |
 | `www.korix3d.pl` DNS i HTTPS | PASS | CNAME `b157fac3bf0a0f6a.vercel-dns-017.com`, TTL 60; Vercel `Valid Configuration`; aktywny TLS i redirect 308 do `https://korix3d.pl/` |

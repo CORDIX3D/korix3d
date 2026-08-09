@@ -1,0 +1,15 @@
+KORIX3D CENTRUM PRODUKCJI — WINDOWS
+
+1. Rozpakuj pobrany plik ZIP.
+2. Przenieś skrót „KORIX3D Produkcja” na pulpit.
+3. Otwórz skrót i zaloguj się kontem pracownika KORIX3D.
+
+Aby uruchamiać panel jak samodzielną aplikację:
+1. Otwórz panel w Microsoft Edge.
+2. Wybierz menu „…” > Aplikacje > Zainstaluj KORIX3D Centrum produkcji.
+3. Zaznacz utworzenie skrótu na pulpicie i w menu Start.
+
+Panel: https://korix3d.pl/admin/produkcja
+Instalacja iOS: https://korix3d.pl/aplikacja
+
+Paczka nie zawiera kluczy, haseł ani danych klientów.

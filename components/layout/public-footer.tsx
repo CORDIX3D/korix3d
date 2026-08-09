@@ -22,6 +22,7 @@ const footerLinks = {
     { name: 'O nas', href: '/#o-nas' },
     { name: 'Portfolio', href: '/portfolio' },
     { name: 'Blog', href: '/blog' },
+    { name: 'Aplikacja', href: '/aplikacja' },
     { name: 'Kariera', href: '/kontakt?temat=kariera' },
   ],
   pomoc: [

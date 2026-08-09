@@ -203,7 +203,10 @@ async function processJob(job) {
   const directory = await mkdtemp(join(tmpdir(), 'korix3d-slicer-'));
   try {
     const inputPath = await downloadInput(job, directory);
-    const filamentProfilePath = selectFilamentProfile(filamentProfiles, job.material_name);
+    const filamentProfilePath = selectFilamentProfile(
+      filamentProfiles,
+      job.material_name || job.material
+    );
     const args = buildCrealityArguments({
       machineProfilePath,
       processProfilePath,

@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
           file_size: Number(inputFile.size || 0),
           download_url: signedFile.signedUrl,
           material: job.material_name,
+          material_name: job.material_name,
           color: job.color,
           infill_percent: job.infill_percent,
           printer_profile: job.printer_profile,

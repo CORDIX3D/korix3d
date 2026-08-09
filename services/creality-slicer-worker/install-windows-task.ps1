@@ -24,16 +24,11 @@ if (-not $privateKeyPath -or -not (Test-Path -LiteralPath $privateKeyPath -PathT
   throw 'Brak prywatnego klucza podpisu workera.'
 }
 
-$keyAcl = Get-Acl -LiteralPath $privateKeyPath
-$keyAcl.SetAccessRuleProtection($true, $false)
 $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$currentUserRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-  $currentIdentity.Name,
-  'FullControl',
-  'Allow'
-)
-$keyAcl.SetAccessRule($currentUserRule)
-Set-Acl -LiteralPath $privateKeyPath -AclObject $keyAcl
+& icacls.exe $privateKeyPath '/inheritance:r' '/grant:r' "$($currentIdentity.Name):(F)" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  throw 'Nie udalo sie zabezpieczyc prywatnego klucza workera.'
+}
 
 $arguments = "--env-file=`"$envFile`" `"$workerFile`""
 $action = New-ScheduledTaskAction -Execute $node -Argument $arguments -WorkingDirectory $workerHome

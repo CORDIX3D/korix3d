@@ -38,6 +38,9 @@ for (const requirement of ['-RestartCount 999', '-MultipleInstances IgnoreNew', 
 if (!claim.includes('createSignedUrl(storagePath, 15 * 60)')) {
   throw new Error('Worker nie otrzymuje krótkotrwałego adresu pobierania.');
 }
+if (!claim.includes('material_name: job.material_name')) {
+  throw new Error('API workera nie zwraca jednoznacznej nazwy materiału.');
+}
 if (!completion.includes("'fail_or_retry_slicing_job'")) {
   throw new Error('Endpoint zakończenia nie uruchamia kontrolowanego retry.');
 }

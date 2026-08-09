@@ -1,6 +1,6 @@
 # Worker Creality Print — produkcja
 
-## Przepływ
+## Architektura
 
 1. Klient wysyła prywatny model do Supabase Storage.
 2. Baza tworzy zadanie oczekujące.
@@ -13,7 +13,7 @@
 Creality Print nie działa na Vercel. Worker musi działać stale na komputerze
 Windows z dostępem wychodzącym HTTPS do `korix3d.pl` i Supabase Storage.
 
-## Instalacja Windows
+## Zdalny host Windows
 
 Wymagane są: Windows 64-bit, Node.js 20 lub nowszy i Creality Print 7.1.
 Utwórz `worker.env` na podstawie `.env.example`, wyłącz dziedziczenie praw NTFS
@@ -36,7 +36,7 @@ Test lokalny na pliku technicznym:
 node --env-file=worker.env verify-local.mjs
 ```
 
-## Odporność i monitoring
+## Timeout, retry i restart
 
 - maksymalny czas próby jest krótszy niż 20-minutowy próg bazy;
 - błąd przejściowy jest ponawiany najwyżej trzy razy;
@@ -50,7 +50,7 @@ Przy awarii sprawdź najpierw `/admin/slicer`, następnie stan zadania Windows i
 log workera. Jeżeli klucz prywatny mógł wyciec, wygeneruj nową parę kluczy,
 zaktualizuj klucz publiczny w aplikacji i uruchom ponownie zadanie.
 
-## Odbiór
+## Odbiór produkcyjny
 
 Przed produkcją zweryfikuj referencyjny model dla PLA i PETG oraz kilku wartości
 wypełnienia. Następnie sprawdź STL, OBJ, STEP i 3MF: pobranie, slicing, czas,

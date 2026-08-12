@@ -3,10 +3,11 @@ import { join } from 'node:path';
 
 const read = (path) => readFile(join(process.cwd(), path), 'utf8');
 
-const [nextConfig, image, ai, home, shop, blog, faq, blogDetail, portfolioDetail, bundle] = await Promise.all([
+const [nextConfig, image, ai, auth, home, shop, blog, faq, blogDetail, portfolioDetail, bundle] = await Promise.all([
   read('next.config.js'),
   read('components/ui/optimized-image.tsx'),
   read('components/ai/ai-wrapper.tsx'),
+  read('lib/providers.tsx'),
   read('app/(public)/page.tsx'),
   read('app/(public)/sklep/page.tsx'),
   read('app/(public)/blog/page.tsx'),
@@ -27,6 +28,9 @@ if (!ai.includes("from 'next/dynamic'") || !ai.includes('ssr: false') || !ai.inc
 }
 if (home.includes("'use client'") || !home.includes('export const revalidate = 300')) {
   throw new Error('Strona główna musi pozostać renderowana serwerowo z okresowym odświeżaniem danych.');
+}
+if (auth.includes("from '@/lib/supabase/client'") || !auth.includes("import('@/lib/supabase/client')") || !auth.includes('hasStoredAuthSession')) {
+  throw new Error('Publiczny dostawca sesji musi ładować klienta Supabase dopiero dla aktywnej sesji lub operacji logowania.');
 }
 for (const [name, source] of [['sklep', shop], ['blog', blog], ['FAQ', faq]]) {
   if (source.includes(".select('*')")) throw new Error(`${name}: publiczne zapytanie nadal pobiera wszystkie kolumny.`);

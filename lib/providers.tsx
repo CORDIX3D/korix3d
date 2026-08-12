@@ -1,9 +1,32 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
-import { Profile } from '@/lib/types/database';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import type { ReactNode } from 'react';
+import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
+import type { Profile } from '@/lib/types/database';
+
+let browserClientPromise: Promise<SupabaseClient> | null = null;
+
+function getBrowserClient() {
+  browserClientPromise ??= import('@/lib/supabase/client').then(({ createClient }) =>
+    createClient() as SupabaseClient
+  );
+  return browserClientPromise;
+}
+
+function hasStoredAuthSession() {
+  try {
+    const localSession = Object.keys(window.localStorage).some(
+      (key) => key.startsWith('sb-') && key.includes('-auth-token')
+    );
+    const cookieSession = document.cookie
+      .split(';')
+      .some((cookie) => /^\s*sb-[^=]+-auth-token(?:\.\d+)?=/.test(cookie));
+    return localSession || cookieSession;
+  } catch {
+    return false;
+  }
+}
 
 interface AuthContextType {
   user: User | null;
@@ -31,10 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const supabase = createClient();
-
   const fetchProfile = useCallback(async (userId: string) => {
     try {
+      const supabase = await getBrowserClient();
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -50,11 +72,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Error:', err);
       return null;
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     let active = true;
     let sessionRequestId = 0;
+    let unsubscribe: (() => void) | undefined;
+
+    if (!hasStoredAuthSession()) {
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
 
     const applySession = async (nextSession: Session | null) => {
       const requestId = ++sessionRequestId;
@@ -76,8 +106,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Get initial session and set up auth listener.
     const getInitialSession = async () => {
       try {
+        const supabase = await getBrowserClient();
+        if (!active) return;
+
         const { data: { session } } = await supabase.auth.getSession();
         await applySession(session);
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          (_event: string, nextSession: Session | null) => {
+            // Do not await inside the callback: Supabase may hold its auth lock
+            // until the callback returns.
+            void applySession(nextSession);
+          }
+        );
+        unsubscribe = () => subscription.unsubscribe();
       } catch (error) {
         console.error('Error getting session:', error);
         if (active) setLoading(false);
@@ -86,23 +128,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void getInitialSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event: string, nextSession: Session | null) => {
-        // Do not await inside the callback: Supabase may hold its auth lock
-        // until the callback returns.
-        void applySession(nextSession);
-      }
-    );
-
     return () => {
       active = false;
-      subscription.unsubscribe();
+      unsubscribe?.();
     };
-  }, [fetchProfile, supabase.auth]);
+  }, [fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
     try {
+      const supabase = await getBrowserClient();
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -112,6 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const profileData = await fetchProfile(data.user.id);
+      setSession(data.session);
+      setUser(data.user);
       setProfile(profileData);
       return { error: null, role: profileData?.role || 'customer' };
     } catch (err) {
@@ -121,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     try {
+      const supabase = await getBrowserClient();
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -141,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    const supabase = await getBrowserClient();
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
@@ -149,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (email: string) => {
     try {
+      const supabase = await getBrowserClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo:
           typeof window !== 'undefined'

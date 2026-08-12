@@ -32,6 +32,8 @@ Subskrybowane zdarzenia:
 - `payment_intent.payment_failed`
 - `charge.refunded`
 
+Stan zweryfikowany 12.08.2026 w Stripe Sandbox: endpoint `KORIX3D Vercel test` jest aktywny, wskazuje na powyższy adres i nasłuchuje wszystkich 6 zdarzeń. Pełny test Checkout i zwrotu pozostaje do wykonania na kontrolowanym produkcie testowym; nie wolno w tym celu aktywować prawdziwego produktu bez jawnej decyzji właściciela sklepu.
+
 Endpoint weryfikuje podpis na surowym body, ogranicza rozmiar żądania, odrzuca nieznane zdarzenia i rejestruje identyfikator zdarzenia w bazie. Ponowne dostarczenie tego samego eventu jest bezpieczne.
 
 ## Przejście TEST → LIVE

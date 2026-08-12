@@ -9,7 +9,7 @@ Commit raportu: bieżący `HEAD` gałęzi `main`
 
 **NIEGOTOWE DO PEŁNEJ PRODUKCJI — 96/100.**
 
-Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Wieloczęściowe 3MF są obsługiwane, a ciężka konwersja działa poza głównym wątkiem. Rzeczywiste lokalne cięcie STL, OBJ i STEP również przeszło; STEP jest bezpłatnie konwertowany przez FreeCAD przed analizą w Creality. Pozostają: zewnętrzna kopia i próba odtworzenia, naprawa historii migracji, realny test Stripe Checkout oraz pełny staging. Stripe live pozostaje wyłączony.
+Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, aktywny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Wieloczęściowe 3MF są obsługiwane, a ciężka konwersja działa poza głównym wątkiem. Rzeczywiste lokalne cięcie STL, OBJ i STEP również przeszło; STEP jest bezpłatnie konwertowany przez FreeCAD przed analizą w Creality. Pozostają: zewnętrzna kopia i próba odtworzenia, naprawa historii migracji, realny test Stripe Checkout oraz pełny staging. Stripe live pozostaje wyłączony.
 
 ## Podsumowanie wykonawcze
 
@@ -22,7 +22,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 - Rozjazd schematu produkcyjnego Supabase został usunięty; wszystkie tabele i kolumny wymagane przez typy aplikacji są obecne.
 - Konto właściciela ma rolę `admin`; dashboard i 15 kluczowych modułów administratora otwierają się bez błędu danych.
 - Supabase Auth używa `https://korix3d.pl`, ma dwa dokładne redirecty, potwierdzenie e-mail, bezpieczną zmianę hasła, wymaganie bieżącego hasła i minimum 8 znaków.
-- Ostatni opublikowany `main` (`cbe944a`) ma zielone GitHub CI i jest wdrożony przez Vercel ze statusem `READY`; obsługuje `korix3d.pl` i ma pozytywny status Vercel w GitHub.
+- Ostatni opublikowany `main` (`a43c832`) ma zielone GitHub CI i jest wdrożony przez Vercel ze statusem `READY`; obsługuje `korix3d.pl` i ma pozytywny status Vercel w GitHub.
 - Vercel ma wymagane zmienne Supabase, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` i publiczny klucz podpisu workera. Worker uwierzytelnia się podpisem asymetrycznym, więc wspólny token nie jest wymagany.
 
 ## Stan 15 etapów
@@ -32,7 +32,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | 1 | Audyt repozytorium | struktura, trasy, konfiguracja i ryzyka rozpoznane | repo i build sprawdzone | Zakończony |
 | 2 | Environment | pełny `.env.example`, walidacja Zod i kontrola CI | wymagane zmienne aplikacji oraz podpis asymetryczny workera skonfigurowane | Zakończony |
 | 3 | Supabase | 61 migracji po bieżącej publikacji, RLS, indeksy, FK, Storage i testy pgTAP | 51 tabel, 124 polityki, 0 tabel bez RLS, 4 buckety; obie ostatnie migracje działają w produkcji | Częściowo |
-| 4 | Stripe | checkout, podpisany/idempotentny webhook, zwroty i dokumentacja | test mode, nowy klucz i webhook 5 zdarzeń skonfigurowane; pełny checkout oczekuje | Częściowo |
+| 4 | Stripe | checkout, podpisany/idempotentny webhook, zwroty i dokumentacja | aktywny test mode i webhook 6 zdarzeń skonfigurowane; pełny checkout oczekuje, ponieważ sklep ma 0 aktywnych produktów | Częściowo |
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | produkcyjny redeploy `Ready`, domena i sekrety testowe podłączone | Zakończony |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
@@ -58,8 +58,8 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | pozostałe `check:*` | PASS | env, Supabase, Stripe, Vercel, domena, monitoring, backup, worker, test plan, performance, SEO, security, docs |
 | `npm test` | PASS | 5 plików, 57/57 testów |
 | `npm audit --omit=dev --audit-level=high` | PASS | 0 podatności produkcyjnych; `nanoid` przypięty do 3.3.17 |
-| produkcyjny Playwright smoke | PASS | 12/12 PASS na desktopie i mobile po aktywacji DNS `www`, TLS i redirectu 308 |
-| pełne CI GitHub | PASS | commit `cbe944a`, przebieg `31581840965`; wszystkie kontrole, build i E2E PASS; status Vercel `success` |
+| produkcyjny Playwright smoke | PASS | 12/12 PASS na desktopie i mobile, ponownie wykonany 12.08.2026 w 90 s |
+| pełne CI GitHub | PASS | commit `a43c832`, przebieg `31583849319`; wszystkie kontrole, build i E2E PASS; status Vercel `success` |
 | test zaszyfrowanej kopii | PASS | `age` 1.3.1; szyfrowanie, SHA-256, odszyfrowanie, rozpakowanie, walidacja manifestu i sprzątanie na sztucznych danych |
 
 ## Testy działającej witryny
@@ -96,7 +96,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Kolejność bezpiecznego uruchomienia
 
-1. Vercel `READY` i zielone CI GitHub dla `cbe944a` — wykonane.
+1. Vercel `READY` i zielone CI GitHub dla `a43c832` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
 3. DNS `www`, HTTPS i redirect 308 — wykonane; pozostały zewnętrzny backup i oficjalna naprawa historii migracji.
 4. Staging: pełne testy formularzy, paneli, magazynu, wyceny i Stripe test.
@@ -107,7 +107,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Git i wdrożenie
 
-Gałąź `main` w GitHub wskazuje commit `cbe944a`. GitHub Actions `31581840965` zakończył wszystkie kontrole powodzeniem. Produkcyjne wdrożenie Vercel `dpl_HjWWzrDGBCtVRtLej7qipW9cax8m` ma status `READY`, pozytywny status GitHub i obsługuje aliasy produkcyjne. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, zweryfikowany most FreeCAD dla STEP oraz poprawiony kontrakt testów akceptacyjnych. Po wdrożeniu `/api/health`, `/wycena` i `/aplikacja` zwracają HTTP 200. Bieżący zestaw lokalny dodaje obowiązkowo szyfrowany eksport DB/Storage oraz test odszyfrowania; oczekuje na publikację po zakończeniu kontroli.
+Gałąź `main` w GitHub wskazuje commit `a43c832`. GitHub Actions `31583849319` zakończył wszystkie kontrole powodzeniem. Produkcyjne wdrożenie Vercel `ERMbP4Aa2g8X3ktz6MbALKjhQGAu` ma status `READY`, pozytywny status GitHub i obsługuje aliasy produkcyjne. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, zweryfikowany most FreeCAD dla STEP, poprawiony kontrakt testów akceptacyjnych oraz obowiązkowo szyfrowany eksport DB/Storage z testem odszyfrowania. Po wdrożeniu `/api/health`, `/wycena` i `/aplikacja` zwracają HTTP 200, a produkcyjny smoke ponownie przeszedł 12/12.
 
 Zmiany lokalne obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
 

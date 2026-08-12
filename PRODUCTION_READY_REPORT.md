@@ -62,6 +62,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | produkcyjny Playwright smoke | PASS | 12/12 PASS na desktopie i mobile, ponownie wykonany 12.08.2026 w 57,5 s |
 | pełne CI GitHub | PASS | commit `415bba0`, przebieg `31594397120`; wszystkie kontrole, build i E2E PASS; status Vercel `success` |
 | Lighthouse mobile — SEO / dostępność / dobre praktyki | PASS | 100 / 94 / 100; wynik performance nie jest bramką odbioru, ponieważ lokalny Chrome nie sprząta profilu (`EPERM`) i kolejne pomiary są niestabilne |
+| obserwacja produkcji | PASS | ponad 30 min po wdrożeniu; 24/24 health HTTP 200 w dodatkowym oknie 19 min 19 s; mediana 209 ms, średnia 301 ms, p95 609 ms, maksimum 1549 ms; 0 klastrów runtime i 0 odpowiedzi 5xx; heartbeat workera 3 s |
 | test zaszyfrowanej kopii | PASS | `age` 1.3.1; szyfrowanie, SHA-256, odszyfrowanie, rozpakowanie, walidacja manifestu i sprzątanie na sztucznych danych |
 
 ## Testy działającej witryny
@@ -94,7 +95,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 1. Wykonać przygotowanym skryptem rzeczywisty zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją. Automatyczne szyfrowanie i kontrola artefaktu są przetestowane; eksport oczekuje na bezpiecznie przekazane hasło połączenia bazy i docelowy klucz `age`, oba poza repozytorium i rozmową.
 2. Naprawić historię wcześniejszych migracji oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ich ponawiać.
 3. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
-4. Wykonać pełną macierz akceptacyjną na stagingu i obserwować produkcję minimum 30 minut.
+4. Wykonać pełną macierz akceptacyjną na osobnym stagingu. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
 
 ## Kolejność bezpiecznego uruchomienia
 
@@ -105,11 +106,13 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 5. Produkcja bez Stripe live: testy logowania, paneli i kontrolowany checkout testowy.
 6. Worker Creality Print: utrzymać stały host i heartbeat; lokalne testy STL, STEP, OBJ i 3MF wykonane.
 7. Stripe live dopiero po pełnym odbiorze: osobne klucze, osobny webhook, mała płatność i refund.
-8. Obserwacja logów, webhooków, stanów magazynowych i kolejki przez minimum 30 minut.
+8. Obserwacja logów, health i kolejki przez minimum 30 minut — wykonana; brak 5xx i klastrów runtime, worker online. Rzeczywiste webhooki Stripe pozostają częścią kontrolowanego testu Checkout.
 
 ## Git i wdrożenie
 
 Ostatni zweryfikowany commit funkcjonalny `main` to `415bba0`. GitHub Actions `31594397120` zakończył wszystkie kontrole powodzeniem. Produkcyjne wdrożenie Vercel `dpl_6Nb1JHzJnXHXfgUeBBSXyBEDmQSA` ma status `READY`, pozytywny status GitHub i obsługuje aliasy produkcyjne. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, zweryfikowany most FreeCAD dla STEP, obowiązkowo szyfrowany eksport DB/Storage oraz optymalizację publicznego ładowania Supabase. Strona główna jest renderowana serwerowo z pięciominutowym odświeżaniem, anonimowy ruch nie pobiera klienta Supabase ani Zod, a bot pobiera wyłącznie publiczne `greeting` i `enabled` z cache'owanego endpointu — bez ujawniania `system_prompt`. Po wdrożeniu produkcyjny smoke przeszedł 12/12 w 57,5 s.
+
+Dokumentacyjny commit `2e7f3a9` ma zielone CI `31595057599` i wdrożenie `dpl_28HM4nxPnMSATHfrqLnCuJcEYnRM` w stanie `READY`; nie zmienił kodu runtime. Podczas następującej po wdrożeniu obserwacji wykonano 24 kolejne odczyty `/api/health` (24/24 HTTP 200), Vercel nie wykazał klastrów błędów ani odpowiedzi 5xx, a worker `Creality Print 7.1` raportował heartbeat sprzed 3 sekund.
 
 Zmiany lokalne obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
 

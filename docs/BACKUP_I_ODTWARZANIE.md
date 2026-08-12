@@ -39,8 +39,12 @@ Repozytorium zawiera `scripts/backup/backup-production.ps1`. Skrypt:
 - pobiera wszystkie obiekty Storage wraz z konfiguracją bucketów;
 - kopiuje bezsekretowy kontrakt środowiska i konfiguracje wdrożenia;
 - liczy SHA-256 każdego obiektu i od razu uruchamia weryfikację.
+- pakuje wynik, szyfruje go publicznym kluczem `age` i zapisuje sumę SHA-256 zaszyfrowanego pliku;
+- usuwa wszystkie tymczasowe jawne pliki zarówno po sukcesie, jak i po błędzie.
 
-Uruchamiaj go na zaufanej maszynie z zainstalowanym Supabase CLI i Node.js. Wartości `SUPABASE_DB_URL`, `NEXT_PUBLIC_SUPABASE_URL` oraz `SUPABASE_SERVICE_ROLE_KEY` ustaw tylko w bieżącej sesji terminala. `KORIX3D_BACKUP_DIR` musi wskazywać zaszyfrowany katalog poza repozytorium. Skrypt celowo odmawia zapisu kopii wewnątrz projektu.
+Uruchamiaj go na zaufanej maszynie z Node.js, bezpłatnym `age` i Supabase CLI (lub `npx`). Wartości `SUPABASE_DB_URL`, `NEXT_PUBLIC_SUPABASE_URL` oraz `SUPABASE_SERVICE_ROLE_KEY` ustaw tylko w bieżącej sesji terminala. `KORIX3D_BACKUP_AGE_RECIPIENT` zawiera wyłącznie publiczny klucz odbiorcy `age1...`. Prywatny klucz przechowuj poza repozytorium i poza katalogiem kopii. `KORIX3D_BACKUP_DIR` musi wskazywać katalog poza repozytorium. Skrypt celowo odmawia zapisu kopii wewnątrz projektu i pozostawia wyłącznie pliki `.tar.age` oraz `.sha256`.
+
+Po każdym eksporcie uruchom `scripts/backup/verify-encrypted-backup.ps1 <plik.tar.age>` z ustawioną zmienną `KORIX3D_BACKUP_AGE_IDENTITY`, wskazującą prywatny klucz. Test sprawdza sumę zaszyfrowanego pliku, odszyfrowuje go do losowego katalogu tymczasowego, weryfikuje bazę i wszystkie obiekty Storage, a następnie usuwa jawne dane testowe.
 
 Nie uruchamiaj tego eksportu w GitHub Actions ani Vercel: artefakt zawiera dane osobowe i prywatne modele klientów. Harmonogram tygodniowy ustaw w systemowym Harmonogramie zadań na dedykowanej maszynie backupowej, a wynik kopiuj do drugiej zaszyfrowanej lokalizacji.
 
@@ -87,7 +91,7 @@ Migracje są przeznaczone do jednokrotnego wykonania w rosnącej kolejności. W 
 
 Test wykonuj kwartalnie wyłącznie do nowego projektu Supabase bez ruchu klientów:
 
-1. Uruchom `node scripts/backup/verify-backup.mjs <katalog-kopii>` i zachowaj wynik.
+1. Uruchom `scripts/backup/verify-encrypted-backup.ps1 <plik.tar.age>` i zachowaj wynik. Nie rozpakowuj kopii ręcznie do stałego katalogu.
 2. Utwórz pusty projekt testowy w tym samym lub zgodnym regionie.
 3. Zastosuj `roles.sql`, `schema.sql` i `data.sql` przez `psql --single-transaction --variable ON_ERROR_STOP=1`; postępuj zgodnie z aktualną instrukcją Supabase przy błędach ról zarządzanych.
 4. Odtwórz `history_schema.sql` i `history_data.sql`, aby zachować historię migracji.

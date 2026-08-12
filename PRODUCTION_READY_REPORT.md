@@ -22,7 +22,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 - Rozjazd schematu produkcyjnego Supabase został usunięty; wszystkie tabele i kolumny wymagane przez typy aplikacji są obecne.
 - Konto właściciela ma rolę `admin`; dashboard i 15 kluczowych modułów administratora otwierają się bez błędu danych.
 - Supabase Auth używa `https://korix3d.pl`, ma dwa dokładne redirecty, potwierdzenie e-mail, bezpieczną zmianę hasła, wymaganie bieżącego hasła i minimum 8 znaków.
-- Ostatni opublikowany `main` (`a6184dc`) jest wdrożony przez Vercel ze statusem `READY`, obsługuje `korix3d.pl` i ma pozytywny status Vercel w GitHub.
+- Ostatni opublikowany `main` (`cbe944a`) ma zielone GitHub CI i jest wdrożony przez Vercel ze statusem `READY`; obsługuje `korix3d.pl` i ma pozytywny status Vercel w GitHub.
 - Vercel ma wymagane zmienne Supabase, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` i publiczny klucz podpisu workera. Worker uwierzytelnia się podpisem asymetrycznym, więc wspólny token nie jest wymagany.
 
 ## Stan 15 etapów
@@ -36,7 +36,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | produkcyjny redeploy `Ready`, domena i sekrety testowe podłączone | Zakończony |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
-| 8 | Backup | eksport DB/Storage, checksumy i próba restore | wewnętrzna kopia 31 tabel/278 rekordów wykonana; zewnętrzny eksport i restore oczekują | Częściowo |
+| 8 | Backup | eksport DB/Storage, obowiązkowe szyfrowanie `age`, checksumy i automatyczne usuwanie jawnych danych | wewnętrzna kopia 31 tabel/278 rekordów wykonana; próbne szyfrowanie, odszyfrowanie i kontrola kompletności PASS; rzeczywisty zewnętrzny eksport i restore bazy oczekują | Częściowo |
 | 9 | Worker Creality | timeout, retry, heartbeat, panel produkcji, zadanie Windows, profile, zgodność 3MF i most FreeCAD dla STEP | worker online; 4 rzeczywiste wyceny 3MF; lokalny pipeline STL, OBJ i STEP zaliczony | Zakończony lokalnie |
 | 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; panel klienta 8/8 i kluczowe widoki admina 16/16 PASS | Częściowo |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | Core Web Vitals po wdrożeniu oczekują | Zakończony lokalnie |
@@ -59,11 +59,12 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | `npm test` | PASS | 5 plików, 57/57 testów |
 | `npm audit --omit=dev --audit-level=high` | PASS | 0 podatności produkcyjnych; `nanoid` przypięty do 3.3.17 |
 | produkcyjny Playwright smoke | PASS | 12/12 PASS na desktopie i mobile po aktywacji DNS `www`, TLS i redirectu 308 |
-| pełne CI GitHub | PASS | commit `a6184dc`, status Vercel `success` |
+| pełne CI GitHub | PASS | commit `cbe944a`, przebieg `31581840965`; wszystkie kontrole, build i E2E PASS; status Vercel `success` |
+| test zaszyfrowanej kopii | PASS | `age` 1.3.1; szyfrowanie, SHA-256, odszyfrowanie, rozpakowanie, walidacja manifestu i sprzątanie na sztucznych danych |
 
 ## Testy działającej witryny
 
-Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–9 sierpnia 2026:
+Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–12 sierpnia 2026:
 
 | Obszar | Wynik | Dowód |
 | --- | --- | --- |
@@ -88,14 +89,14 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Krytyczne blokady przed produkcją
 
-1. Wykonać zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją.
+1. Wykonać przygotowanym skryptem rzeczywisty zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją. Automatyczne szyfrowanie i kontrola artefaktu są przetestowane; eksport oczekuje na bezpiecznie przekazane hasło połączenia bazy i docelowy klucz `age`, oba poza repozytorium i rozmową.
 2. Naprawić historię wcześniejszych migracji oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ich ponawiać.
 3. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
 4. Wykonać pełną macierz akceptacyjną na stagingu i obserwować produkcję minimum 30 minut.
 
 ## Kolejność bezpiecznego uruchomienia
 
-1. Vercel `READY` i zielone CI GitHub dla `50ffc4f` — wykonane.
+1. Vercel `READY` i zielone CI GitHub dla `cbe944a` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
 3. DNS `www`, HTTPS i redirect 308 — wykonane; pozostały zewnętrzny backup i oficjalna naprawa historii migracji.
 4. Staging: pełne testy formularzy, paneli, magazynu, wyceny i Stripe test.
@@ -106,7 +107,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Git i wdrożenie
 
-Gałąź `main` w GitHub wskazuje commit `50ffc4f`. Produkcyjne wdrożenie Vercel `dpl_5yTx3gMp6tSnikByftH8oE4CQBV5` ma status `READY` i obsługuje aliasy `korix3d.pl`, `www.korix3d.pl` oraz `korix3d.vercel.app`. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, testy i publikację brakującej migracji zabezpieczeń Supabase. Po wdrożeniu `/api/health`, `/wycena` i `/aplikacja` zwracają HTTP 200, a Vercel nie wykazuje błędów runtime dla tych tras. Bieżący zestaw lokalny dodaje zweryfikowaną obsługę STEP przez FreeCAD i oczekuje na publikację.
+Gałąź `main` w GitHub wskazuje commit `cbe944a`. GitHub Actions `31581840965` zakończył wszystkie kontrole powodzeniem. Produkcyjne wdrożenie Vercel `dpl_HjWWzrDGBCtVRtLej7qipW9cax8m` ma status `READY`, pozytywny status GitHub i obsługuje aliasy produkcyjne. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, zweryfikowany most FreeCAD dla STEP oraz poprawiony kontrakt testów akceptacyjnych. Po wdrożeniu `/api/health`, `/wycena` i `/aplikacja` zwracają HTTP 200. Bieżący zestaw lokalny dodaje obowiązkowo szyfrowany eksport DB/Storage oraz test odszyfrowania; oczekuje na publikację po zakończeniu kontroli.
 
 Zmiany lokalne obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
 

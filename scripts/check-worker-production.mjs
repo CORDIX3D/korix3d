@@ -5,6 +5,8 @@ const root = process.cwd();
 const worker = await readFile(join(root, 'services/creality-slicer-worker/worker.mjs'), 'utf8');
 const workerLibrary = await readFile(join(root, 'services/creality-slicer-worker/worker-lib.mjs'), 'utf8');
 const threeMfFallback = await readFile(join(root, 'services/creality-slicer-worker/three-mf-to-stl.mjs'), 'utf8');
+const threeMfWorker = await readFile(join(root, 'services/creality-slicer-worker/three-mf-converter-worker.mjs'), 'utf8');
+const threeMfClient = await readFile(join(root, 'services/creality-slicer-worker/three-mf-converter-client.mjs'), 'utf8');
 const installer = await readFile(join(root, 'services/creality-slicer-worker/install-windows-task.ps1'), 'utf8');
 const claim = await readFile(join(root, 'app/api/slicer/jobs/claim/route.ts'), 'utf8');
 const heartbeat = await readFile(join(root, 'app/api/slicer/heartbeat/route.ts'), 'utf8');
@@ -18,13 +20,19 @@ for (const requirement of [
   '18 * 60_000',
   'buildCrealityArguments',
   'selectFilamentProfile',
-  'convert3mfToBinaryStl',
   'three_mf_compatibility_prepared',
   'processJobWithHeartbeat',
+  'convert3mfInWorker',
   "api('/api/slicer/heartbeat'",
   'process.exitCode = 1',
 ]) {
   if (!worker.includes(requirement)) throw new Error(`Worker nie zawiera: ${requirement}`);
+}
+if (!threeMfWorker.includes('workerData') || !threeMfWorker.includes('convert3mfToBinaryStl')) {
+  throw new Error('Konwerter 3MF nie jest uruchamiany w odizolowanym wątku.');
+}
+if (!threeMfClient.includes("new Worker(") || !threeMfClient.includes('conversion timed out')) {
+  throw new Error('Klient konwertera 3MF nie kontroluje osobnego wątku i timeoutu.');
 }
 for (const requirement of ['JSZip.loadAsync', '3dmodel\\.model', 'binaryStl']) {
   if (!threeMfFallback.includes(requirement)) {

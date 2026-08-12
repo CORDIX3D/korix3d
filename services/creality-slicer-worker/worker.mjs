@@ -12,7 +12,7 @@ import {
   selectFilamentProfile,
 } from './worker-lib.mjs';
 import { startWorkerDashboard } from './dashboard.mjs';
-import { convert3mfToBinaryStl } from './three-mf-to-stl.mjs';
+import { convert3mfInWorker } from './three-mf-converter-client.mjs';
 
 const boundedInteger = (fallback, minimum, maximum) =>
   z.preprocess(
@@ -279,7 +279,11 @@ async function processJob(job) {
     let modelPath = inputPath;
     if (extname(inputPath).toLowerCase() === '.3mf') {
       const fallbackPath = join(directory, 'input-3mf-compatibility.stl');
-      const conversion = await convert3mfToBinaryStl(inputPath, fallbackPath);
+      const conversion = await convert3mfInWorker(
+        inputPath,
+        fallbackPath,
+        Math.min(timeoutMs, 10 * 60_000)
+      );
       warnings.push('Plik 3MF został przygotowany jako neutralna geometria przed analizą w Creality Print.');
       log('info', 'three_mf_compatibility_prepared', {
         jobId: job.id,

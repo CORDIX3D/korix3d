@@ -57,5 +57,10 @@ Podczas długiego cięcia worker wysyła osobny heartbeat co 30 sekund. Panel
 administratora nie oznacza dzięki temu działającego workera jako offline, gdy
 Creality Print nadal analizuje duży model.
 
+Przygotowanie dużego lub wieloczęściowego 3MF działa w odizolowanym wątku,
+więc nie blokuje panelu ani heartbeat. Konwerter zapisuje STL bez przechowywania
+drugiej pełnej kopii siatki w pamięci. Pomiar rzeczywistego modelu 701 428
+trójkątów zakończył przygotowanie geometrii w około 11 sekund.
+
 Creality Print jest objęty AGPL-3.0; sposób wdrożenia musi zachować warunki tej
 licencji.

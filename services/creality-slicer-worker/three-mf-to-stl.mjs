@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { posix } from 'node:path';
 import JSZip from 'jszip';
 
 const identity = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
@@ -66,7 +67,21 @@ function normal(a, b, c) {
   return [nx / length, ny / length, nz / length];
 }
 
-function parseModel(xml) {
+function normalizeModelPath(value, currentPath = '') {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(String(value || '').replace(/\\/g, '/'));
+  } catch {
+    decoded = String(value || '').replace(/\\/g, '/');
+  }
+  if (!decoded) return currentPath;
+  const combined = decoded.startsWith('/')
+    ? decoded.slice(1)
+    : posix.join(posix.dirname(currentPath), decoded);
+  return posix.normalize(combined).replace(/^\.\.\//g, '');
+}
+
+function parseModel(xml, modelPath) {
   const modelAttributes = attributes(xml.match(/<(?:[\w.-]+:)?model\b([^>]*)>/i)?.[1] || '');
   const scale = unitScale[String(modelAttributes.unit || 'millimeter').toLowerCase()];
   if (!scale) throw new Error(`Unsupported 3MF unit: ${modelAttributes.unit}`);
@@ -85,56 +100,86 @@ function parseModel(xml) {
     });
     const components = [...body.matchAll(/<(?:[\w.-]+:)?component\b([^>]*)\/?\s*>/gi)].map((match) => {
       const value = attributes(match[1]);
-      return { objectId: value.objectid, transform: transform(value.transform) };
+      return {
+        objectId: value.objectid,
+        modelPath: value.path || null,
+        transform: transform(value.transform),
+      };
     });
     objects.set(id, { vertices, triangles, components });
   }
   const buildBody = xml.match(/<(?:[\w.-]+:)?build\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?build>/i)?.[1] || '';
   const items = [...buildBody.matchAll(/<(?:[\w.-]+:)?item\b([^>]*)\/?\s*>/gi)].map((match) => {
     const value = attributes(match[1]);
-    return { objectId: value.objectid, transform: transform(value.transform) };
+    return {
+      objectId: value.objectid,
+      modelPath: value.path || null,
+      transform: transform(value.transform),
+    };
   });
-  if (!objects.size || !items.length) throw new Error('3MF does not contain printable build items');
-  return { objects, items, scale };
+  return { path: modelPath, objects, items, scale };
 }
 
-function collectTriangles(model) {
-  const output = [];
-  const visit = (objectId, parentTransform, stack) => {
-    if (!objectId || stack.has(objectId) || stack.size > 64) throw new Error('3MF contains a cyclic or invalid component hierarchy');
-    const object = model.objects.get(objectId);
-    if (!object) throw new Error(`3MF references missing object ${objectId}`);
-    const nextStack = new Set(stack).add(objectId);
+function visitTriangles(model, onTriangle) {
+  let triangleCount = 0;
+  const resolvePath = (value, currentPath) => {
+    const normalized = normalizeModelPath(value, currentPath);
+    return model.paths.get(normalized.toLowerCase()) || normalized;
+  };
+  const visit = (modelPath, objectId, parentTransform, stack) => {
+    const reference = `${modelPath.toLowerCase()}#${objectId}`;
+    if (!objectId || stack.has(reference) || stack.size > 64) throw new Error('3MF contains a cyclic or invalid component hierarchy');
+    const document = model.documents.get(modelPath);
+    if (!document) throw new Error(`3MF references missing model part ${modelPath}`);
+    if (document.scale !== model.root.scale) throw new Error('3MF model parts use incompatible units');
+    const object = document.objects.get(objectId);
+    if (!object) throw new Error(`3MF references missing object ${objectId} in ${modelPath}`);
+    const nextStack = new Set(stack).add(reference);
     const mirrored = determinant(parentTransform) < 0;
     for (const indices of object.triangles) {
       const vertices = indices.map((index) => object.vertices[index]);
       if (vertices.some((vertex) => !vertex)) throw new Error('3MF triangle references a missing vertex');
-      const transformed = vertices.map((vertex) => apply(vertex, parentTransform, model.scale));
+      const transformed = vertices.map((vertex) => apply(vertex, parentTransform, model.root.scale));
       if (mirrored) [transformed[1], transformed[2]] = [transformed[2], transformed[1]];
-      output.push(transformed);
-      if (output.length > 5_000_000) throw new Error('3MF contains too many triangles');
+      triangleCount += 1;
+      if (triangleCount > 5_000_000) throw new Error('3MF contains too many triangles');
+      onTriangle?.(transformed);
     }
-    for (const component of object.components) visit(component.objectId, multiply(component.transform, parentTransform), nextStack);
+    for (const component of object.components) {
+      visit(
+        resolvePath(component.modelPath, modelPath),
+        component.objectId,
+        multiply(component.transform, parentTransform),
+        nextStack
+      );
+    }
   };
-  for (const item of model.items) visit(item.objectId, item.transform, new Set());
-  if (!output.length) throw new Error('3MF does not contain a printable triangle mesh');
-  return output;
+  for (const item of model.root.items) {
+    visit(
+      resolvePath(item.modelPath, model.root.path),
+      item.objectId,
+      item.transform,
+      new Set()
+    );
+  }
+  if (!triangleCount) throw new Error('3MF does not contain a printable triangle mesh');
+  return triangleCount;
 }
 
-function binaryStl(triangles) {
-  const buffer = Buffer.allocUnsafe(84 + triangles.length * 50);
+function binaryStl(model, triangleCount) {
+  const buffer = Buffer.allocUnsafe(84 + triangleCount * 50);
   buffer.fill(0, 0, 80);
   buffer.write('KORIX3D 3MF compatibility conversion', 0, 'ascii');
-  buffer.writeUInt32LE(triangles.length, 80);
+  buffer.writeUInt32LE(triangleCount, 80);
   let offset = 84;
-  for (const triangle of triangles) {
+  visitTriangles(model, (triangle) => {
     for (const value of [...normal(...triangle), ...triangle.flat()]) {
       buffer.writeFloatLE(value, offset);
       offset += 4;
     }
     buffer.writeUInt16LE(0, offset);
     offset += 2;
-  }
+  });
   return buffer;
 }
 
@@ -144,7 +189,24 @@ export async function convert3mfToBinaryStl(inputPath, outputPath) {
   const modelEntry = entries.find((entry) => !entry.dir && /(?:^|\/)3dmodel\.model$/i.test(entry.name))
     || entries.find((entry) => !entry.dir && /\.model$/i.test(entry.name));
   if (!modelEntry) throw new Error('3MF archive does not contain a model document');
-  const triangles = collectTriangles(parseModel(await modelEntry.async('string')));
-  await writeFile(outputPath, binaryStl(triangles));
-  return { triangleCount: triangles.length };
+  const modelEntries = entries.filter((entry) => !entry.dir && /\.model$/i.test(entry.name));
+  const documents = new Map();
+  const paths = new Map();
+  const parsedDocuments = await Promise.all(modelEntries.map(async (entry) => {
+    const modelPath = normalizeModelPath(entry.name);
+    return [modelPath, parseModel(await entry.async('string'), modelPath)];
+  }));
+  for (const [modelPath, document] of parsedDocuments) {
+    documents.set(modelPath, document);
+    paths.set(modelPath.toLowerCase(), modelPath);
+  }
+  const rootPath = paths.get(normalizeModelPath(modelEntry.name).toLowerCase());
+  const root = rootPath ? documents.get(rootPath) : null;
+  if (!root?.objects.size || !root.items.length) {
+    throw new Error('3MF does not contain printable build items');
+  }
+  const model = { documents, paths, root };
+  const triangleCount = visitTriangles(model);
+  await writeFile(outputPath, binaryStl(model, triangleCount));
+  return { triangleCount };
 }

@@ -13,6 +13,7 @@ import {
 } from '../services/creality-slicer-worker/worker-lib.mjs';
 import { startWorkerDashboard } from '../services/creality-slicer-worker/dashboard.mjs';
 import { convert3mfToBinaryStl } from '../services/creality-slicer-worker/three-mf-to-stl.mjs';
+import { convert3mfInWorker } from '../services/creality-slicer-worker/three-mf-converter-client.mjs';
 
 test('worker konwertuje standardowy model 3MF do binarnego STL z zachowaniem skali', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'korix3d-3mf-test-'));
@@ -41,6 +42,66 @@ test('worker konwertuje standardowy model 3MF do binarnego STL z zachowaniem ska
       [stl.readFloatLE(96), stl.readFloatLE(100), stl.readFloatLE(104)],
       [20, 30, 40]
     );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('worker konwertuje wieloczęściowy 3MF z odwołaniem do zewnętrznego modelu', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'korix3d-3mf-parts-test-'));
+  const inputPath = join(directory, 'model.3mf');
+  const outputPath = join(directory, 'model.stl');
+  const zip = new JSZip();
+  zip.file('3D/3dmodel.model', `<?xml version="1.0" encoding="UTF-8"?>
+    <model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
+      xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">
+      <resources><object id="2" type="model"><components>
+        <component objectid="1" p:path="/3D/Objects/mesh.model" transform="1 0 0 0 1 0 0 0 1 5 6 7"/>
+      </components></object></resources>
+      <build><item objectid="2"/></build>
+    </model>`);
+  zip.file('3D/Objects/mesh.model', `<?xml version="1.0" encoding="UTF-8"?>
+    <model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+      <resources><object id="1" type="model"><mesh>
+        <vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices>
+        <triangles><triangle v1="0" v2="1" v3="2"/></triangles>
+      </mesh></object></resources><build/>
+    </model>`);
+  await writeFile(inputPath, await zip.generateAsync({ type: 'nodebuffer' }));
+
+  try {
+    const result = await convert3mfToBinaryStl(inputPath, outputPath);
+    const stl = await readFile(outputPath);
+    assert.deepEqual(result, { triangleCount: 1 });
+    assert.deepEqual(
+      [stl.readFloatLE(96), stl.readFloatLE(100), stl.readFloatLE(104)],
+      [5, 6, 7]
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('worker izoluje konwersję 3MF od heartbeat i panelu', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'korix3d-3mf-worker-test-'));
+  const inputPath = join(directory, 'model.3mf');
+  const outputPath = join(directory, 'model.stl');
+  const zip = new JSZip();
+  zip.file('3D/3dmodel.model', `<?xml version="1.0" encoding="UTF-8"?>
+    <model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+      <resources><object id="1" type="model"><mesh>
+        <vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices>
+        <triangles><triangle v1="0" v2="1" v3="2"/></triangles>
+      </mesh></object></resources><build><item objectid="1"/></build>
+    </model>`);
+  await writeFile(inputPath, await zip.generateAsync({ type: 'nodebuffer' }));
+
+  try {
+    assert.deepEqual(
+      await convert3mfInWorker(inputPath, outputPath, 5_000),
+      { triangleCount: 1 }
+    );
+    assert.equal((await readFile(outputPath)).readUInt32LE(80), 1);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

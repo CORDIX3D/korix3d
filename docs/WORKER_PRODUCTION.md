@@ -54,6 +54,8 @@ node --env-file=worker.env verify-local.mjs
 - `/admin/slicer` pokazuje heartbeat, profil i stan kolejki.
 - podczas aktywnego cięcia osobny heartbeat jest wysyłany co 30 sekund, więc
   status online nie zależy od czasu potrzebnego na wygenerowanie G-code;
+- przygotowanie wieloczęściowego 3MF działa w osobnym wątku i nie blokuje
+  lokalnego panelu; limit czasu konwersji jest krótszy od limitu całego zadania;
 
 Przy awarii sprawdź najpierw `/admin/slicer`, następnie stan zadania Windows i
 log workera. Jeżeli klucz prywatny mógł wyciec, wygeneruj nową parę kluczy,

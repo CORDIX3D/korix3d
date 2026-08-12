@@ -1,10 +1,7 @@
-'use client';
-
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   ArrowRight,
   Box,
@@ -20,7 +17,7 @@ import {
   FileBox,
   Timer,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
+import { getRequiredSupabaseEnv } from '@/lib/supabase/env';
 import {
   PUBLIC_MATERIAL_COLUMNS,
   type PublicMaterial,
@@ -107,36 +104,53 @@ const particles = Array.from({ length: 20 }, (_, index) => ({
   animationDuration: `${15 + (index % 6) * 1.5}s`,
 }));
 
-export default function HomePage() {
-  const [portfolio, setPortfolio] = useState<PublicPortfolioItem[]>([]);
-  const [materials, setMaterials] = useState<PublicMaterial[]>([]);
-  const [materialsLoading, setMaterialsLoading] = useState(true);
+export const revalidate = 300;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const [portfolioResult, materialsResult] = await Promise.all([
-        supabase
-          .from('portfolio_items')
-          .select(PUBLIC_PORTFOLIO_COLUMNS)
-          .eq('active', true)
-          .eq('featured', true)
-          .order('sort_order')
-          .limit(6),
-        supabase
-          .from('materials')
-          .select(PUBLIC_MATERIAL_COLUMNS)
-          .eq('available', true)
-          .order('name')
-          .limit(6),
-      ]);
+async function loadHomeContent() {
+  try {
+    const { url, anonKey } = getRequiredSupabaseEnv();
+    const supabase = createClient(url, anonKey, {
+      auth: {
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        persistSession: false,
+      },
+    });
 
-      if (portfolioResult.data) setPortfolio(portfolioResult.data as PublicPortfolioItem[]);
-      if (materialsResult.data) setMaterials(materialsResult.data as PublicMaterial[]);
-      setMaterialsLoading(false);
+    const [portfolioResult, materialsResult] = await Promise.all([
+      supabase
+        .from('portfolio_items')
+        .select(PUBLIC_PORTFOLIO_COLUMNS)
+        .eq('active', true)
+        .eq('featured', true)
+        .order('sort_order')
+        .limit(6),
+      supabase
+        .from('materials')
+        .select(PUBLIC_MATERIAL_COLUMNS)
+        .eq('available', true)
+        .order('name')
+        .limit(6),
+    ]);
+
+    return {
+      portfolio: portfolioResult.error
+        ? []
+        : (portfolioResult.data as PublicPortfolioItem[]),
+      materials: materialsResult.error
+        ? []
+        : (materialsResult.data as PublicMaterial[]),
     };
+  } catch {
+    return {
+      portfolio: [] as PublicPortfolioItem[],
+      materials: [] as PublicMaterial[],
+    };
+  }
+}
 
-    fetchData();
-  }, []);
+export default async function HomePage() {
+  const { portfolio, materials } = await loadHomeContent();
 
   return (
     <div className="relative overflow-hidden">
@@ -334,31 +348,25 @@ export default function HomePage() {
           </div>
 
           {/* Material Cards */}
-          {materialsLoading ? (
-            <div className="mb-8 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6" aria-label="Ładowanie materiałów">
-              {Array.from({ length: 6 }, (_, index) => (
-                <div key={index} className="h-36 animate-pulse rounded-xl border border-border bg-card" />
+          {materials.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-8">
+              {materials.map((material, index) => (
+                <Link
+                  key={material.id}
+                  href={`/materialy/${material.slug}`}
+                  className="group bg-card border border-border rounded-xl p-4 hover:border-primary/50 transition-all text-center"
+                >
+                  <div
+                    className="w-12 h-12 mx-auto rounded-full mb-3 border-2 border-border"
+                    style={{ backgroundColor: materialColors[index % materialColors.length] }}
+                  />
+                  <h3 className="font-semibold text-foreground mb-1">{material.name}</h3>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">
+                    {material.description || 'Materiał dostępny do wyceny wydruku 3D'}
+                  </p>
+                </Link>
               ))}
             </div>
-          ) : materials.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-8">
-            {materials.map((material, index) => (
-              <Link
-                key={material.id}
-                href={`/materialy/${material.slug}`}
-                className="group bg-card border border-border rounded-xl p-4 hover:border-primary/50 transition-all text-center"
-              >
-                <div
-                  className="w-12 h-12 mx-auto rounded-full mb-3 border-2 border-border"
-                  style={{ backgroundColor: materialColors[index % materialColors.length] }}
-                />
-                <h3 className="font-semibold text-foreground mb-1">{material.name}</h3>
-                <p className="line-clamp-2 text-xs text-muted-foreground">
-                  {material.description || 'Materiał dostępny do wyceny wydruku 3D'}
-                </p>
-              </Link>
-            ))}
-          </div>
           ) : (
             <div className="mb-8 rounded-xl border border-dashed border-border bg-card/50 p-8 text-center">
               <p className="font-medium">Lista materiałów jest obecnie aktualizowana.</p>

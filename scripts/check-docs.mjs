@@ -7,7 +7,7 @@ const requiredDocuments = [
   ['docs/BEZPIECZENSTWO.md', ['## Warstwy ochrony', '## Nagłówki i przeglądarka', '## Sekrety', '## Zależności', '## Reakcja na incydent']],
   ['docs/SEO.md', ['## Zakres techniczny', '## Google Search Console', '## Bing Webmaster Tools', '## Odbiór po wdrożeniu']],
   ['docs/PERFORMANCE.md', ['## Budżety', '## Zastosowane optymalizacje', '## Cache i dane dynamiczne', '## Kontrola po wdrożeniu']],
-  ['docs/PRODUCTION_TESTS.md', ['## Zasady bezpieczeństwa', '## Macierz odbioru', '## Stan testów 29 lipca 2026']],
+  ['docs/PRODUCTION_TESTS.md', ['## Zasady bezpieczeństwa', '## Macierz odbioru', '## Stan testów 12 sierpnia 2026']],
   ['README.md', ['## Uruchomienie lokalne', '## Kontrola przed wdrożeniem', '## Dokumentacja']],
   ['docs/WDROZENIE.md', ['## 2. Wymagane zmienne Vercel', '## 3. Supabase', '## 4. Vercel', '## 5. Stripe', '## 8. Staging, backup i rollback']],
   ['docs/ARCHITEKTURA.md', ['## Główne elementy', '## Krytyczne przepływy', '## Dane i migracje', '## Monitoring']],

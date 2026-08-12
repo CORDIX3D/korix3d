@@ -14,6 +14,7 @@ import {
 import { startWorkerDashboard } from '../services/creality-slicer-worker/dashboard.mjs';
 import { convert3mfToBinaryStl } from '../services/creality-slicer-worker/three-mf-to-stl.mjs';
 import { convert3mfInWorker } from '../services/creality-slicer-worker/three-mf-converter-client.mjs';
+import { convertStepToStl } from '../services/creality-slicer-worker/step-converter.mjs';
 
 test('worker konwertuje standardowy model 3MF do binarnego STL z zachowaniem skali', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'korix3d-3mf-test-'));
@@ -138,6 +139,26 @@ test('worker buduje oficjalne argumenty CLI Creality Print 7.1', () => {
     'output',
     'model.stl',
   ]);
+});
+
+test('worker odrzuca nieskuteczną konwersję STEP bez pliku STL', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'korix3d-step-worker-test-'));
+  try {
+    await writeFile(join(directory, 'empty-script.js'), 'process.exit(0);');
+    await assert.rejects(
+      convertStepToStl({
+        binary: process.execPath,
+        scriptPath: join(directory, 'empty-script.js'),
+        inputPath: join(directory, 'input.step'),
+        outputPath: join(directory, 'missing.stl'),
+        environment: process.env,
+        timeoutMs: 5_000,
+      }),
+      /did not create a valid STL mesh/
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('worker wybiera profil filamentu bez względu na wielkość liter', () => {

@@ -31,22 +31,25 @@ Workflow `KORIX3D production smoke` jest uruchamiany ręcznie, aby nie generowa�
 | Magazyn | Nie | staging, administrator | Oczekuje |
 | Panel klienta | Kontrola ochrony anonimowej | konto klienta | Błąd danych na produkcji |
 | Panel administratora | Kontrola ochrony anonimowej | konto administratora | Brak odpowiedniej roli testowej |
-| Upload STL | Tylko kontrola formularza bez wysłania | staging + bezpieczny plik testowy | Częściowo |
-| Kalkulator | Tylko stan początkowy | staging + działający worker | Oczekuje |
+| Upload STL/OBJ/STEP/3MF | Kontrola formularza bez zapisu | lokalny pipeline zaliczony; pełny przepływ na staging | Częściowo |
+| Kalkulator | Stan początkowy i działający worker | pełny przepływ na staging | Częściowo |
 | Blog | Render strony | staging/produkcja | Częściowo |
 | Kontakt | Render strony | staging + testowa skrzynka | Oczekuje |
 | Wyszukiwarka | Wyszukiwanie bez zapisu | produkcja | Objęte smoke testem |
 | AI | Otwarcie lokalnego asystenta bez płatnego API | produkcja | Odpowiedź magazynowa potwierdzona ręcznie |
 | Raporty | Nie | staging, administrator | Oczekuje |
 
-## Stan testów 29 lipca 2026
+## Stan testów 12 sierpnia 2026
 
 - Strona główna i najważniejsze strony publiczne renderują się.
 - Lokalny asystent KORIX AI odpowiedział danymi zgodnymi z widocznym stanem magazynowym, bez OpenAI API.
-- Panel klienta wyświetla błędy pobierania danych w kilku modułach. Najbardziej prawdopodobną przyczyną jest brak aktualnych migracji lub różnica schematu/RLS w produkcyjnym Supabase.
-- Konto użyte podczas kontroli nie ma roli administratora; wejście na `/admin` prowadzi do panelu klienta.
-- `www.korix3d.pl` nie ma jeszcze działającego DNS, więc test przekierowania ma obecnie wykrywać błąd.
-- Lokalny Vitest nie uruchomił się w ograniczonym środowisku z powodu odmowy dostępu narzędzia budującego do katalogu nadrzędnego. To nie był błąd asercji testu.
-- Lokalny Playwright osiągał oczekiwane widoki, ale procesy przeglądarki nie kończyły się poprawnie w ograniczonym środowisku. Pełny wynik zapewni CI po wysłaniu commitów.
+- Panel klienta przeszedł odbiór 8/8, a 16 kluczowych widoków administratora otwiera się bez błędu danych.
+- Produkcyjny Supabase ma aktualne wymagane tabele, kolumny, RLS, polityki i Storage.
+- `www.korix3d.pl` ma aktywny DNS, TLS i przekierowanie 308 do domeny głównej.
+- Vitest przechodzi 57/57, a produkcyjny smoke przechodzi 12/12 na desktopie i mobile.
+- Worker jest uruchamiany automatycznie jako zadanie Windows, ma heartbeat, retry i lokalny panel.
+- Rzeczywiste cięcie STL i OBJ dało 174 s, 0,66 g i 50 warstw dla kostki 10 mm.
+- Rzeczywisty STEP został lokalnie przekonwertowany przez FreeCAD i pocięty przez Creality: 9 s, 0,01 g i 10 warstw.
 
-Pełny odbiór wymaga: aktualizacji produkcyjnego Supabase, kont testowych klient/admin, staging, test mode Stripe, hosta workera oraz działającego DNS `www`.
+Pełny odbiór nadal wymaga: osobnego stagingu, pełnych przepływów tworzących dane,
+Stripe test mode oraz próby zewnętrznego odtworzenia backupu.

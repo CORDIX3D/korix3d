@@ -1,6 +1,7 @@
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
   buildCrealityArguments,
@@ -13,6 +14,7 @@ import {
 } from './worker-lib.mjs';
 import { startWorkerDashboard } from './dashboard.mjs';
 import { convert3mfInWorker } from './three-mf-converter-client.mjs';
+import { convertStepToStl } from './step-converter.mjs';
 
 const boundedInteger = (fallback, minimum, maximum) =>
   z.preprocess(
@@ -26,6 +28,7 @@ const workerEnvironmentSchema = z.object({
   ),
   CREALITY_SLICER_WORKER_PRIVATE_KEY_PATH: z.string().trim().min(1),
   CREALITY_PRINT_BIN: z.string().trim().min(1),
+  FREECAD_CMD_BIN: z.string().trim().min(1),
   CREALITY_MACHINE_PROFILE_PATH: z.string().trim().min(1),
   CREALITY_PROCESS_PROFILE_PATH: z.string().trim().min(1),
   CREALITY_FILAMENT_PROFILES_JSON: z.string().transform((value, context) => {
@@ -47,6 +50,7 @@ const workerEnvironmentSchema = z.object({
   // Baza odzyskuje zadanie po 20 minutach, więc worker musi zakończyć próbę wcześniej.
   SLICER_JOB_TIMEOUT_MS: boundedInteger(12 * 60_000, 60_000, 18 * 60_000),
   SLICER_HTTP_TIMEOUT_MS: boundedInteger(60_000, 5_000, 5 * 60_000),
+  STEP_CONVERTER_TIMEOUT_MS: boundedInteger(5 * 60_000, 30_000, 10 * 60_000),
   SLICER_DASHBOARD_PORT: boundedInteger(4_317, 1_024, 65_535),
 });
 const parsedEnvironment = workerEnvironmentSchema.safeParse(process.env);
@@ -60,6 +64,8 @@ const workerEnvironment = parsedEnvironment.data;
 const siteUrl = workerEnvironment.KORIX3D_SITE_URL.replace(/\/+$/, '');
 const workerPrivateKeyPath = workerEnvironment.CREALITY_SLICER_WORKER_PRIVATE_KEY_PATH;
 const slicerBinary = workerEnvironment.CREALITY_PRINT_BIN;
+const freeCadBinary = workerEnvironment.FREECAD_CMD_BIN;
+const stepConverterScript = fileURLToPath(new URL('./freecad-step-to-stl.py', import.meta.url));
 const machineProfilePath = workerEnvironment.CREALITY_MACHINE_PROFILE_PATH;
 const processProfilePath = workerEnvironment.CREALITY_PROCESS_PROFILE_PATH;
 const filamentProfiles = workerEnvironment.CREALITY_FILAMENT_PROFILES_JSON;
@@ -70,6 +76,7 @@ const processProfile = workerEnvironment.CREALITY_PROCESS_PROFILE;
 const pollIntervalMs = workerEnvironment.SLICER_POLL_INTERVAL_MS;
 const timeoutMs = workerEnvironment.SLICER_JOB_TIMEOUT_MS;
 const httpTimeoutMs = workerEnvironment.SLICER_HTTP_TIMEOUT_MS;
+const stepConverterTimeoutMs = workerEnvironment.STEP_CONVERTER_TIMEOUT_MS;
 const dashboardPort = workerEnvironment.SLICER_DASHBOARD_PORT;
 const workerPrivateKey = await readFile(workerPrivateKeyPath, 'utf8');
 const slicerProcessEnvironment = Object.fromEntries(
@@ -291,6 +298,23 @@ async function processJob(job) {
       });
       modelPath = fallbackPath;
     }
+    if (['.step', '.stp'].includes(extname(inputPath).toLowerCase())) {
+      const fallbackPath = join(directory, 'input-step-compatibility.stl');
+      const conversion = await convertStepToStl({
+        binary: freeCadBinary,
+        scriptPath: stepConverterScript,
+        inputPath,
+        outputPath: fallbackPath,
+        environment: slicerProcessEnvironment,
+        timeoutMs: Math.min(timeoutMs, stepConverterTimeoutMs),
+      });
+      warnings.push('Plik STEP został automatycznie przygotowany przez FreeCAD przed analizą w Creality Print.');
+      log('info', 'step_compatibility_prepared', {
+        jobId: job.id,
+        outputBytes: conversion.outputBytes,
+      });
+      modelPath = fallbackPath;
+    }
     const gcodePath = await slice(modelPath);
     const result = parseGcode(await readFile(gcodePath, 'utf8'));
     await completeJob(job.id, {
@@ -313,6 +337,8 @@ async function processJob(job) {
 async function main() {
   await Promise.all([
     access(slicerBinary),
+    access(freeCadBinary),
+    access(stepConverterScript),
     access(workerPrivateKeyPath),
     access(machineProfilePath),
     access(processProfilePath),

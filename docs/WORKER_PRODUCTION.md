@@ -15,7 +15,8 @@ Windows z dostępem wychodzącym HTTPS do `korix3d.pl` i Supabase Storage.
 
 ## Zdalny host Windows
 
-Wymagane są: Windows 64-bit, Node.js 20 lub nowszy i Creality Print 7.1.
+Wymagane są: Windows 64-bit, Node.js 20 lub nowszy, Creality Print 7.1 oraz
+FreeCAD 1.1 lub nowszy do lokalnej obsługi STEP/STP.
 Utwórz `worker.env` na podstawie `.env.example`, wyłącz dziedziczenie praw NTFS
 i pozostaw odczyt tylko kontu workera oraz administratorowi. Ustaw
 `CREALITY_WORKER_HOME`, uruchom PowerShell jako administrator i wykonaj
@@ -37,6 +38,13 @@ zawieszanie bezpośredniego trybu CLI Creality Print 7.1. Wynik zawiera
 ostrzeżenie o przygotowaniu geometrii; proces nie korzysta z usług AI ani
 zewnętrznego API.
 
+Dla STEP/STP worker uruchamia `FreeCADCmd.exe` bez powłoki i przekazuje ścieżki
+wejścia/wyjścia w izolowanym środowisku procesu. FreeCAD eksportuje siatkę STL,
+worker sprawdza jej rozmiar, a dopiero potem Creality Print wykonuje właściwe
+cięcie. `STEP_CONVERTER_TIMEOUT_MS` nie może przekroczyć limitu całego zadania.
+Brak FreeCAD zatrzymuje worker przed pobieraniem zleceń, zamiast zużywać próby
+klientów.
+
 Test lokalny na pliku technicznym:
 
 ```powershell
@@ -56,6 +64,7 @@ node --env-file=worker.env verify-local.mjs
   status online nie zależy od czasu potrzebnego na wygenerowanie G-code;
 - przygotowanie wieloczęściowego 3MF działa w osobnym wątku i nie blokuje
   lokalnego panelu; limit czasu konwersji jest krótszy od limitu całego zadania;
+- konwersja STEP/STP ma osobny timeout, walidację wyjściowego STL i czytelny błąd;
 
 Przy awarii sprawdź najpierw `/admin/slicer`, następnie stan zadania Windows i
 log workera. Jeżeli klucz prywatny mógł wyciec, wygeneruj nową parę kluczy,
@@ -66,3 +75,5 @@ zaktualizuj klucz publiczny w aplikacji i uruchom ponownie zadanie.
 Przed produkcją zweryfikuj referencyjny model dla PLA i PETG oraz kilku wartości
 wypełnienia. Następnie sprawdź STL, OBJ, STEP i 3MF: pobranie, slicing, czas,
 wagę, cenę netto/brutto, usunięcie plików tymczasowych, retry i heartbeat.
+12 sierpnia 2026 lokalny pipeline zakończył rzeczywiste testy STL, OBJ i STEP;
+pełny przepływ formularz → Storage → worker pozostaje częścią odbioru stagingu.

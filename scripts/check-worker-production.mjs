@@ -7,6 +7,8 @@ const workerLibrary = await readFile(join(root, 'services/creality-slicer-worker
 const threeMfFallback = await readFile(join(root, 'services/creality-slicer-worker/three-mf-to-stl.mjs'), 'utf8');
 const threeMfWorker = await readFile(join(root, 'services/creality-slicer-worker/three-mf-converter-worker.mjs'), 'utf8');
 const threeMfClient = await readFile(join(root, 'services/creality-slicer-worker/three-mf-converter-client.mjs'), 'utf8');
+const stepConverter = await readFile(join(root, 'services/creality-slicer-worker/step-converter.mjs'), 'utf8');
+const freeCadScript = await readFile(join(root, 'services/creality-slicer-worker/freecad-step-to-stl.py'), 'utf8');
 const installer = await readFile(join(root, 'services/creality-slicer-worker/install-windows-task.ps1'), 'utf8');
 const claim = await readFile(join(root, 'app/api/slicer/jobs/claim/route.ts'), 'utf8');
 const heartbeat = await readFile(join(root, 'app/api/slicer/heartbeat/route.ts'), 'utf8');
@@ -23,10 +25,19 @@ for (const requirement of [
   'three_mf_compatibility_prepared',
   'processJobWithHeartbeat',
   'convert3mfInWorker',
+  'convertStepToStl',
+  'step_compatibility_prepared',
   "api('/api/slicer/heartbeat'",
   'process.exitCode = 1',
 ]) {
   if (!worker.includes(requirement)) throw new Error(`Worker nie zawiera: ${requirement}`);
+}
+if (!stepConverter.includes("spawn(binary, [scriptPath]") ||
+    !stepConverter.includes('STEP compatibility conversion timed out')) {
+  throw new Error('Konwerter STEP nie kontroluje procesu FreeCAD i timeoutu.');
+}
+if (!freeCadScript.includes('Part.insert') || !freeCadScript.includes('Mesh.export')) {
+  throw new Error('Skrypt FreeCAD nie importuje STEP i nie eksportuje STL.');
 }
 if (!threeMfWorker.includes('workerData') || !threeMfWorker.includes('convert3mfToBinaryStl')) {
   throw new Error('Konwerter 3MF nie jest uruchamiany w odizolowanym wątku.');

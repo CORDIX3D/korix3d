@@ -1,15 +1,15 @@
 # PRODUCTION READY REPORT — KORIX3D
 
-Data audytu: 9 sierpnia 2026
+Data audytu: 12 sierpnia 2026
 Domena: `https://korix3d.pl`  
 Gałąź: `main`  
 Commit raportu: bieżący `HEAD` gałęzi `main`
 
 ## Werdykt
 
-**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 95/100.**
+**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 96/100.**
 
-Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Wieloczęściowe 3MF są obsługiwane, a ciężka konwersja działa poza głównym wątkiem. Pozostają: zewnętrzna kopia i próba odtworzenia, realny test Stripe Checkout, odbiór STL/STEP/OBJ oraz pełny staging. Stripe live pozostaje wyłączony.
+Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, webhook słucha pięciu wymaganych zdarzeń, a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Wieloczęściowe 3MF są obsługiwane, a ciężka konwersja działa poza głównym wątkiem. Rzeczywiste lokalne cięcie STL, OBJ i STEP również przeszło; STEP jest bezpłatnie konwertowany przez FreeCAD przed analizą w Creality. Pozostają: zewnętrzna kopia i próba odtworzenia, naprawa historii migracji, realny test Stripe Checkout oraz pełny staging. Stripe live pozostaje wyłączony.
 
 ## Podsumowanie wykonawcze
 
@@ -37,7 +37,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
 | 8 | Backup | eksport DB/Storage, checksumy i próba restore | wewnętrzna kopia 31 tabel/278 rekordów wykonana; zewnętrzny eksport i restore oczekują | Częściowo |
-| 9 | Worker Creality | timeout, retry, heartbeat, panel produkcji, zadanie Windows, profile i zgodność 3MF | worker online; 4 rzeczywiste wyceny 3MF, wieloczęściowy test i izolowana konwersja; odbiór STL, STEP i OBJ oczekuje | Częściowo |
+| 9 | Worker Creality | timeout, retry, heartbeat, panel produkcji, zadanie Windows, profile, zgodność 3MF i most FreeCAD dla STEP | worker online; 4 rzeczywiste wyceny 3MF; lokalny pipeline STL, OBJ i STEP zaliczony | Zakończony lokalnie |
 | 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; panel klienta 8/8 i kluczowe widoki admina 16/16 PASS | Częściowo |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | Core Web Vitals po wdrożeniu oczekują | Zakończony lokalnie |
 | 12 | SEO | canonical, sitemap, robots, manifest i pełne schema.org | kod SEO wdrożony; Google/Bing niezweryfikowane | Częściowo |
@@ -56,7 +56,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | `npm run check:secrets` | PASS | brak rozpoznanych kluczy w plikach projektu |
 | `npm run check:rls` | PASS | 44 tabele objęte kontrolą RLS |
 | pozostałe `check:*` | PASS | env, Supabase, Stripe, Vercel, domena, monitoring, backup, worker, test plan, performance, SEO, security, docs |
-| `npm test` | PASS | 5 plików, 56/56 testów |
+| `npm test` | PASS | 5 plików, 57/57 testów |
 | `npm audit --omit=dev --audit-level=high` | PASS | 0 podatności produkcyjnych; `nanoid` przypięty do 3.3.17 |
 | produkcyjny Playwright smoke | PASS | 12/12 PASS na desktopie i mobile po aktywacji DNS `www`, TLS i redirectu 308 |
 | pełne CI GitHub | PASS | commit `a6184dc`, status Vercel `success` |
@@ -78,6 +78,9 @@ Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–9 sierp
 | Aplikacja Windows | PASS | bezpośrednia instalacja PWA jednym przyciskiem z Edge/Chrome, bez ZIP-a, skryptów i uprawnień administratora |
 | Aplikacja iPhone | PASS | manifest HTTP 200, `start_url=/admin/produkcja`, `display=standalone` |
 | Automatyczna wycena Creality | PASS dla 3MF | worker online; rzeczywisty model 701 428 trójkątów przygotowany w 11,07 s; 4 ukończone wyceny 3MF; kolejka 0/0/0 |
+| Lokalny pipeline STL | PASS | kostka 10 mm: 174 s, 0,66 g, 50 warstw |
+| Lokalny pipeline OBJ | PASS | kostka 10 mm: 174 s, 0,66 g, 50 warstw |
+| Lokalny pipeline STEP | PASS | publiczna kostka jCAE, SHA-256 `3831666D50D58D79769D38D2730DE02C91B9882E41BE26980EE912EE5CD01B00`; FreeCAD → STL → Creality: 9 s, 0,01 g, 10 warstw |
 | `korix3d.pl` DNS | PASS | rekord A `76.76.21.21` |
 | `www.korix3d.pl` DNS i HTTPS | PASS | CNAME `b157fac3bf0a0f6a.vercel-dns-017.com`, TTL 60; Vercel `Valid Configuration`; aktywny TLS i redirect 308 do `https://korix3d.pl/` |
 
@@ -87,24 +90,23 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 1. Wykonać zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją.
 2. Naprawić historię wcześniejszych migracji oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ich ponawiać.
-3. Uzupełnić odbiór rzeczywistych modeli STL, STEP i OBJ; 3MF, retry, heartbeat oraz automatyczne uruchamianie workera są potwierdzone.
-4. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
-5. Wykonać pełną macierz akceptacyjną na stagingu i obserwować produkcję minimum 30 minut.
+3. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
+4. Wykonać pełną macierz akceptacyjną na stagingu i obserwować produkcję minimum 30 minut.
 
 ## Kolejność bezpiecznego uruchomienia
 
-1. Vercel `READY` i zielone CI GitHub dla `6624bee` — wykonane.
+1. Vercel `READY` i zielone CI GitHub dla `50ffc4f` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
 3. DNS `www`, HTTPS i redirect 308 — wykonane; pozostały zewnętrzny backup i oficjalna naprawa historii migracji.
 4. Staging: pełne testy formularzy, paneli, magazynu, wyceny i Stripe test.
 5. Produkcja bez Stripe live: testy logowania, paneli i kontrolowany checkout testowy.
-6. Worker Creality Print: utrzymać stały host i heartbeat oraz dokończyć test STL, STEP i OBJ.
+6. Worker Creality Print: utrzymać stały host i heartbeat; lokalne testy STL, STEP, OBJ i 3MF wykonane.
 7. Stripe live dopiero po pełnym odbiorze: osobne klucze, osobny webhook, mała płatność i refund.
 8. Obserwacja logów, webhooków, stanów magazynowych i kolejki przez minimum 30 minut.
 
 ## Git i wdrożenie
 
-Gałąź `main` w GitHub wskazuje commit `a6184dc`. Produkcyjne wdrożenie Vercel `dpl_CfypxiP8RV3Jx799CQShU5qkgBZB` ma status `READY` i obsługuje aliasy `korix3d.pl`, `www.korix3d.pl` oraz `korix3d.vercel.app`. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, testy i publikację brakującej migracji zabezpieczeń Supabase. Po wdrożeniu `/api/health`, `/wycena` i `/aplikacja` zwracają HTTP 200, a Vercel nie wykazuje błędów runtime dla tych tras.
+Gałąź `main` w GitHub wskazuje commit `50ffc4f`. Produkcyjne wdrożenie Vercel `dpl_5yTx3gMp6tSnikByftH8oE4CQBV5` ma status `READY` i obsługuje aliasy `korix3d.pl`, `www.korix3d.pl` oraz `korix3d.vercel.app`. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, testy i publikację brakującej migracji zabezpieczeń Supabase. Po wdrożeniu `/api/health`, `/wycena` i `/aplikacja` zwracają HTTP 200, a Vercel nie wykazuje błędów runtime dla tych tras. Bieżący zestaw lokalny dodaje zweryfikowaną obsługę STEP przez FreeCAD i oczekuje na publikację.
 
 Zmiany lokalne obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
 

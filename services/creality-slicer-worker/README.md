@@ -10,6 +10,7 @@ OpenAI ani żadnej innej płatnej usługi AI.
 - `KORIX3D_SITE_URL` — produkcyjny adres witryny.
 - `CREALITY_SLICER_WORKER_PRIVATE_KEY_PATH` — lokalna ścieżka do prywatnego klucza podpisu.
 - `CREALITY_PRINT_BIN` — pełna ścieżka do `CrealityPrint.exe`.
+- `FREECAD_CMD_BIN` — pełna ścieżka do bezpłatnego `FreeCADCmd.exe`, używanego lokalnie dla STEP/STP.
 - `CREALITY_MACHINE_PROFILE_PATH` — pełna ścieżka do profilu drukarki JSON.
 - `CREALITY_PROCESS_PROFILE_PATH` — pełna ścieżka do profilu procesu JSON.
 - `CREALITY_FILAMENT_PROFILES_JSON` — mapa materiałów na profile, np. PLA i PETG.
@@ -49,6 +50,12 @@ wypełnienia. Pomija to długie zawieszenie znane z bezpośredniego trybu CLI
 Creality Print 7.1. Informacja o tej ścieżce jest zapisywana w ostrzeżeniach
 wyniku. Konwersja odbywa się lokalnie i nie korzysta z płatnego API.
 
+Pliki STEP i STP są najpierw lokalnie zamieniane na siatkę STL przez FreeCAD,
+ponieważ automatyczny tryb CLI Creality Print 7.1 odrzuca ten format mimo
+obecności bibliotek importera w aplikacji. Konwerter ma osobny limit czasu,
+sprawdza powstanie niepustej siatki i dopiero wtedy przekazuje model do
+Creality Print. FreeCAD jest bezpłatny i nie wymaga konta ani API.
+
 Nieudane zadanie jest ponawiane maksymalnie trzy razy. Próba kończy się przed
 20-minutowym progiem odzyskania zadania przez bazę. Szczegóły instalacji,
 monitoringu i odbioru opisuje `docs/WORKER_PRODUCTION.md`.
@@ -61,6 +68,10 @@ Przygotowanie dużego lub wieloczęściowego 3MF działa w odizolowanym wątku,
 więc nie blokuje panelu ani heartbeat. Konwerter zapisuje STL bez przechowywania
 drugiej pełnej kopii siatki w pamięci. Pomiar rzeczywistego modelu 701 428
 trójkątów zakończył przygotowanie geometrii w około 11 sekund.
+
+Odbiór lokalnego pipeline'u 12 sierpnia 2026 zakończył się wynikiem: STL i OBJ
+po 174 s, 0,66 g i 50 warstw, a referencyjny STEP po konwersji przez FreeCAD:
+9 s, 0,01 g i 10 warstw.
 
 Creality Print jest objęty AGPL-3.0; sposób wdrożenia musi zachować warunki tej
 licencji.

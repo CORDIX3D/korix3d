@@ -15,14 +15,14 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 
 - Build Next.js 15.5.21 przechodzi i generuje 62 strony statyczne oraz komplet tras dynamicznych/API.
 - Lint, TypeScript, skan sekretów, kontrakty env/Supabase/Stripe/Vercel/domeny/monitoringu/backupu/workera/testów/wydajności/SEO/bezpieczeństwa/dokumentacji oraz budżety JavaScript przechodzą lokalnie.
-- Po publikacji bieżącej poprawki GitHub będzie zawierał 61 uporządkowanych migracji, w tym obie ostatnie migracje zastosowane już w produkcji. Kontrola RLS obejmuje 44 tabele. Produkcja ma 51 tabel publicznych, wszystkie z RLS, 124 polityki i 4 wymagane buckety Storage.
+- GitHub zawiera 61 uporządkowanych migracji, w tym obie ostatnie migracje zastosowane już w produkcji. Kontrola RLS obejmuje 44 tabele. Produkcja ma 51 tabel publicznych, wszystkie z RLS, 124 polityki i 4 wymagane buckety Storage.
 - Zidentyfikowano 65 plików stron i 40 route handlerów API.
 - KORIX AI działa lokalnie na regułach i danych magazynowych; repozytorium nie wymaga OpenAI API ani płatnego AI.
 - Publiczna strona główna działa na `korix3d.pl`; test przeglądarkowy nie wykrył `Application error`.
 - Rozjazd schematu produkcyjnego Supabase został usunięty; wszystkie tabele i kolumny wymagane przez typy aplikacji są obecne.
 - Konto właściciela ma rolę `admin`; dashboard i 15 kluczowych modułów administratora otwierają się bez błędu danych.
 - Supabase Auth używa `https://korix3d.pl`, ma dwa dokładne redirecty, potwierdzenie e-mail, bezpieczną zmianę hasła, wymaganie bieżącego hasła i minimum 8 znaków.
-- Ostatni opublikowany `main` jest wdrożony przez Vercel ze statusem `READY` i obsługuje `korix3d.pl`; bieżąca poprawka workera oczekuje na publikację i ponowną kontrolę CI.
+- Ostatni opublikowany `main` (`a6184dc`) jest wdrożony przez Vercel ze statusem `READY`, obsługuje `korix3d.pl` i ma pozytywny status Vercel w GitHub.
 - Vercel ma wymagane zmienne Supabase, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` i publiczny klucz podpisu workera. Worker uwierzytelnia się podpisem asymetrycznym, więc wspólny token nie jest wymagany.
 
 ## Stan 15 etapów
@@ -59,7 +59,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | `npm test` | PASS | 5 plików, 56/56 testów |
 | `npm audit --omit=dev --audit-level=high` | PASS | 0 podatności produkcyjnych; `nanoid` przypięty do 3.3.17 |
 | produkcyjny Playwright smoke | PASS | 12/12 PASS na desktopie i mobile po aktywacji DNS `www`, TLS i redirectu 308 |
-| pełne CI GitHub | PASS dla ostatniego wydania | bieżący commit wymaga ponownej kontroli po publikacji |
+| pełne CI GitHub | PASS | commit `a6184dc`, status Vercel `success` |
 
 ## Testy działającej witryny
 
@@ -104,7 +104,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Git i wdrożenie
 
-Gałąź `main` w GitHub przed bieżącą publikacją wskazuje commit `38bde8a`. Produkcyjne wdrożenie Vercel `dpl_5iZZPWv1mvfabM1hsBYas1y2x2ai` ma status `READY` i obsługuje aliasy `korix3d.pl`, `www.korix3d.pl` oraz `korix3d.vercel.app`. Bieżący zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, testy i publikację brakującej migracji zabezpieczeń Supabase.
+Gałąź `main` w GitHub wskazuje commit `a6184dc`. Produkcyjne wdrożenie Vercel `dpl_CfypxiP8RV3Jx799CQShU5qkgBZB` ma status `READY` i obsługuje aliasy `korix3d.pl`, `www.korix3d.pl` oraz `korix3d.vercel.app`. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, testy i publikację brakującej migracji zabezpieczeń Supabase. Po wdrożeniu `/api/health`, `/wycena` i `/aplikacja` zwracają HTTP 200, a Vercel nie wykazuje błędów runtime dla tych tras.
 
 Zmiany lokalne obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
 

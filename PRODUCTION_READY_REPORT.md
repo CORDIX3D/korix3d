@@ -15,7 +15,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 
 - Build Next.js 15.5.21 przechodzi i generuje 63 strony statyczne oraz komplet tras dynamicznych/API.
 - Lint, TypeScript, skan sekretów, kontrakty env/Supabase/Stripe/Vercel/domeny/monitoringu/backupu/workera/testów/wydajności/SEO/bezpieczeństwa/dokumentacji oraz budżety JavaScript przechodzą lokalnie.
-- GitHub zawiera 61 uporządkowanych migracji, w tym obie ostatnie migracje zastosowane już w produkcji. Znacznik czasu migracji `20260809130547_skip_cancelled_slicing_jobs.sql` jest zgodny z historią produkcyjną. Kontrola RLS obejmuje 44 tabele. Produkcja ma 51 tabel publicznych, wszystkie z RLS, 124 polityki i 4 wymagane buckety Storage.
+- Lokalny zestaw zawiera 63 uporządkowane migracje. Cztery najnowsze wersje zapisane w produkcyjnej historii mają identyczne znaczniki czasu; 59 wcześniejszych wpisów nadal wymaga oficjalnego `migration repair`. Kontrola RLS obejmuje 44 tabele. Produkcja ma 51 tabel publicznych, wszystkie z RLS, 124 polityki i 4 wymagane buckety Storage.
 - Zidentyfikowano 65 plików stron i 40 route handlerów API.
 - KORIX AI działa lokalnie na regułach i danych magazynowych; repozytorium nie wymaga OpenAI API ani płatnego AI.
 - Publiczna strona główna działa na `korix3d.pl`; test przeglądarkowy nie wykrył `Application error`.
@@ -31,8 +31,8 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | --- | --- | --- | --- | --- |
 | 1 | Audyt repozytorium | struktura, trasy, konfiguracja i ryzyka rozpoznane | repo i build sprawdzone | Zakończony |
 | 2 | Environment | pełny `.env.example`, walidacja Zod i kontrola CI | wymagane zmienne aplikacji oraz podpis asymetryczny workera skonfigurowane | Zakończony |
-| 3 | Supabase | 61 migracji, zgodny znacznik czasu najnowszej migracji, RLS, indeksy, FK, Storage i testy pgTAP | 51 tabel, 124 polityki, 0 tabel bez RLS, 4 buckety; obie ostatnie migracje działają w produkcji | Częściowo |
-| 4 | Stripe | checkout, podpisany/idempotentny webhook, zwroty i dokumentacja | aktywny test mode i webhook 6 zdarzeń skonfigurowane; pełny checkout oczekuje, ponieważ sklep ma 0 aktywnych produktów | Częściowo |
+| 3 | Supabase | 63 migracje, zgodne znaczniki czasu czterech wersji produkcyjnych, RLS, indeksy, FK, Storage i testy pgTAP | 51 tabel, 124 polityki, 0 tabel bez RLS, 4 buckety; naprawiono dwie produkcyjne blokady zapisu checkoutu | Częściowo |
+| 4 | Stripe | checkout, podpisany/idempotentny webhook, zwroty i dokumentacja | aktywny test mode i webhook 6 zdarzeń skonfigurowane; test doszedł do utworzenia zamówienia, ale sesję Stripe zablokował wygasły `STRIPE_SECRET_KEY` w Vercel | Częściowo |
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | produkcyjny redeploy `Ready`, domena i sekrety testowe podłączone | Zakończony |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
@@ -64,6 +64,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | Lighthouse mobile — SEO / dostępność / dobre praktyki | PASS | 100 / 94 / 100; wynik performance nie jest bramką odbioru, ponieważ lokalny Chrome nie sprząta profilu (`EPERM`) i kolejne pomiary są niestabilne |
 | obserwacja produkcji | PASS | ponad 30 min po wdrożeniu; 24/24 health HTTP 200 w dodatkowym oknie 19 min 19 s; mediana 209 ms, średnia 301 ms, p95 609 ms, maksimum 1549 ms; 0 klastrów runtime i 0 odpowiedzi 5xx; heartbeat workera 3 s |
 | test zaszyfrowanej kopii | PASS | `age` 1.3.1; szyfrowanie, SHA-256, odszyfrowanie, rozpakowanie, walidacja manifestu i sprzątanie na sztucznych danych |
+| preflight Stripe Checkout | CZĘŚCIOWO | produkt, koszyk, wymagane adresy i transakcja magazynowa działają; dwie znalezione blokady Supabase naprawione i sprawdzone w wycofanej transakcji; Stripe zwrócił `api_key_expired`, więc nie powstała sesja ani obciążenie |
 
 ## Testy działającej witryny
 
@@ -88,13 +89,13 @@ Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–12 sier
 | `korix3d.pl` DNS | PASS | rekord A `76.76.21.21` |
 | `www.korix3d.pl` DNS i HTTPS | PASS | CNAME `b157fac3bf0a0f6a.vercel-dns-017.com`, TTL 60; Vercel `Valid Configuration`; aktywny TLS i redirect 308 do `https://korix3d.pl/` |
 
-Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29 publicznych oraz metadane `storage.buckets` i `storage.objects`), 278 rekordów i około 1,9 MB. Następnie zastosowano w jednej transakcji bazowy komplet 59 migracji, a migrację `20260807130133_restrict_security_definer_execution` zastosowano i zapisano w historii Supabase osobno. Produkcja ma 51 tabel publicznych, 124 polityki, 0 tabel bez RLS i buckety `accounting-reports`, `cms-media`, `product-images`, `quote-files`. Po migracji tylko 1 funkcja `SECURITY DEFINER` jest dostępna dla `anon`, 7 dla `authenticated`, a 19 dla `service_role`; produkcyjny smoke ponownie przeszedł 12/12. Lokalna migracja anulowanych zadań slicera została przemianowana z `20260809130434` na zgodny z produkcją znacznik `20260809130547`; Git potwierdził przeniesienie 100%, bez zmian SQL, a `check:db` i `check:rls` przeszły.
+Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29 publicznych oraz metadane `storage.buckets` i `storage.objects`), 278 rekordów i około 1,9 MB. Następnie zastosowano w jednej transakcji bazowy komplet 59 migracji, a migrację `20260807130133_restrict_security_definer_execution` zastosowano i zapisano w historii Supabase osobno. Produkcja ma 51 tabel publicznych, 124 polityki, 0 tabel bez RLS i buckety `accounting-reports`, `cms-media`, `product-images`, `quote-files`. Po migracji tylko 1 funkcja `SECURITY DEFINER` jest dostępna dla `anon`, 7 dla `authenticated`, a 19 dla `service_role`; produkcyjny smoke ponownie przeszedł 12/12. Lokalna migracja anulowanych zadań slicera została przemianowana z `20260809130434` na zgodny z produkcją znacznik `20260809130547`; Git potwierdził przeniesienie 100%, bez zmian SQL. Kontrolowany checkout 12.08.2026 ujawnił dwie dalsze rozbieżności starszego schematu: obowiązkowe legacy `product_name`/`price` oraz konflikt nazwy `vat_amount`. Migracje `20260812132323_relax_legacy_store_order_item_columns` i `20260812132838_resolve_store_order_vat_variable` zastosowano w produkcji. Oba przeciążenia funkcji VAT zawierają lokalną dyrektywę rozwiązywania konfliktu; pełne utworzenie zamówienia, pozycji i ruchu magazynowego przeszło w transakcji testowej zakończonej `ROLLBACK`.
 
 ## Krytyczne blokady przed produkcją
 
 1. Wykonać przygotowanym skryptem rzeczywisty zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją. Automatyczne szyfrowanie i kontrola artefaktu są przetestowane; eksport oczekuje na bezpiecznie przekazane hasło połączenia bazy i docelowy klucz `age`, oba poza repozytorium i rozmową.
 2. Naprawić historię wcześniejszych migracji oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ich ponawiać.
-3. Przeprowadzić pełny checkout w Stripe test mode, webhook, retry, wygaśnięcie, zwrot stanu i refund.
+3. Wprowadzić nowy testowy `STRIPE_SECRET_KEY` bezpośrednio w Vercel (dotychczasowy zwraca `api_key_expired`), wykonać redeploy, potwierdzić sprzątnięcie nieudanego zamówienia, a następnie dokończyć checkout, webhook, retry, wygaśnięcie, zwrot stanu i refund.
 4. Wykonać pełną macierz akceptacyjną na osobnym stagingu. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
 
 ## Kolejność bezpiecznego uruchomienia
@@ -115,6 +116,8 @@ Ostatni zweryfikowany commit techniczny to `badce4e`. GitHub Actions `3159755529
 Dokumentacyjny commit `2e7f3a9` ma zielone CI `31595057599` i wdrożenie `dpl_28HM4nxPnMSATHfrqLnCuJcEYnRM` w stanie `READY`; nie zmienił kodu runtime. Podczas następującej po wdrożeniu obserwacji wykonano 24 kolejne odczyty `/api/health` (24/24 HTTP 200), Vercel nie wykazał klastrów błędów ani odpowiedzi 5xx, a worker `Creality Print 7.1` raportował heartbeat sprzed 3 sekund.
 
 Zmiany opublikowane w `main` obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
+
+Po kontrolowanym teście Stripe lokalnie oczekują na publikację: raport pełnego odbioru paneli, dwie migracje naprawiające zapis checkoutu i rozszerzona kontrola migracji. Same migracje są już zastosowane w produkcyjnym Supabase; publikacja GitHub/Vercel oczekuje z powodu aktywnego limitu użycia Codex.
 
 ## Sekrety i koszty
 

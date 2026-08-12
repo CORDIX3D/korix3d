@@ -138,6 +138,18 @@ const requiredSecurityGuards = [
     sql: 'create or replace function public.create_store_order_with_stock_locked',
   },
   {
+    name: 'zgodność checkoutu ze starszym schematem pozycji sklepu',
+    sql: 'alter column product_name drop not null',
+  },
+  {
+    name: 'zgodność ceny checkoutu ze starszym schematem pozycji sklepu',
+    sql: 'alter column price drop not null',
+  },
+  {
+    name: 'jednoznaczne rozwiązywanie zmiennej VAT checkoutu',
+    sql: '#variable_conflict use_variable',
+  },
+  {
     name: 'ograniczone ponawianie zadań zdalnego slicera',
     sql: 'create or replace function public.fail_or_retry_slicing_job',
   },

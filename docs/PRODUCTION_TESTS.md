@@ -31,7 +31,8 @@ Workflow `KORIX3D production smoke` jest uruchamiany ręcznie, aby nie generowa�
 | Magazyn | Nie | staging, administrator | Oczekuje |
 | Panel klienta | Kontrola ochrony anonimowej | konto klienta | Błąd danych na produkcji |
 | Panel administratora | Kontrola ochrony anonimowej | konto administratora | Brak odpowiedniej roli testowej |
-| Upload STL/OBJ/STEP/3MF | Kontrola formularza bez zapisu | lokalny pipeline zaliczony; pełny przepływ na staging | Częściowo |
+| Upload STL | Kontrola formularza bez zapisu | lokalny pipeline zaliczony; pełny przepływ na staging | Częściowo |
+| Upload OBJ/STEP/3MF | Kontrola formularza bez zapisu | lokalny pipeline zaliczony; pełny przepływ na staging | Częściowo |
 | Kalkulator | Stan początkowy i działający worker | pełny przepływ na staging | Częściowo |
 | Blog | Render strony | staging/produkcja | Częściowo |
 | Kontakt | Render strony | staging + testowa skrzynka | Oczekuje |

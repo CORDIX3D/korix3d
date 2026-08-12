@@ -9,7 +9,7 @@ Commit raportu: bieżący `HEAD` gałęzi `main`
 
 **NIEGOTOWE DO PEŁNEJ PRODUKCJI — 96/100.**
 
-Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, aktywny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta i 16 kluczowych widoków administratora przeszły odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Wieloczęściowe 3MF są obsługiwane, a ciężka konwersja działa poza głównym wątkiem. Rzeczywiste lokalne cięcie STL, OBJ i STEP również przeszło; STEP jest bezpłatnie konwertowany przez FreeCAD przed analizą w Creality. Pozostają: zewnętrzna kopia i próba odtworzenia, naprawa historii migracji, realny test Stripe Checkout oraz pełny staging. Stripe live pozostaje wyłączony.
+Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, aktywny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta 8/8 i wszystkie 29 statycznych stron administratora przeszły zalogowany odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Wieloczęściowe 3MF są obsługiwane, a ciężka konwersja działa poza głównym wątkiem. Rzeczywiste lokalne cięcie STL, OBJ i STEP również przeszło; STEP jest bezpłatnie konwertowany przez FreeCAD przed analizą w Creality. Pozostają: zewnętrzna kopia i próba odtworzenia, naprawa historii migracji, realny test Stripe Checkout oraz pełny staging. Stripe live pozostaje wyłączony.
 
 ## Podsumowanie wykonawcze
 
@@ -20,9 +20,9 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 - KORIX AI działa lokalnie na regułach i danych magazynowych; repozytorium nie wymaga OpenAI API ani płatnego AI.
 - Publiczna strona główna działa na `korix3d.pl`; test przeglądarkowy nie wykrył `Application error`.
 - Rozjazd schematu produkcyjnego Supabase został usunięty; wszystkie tabele i kolumny wymagane przez typy aplikacji są obecne.
-- Konto właściciela ma rolę `admin`; dashboard i 15 kluczowych modułów administratora otwierają się bez błędu danych.
+- Konto właściciela ma rolę `admin`; dashboard i wszystkie 28 statycznych podstron administratora otwierają się bez błędu aplikacji oraz bez utraty sesji.
 - Supabase Auth używa `https://korix3d.pl`, ma dwa dokładne redirecty, potwierdzenie e-mail, bezpieczną zmianę hasła, wymaganie bieżącego hasła i minimum 8 znaków.
-- Ostatni zweryfikowany commit `main` (`badce4e`) ma zielone GitHub CI i jest wdrożony przez Vercel ze statusem `READY`; obsługuje `korix3d.pl`, a `/api/health` po wdrożeniu zwraca `ok`.
+- Ostatni zweryfikowany commit techniczny (`badce4e`) ma zielone GitHub CI i jest wdrożony przez Vercel ze statusem `READY`; obsługuje `korix3d.pl`, a `/api/health` po wdrożeniu zwraca `ok`.
 - Vercel ma wymagane zmienne Supabase, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` i publiczny klucz podpisu workera. Worker uwierzytelnia się podpisem asymetrycznym, więc wspólny token nie jest wymagany.
 
 ## Stan 15 etapów
@@ -38,7 +38,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
 | 8 | Backup | eksport DB/Storage, obowiązkowe szyfrowanie `age`, checksumy i automatyczne usuwanie jawnych danych | wewnętrzna kopia 31 tabel/278 rekordów wykonana; próbne szyfrowanie, odszyfrowanie i kontrola kompletności PASS; rzeczywisty zewnętrzny eksport i restore bazy oczekują | Częściowo |
 | 9 | Worker Creality | timeout, retry, heartbeat, panel produkcji, zadanie Windows, profile, zgodność 3MF i most FreeCAD dla STEP | worker online; 4 rzeczywiste wyceny 3MF; lokalny pipeline STL, OBJ i STEP zaliczony | Zakończony lokalnie |
-| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; panel klienta 8/8 i kluczowe widoki admina 16/16 PASS | Częściowo |
+| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; panel klienta 8/8 i wszystkie statyczne strony admina 29/29 PASS | Częściowo |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | strona główna renderowana serwerowo; Supabase/Zod usunięte z anonimowego manifestu; smoke skrócony z 90 do 57,5 s; stabilne dane terenowe Core Web Vitals oczekują | Częściowo |
 | 12 | SEO | canonical, sitemap, robots, manifest i pełne schema.org | kod SEO wdrożony; Google/Bing niezweryfikowane | Częściowo |
 | 13 | Bezpieczeństwo | role, RLS, CSRF, CSP, webhook, upload, Dependabot, security.txt | ACL funkcji Supabase naprawione; `nanoid` 3.3.17, audyt produkcyjny 0 podatności i zielone CI | Zakończony |
@@ -76,7 +76,7 @@ Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–12 sier
 | `/panel` | PASS | poprawne podsumowanie konta, 2 zamówienia i wartość 230 zł |
 | 7 zakładek `/panel/*` | PASS | zamówienia, wyceny, lista życzeń, pliki, powiadomienia, wiadomości i ustawienia bez błędów |
 | `/admin` | PASS | poprawny dashboard właściciela z rolą `admin` |
-| 16 kluczowych `/admin/*` | PASS | zamówienia, wyceny, produkcja, katalog, magazyn, filamenty, dostawa, historia, slicer, AI, księgowość, raporty i ustawienia bez błędów |
+| 29 statycznych `/admin/*` | PASS | pełny zalogowany przebieg 12.08.2026: wszystkie strony bez błędu aplikacji i bez przekierowania do logowania; `/admin/materialy/kolory` prawidłowo kieruje do połączonego `/admin/materialy` |
 | `/api/health` | PASS | HTTP 200, `{"status":"ok"}`; CSP/HSTS i `no-store` poprawne |
 | Logi Vercel — ostatnie 24 h | PASS | brak zgrupowanych błędów runtime |
 | Aplikacja Windows | PASS | bezpośrednia instalacja PWA jednym przyciskiem z Edge/Chrome, bez ZIP-a, skryptów i uprawnień administratora |
@@ -110,7 +110,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Git i wdrożenie
 
-Ostatni zweryfikowany commit `main` to `badce4e`. GitHub Actions `31597555296` zakończył wszystkie kontrole powodzeniem. Produkcyjne wdrożenie Vercel `dpl_E1tJ2sEVrTYjfjrby2Eu5FpdBGoa` ma status `READY`, obsługuje aliasy produkcyjne i po wdrożeniu zwraca `ok` z `/api/health`. Commit porządkuje wyłącznie znacznik czasu migracji anulowanych zadań slicera i nie zmienia SQL. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, zweryfikowany most FreeCAD dla STEP, obowiązkowo szyfrowany eksport DB/Storage oraz optymalizację publicznego ładowania Supabase. Strona główna jest renderowana serwerowo z pięciominutowym odświeżaniem, anonimowy ruch nie pobiera klienta Supabase ani Zod, a bot pobiera wyłącznie publiczne `greeting` i `enabled` z cache'owanego endpointu — bez ujawniania `system_prompt`. Po wdrożeniu produkcyjny smoke przeszedł 12/12 w 57,5 s.
+Ostatni zweryfikowany commit techniczny to `badce4e`. GitHub Actions `31597555296` zakończył wszystkie kontrole powodzeniem. Produkcyjne wdrożenie Vercel `dpl_E1tJ2sEVrTYjfjrby2Eu5FpdBGoa` ma status `READY`, obsługuje aliasy produkcyjne i po wdrożeniu zwraca `ok` z `/api/health`. Commit porządkuje wyłącznie znacznik czasu migracji anulowanych zadań slicera i nie zmienia SQL. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, zweryfikowany most FreeCAD dla STEP, obowiązkowo szyfrowany eksport DB/Storage oraz optymalizację publicznego ładowania Supabase. Strona główna jest renderowana serwerowo z pięciominutowym odświeżaniem, anonimowy ruch nie pobiera klienta Supabase ani Zod, a bot pobiera wyłącznie publiczne `greeting` i `enabled` z cache'owanego endpointu — bez ujawniania `system_prompt`. Po wdrożeniu produkcyjny smoke przeszedł 12/12 w 57,5 s.
 
 Dokumentacyjny commit `2e7f3a9` ma zielone CI `31595057599` i wdrożenie `dpl_28HM4nxPnMSATHfrqLnCuJcEYnRM` w stanie `READY`; nie zmienił kodu runtime. Podczas następującej po wdrożeniu obserwacji wykonano 24 kolejne odczyty `/api/health` (24/24 HTTP 200), Vercel nie wykazał klastrów błędów ani odpowiedzi 5xx, a worker `Creality Print 7.1` raportował heartbeat sprzed 3 sekund.
 

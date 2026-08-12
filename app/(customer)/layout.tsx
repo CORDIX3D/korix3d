@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { AuthProvider } from '@/lib/providers';
+import { WishlistProvider } from '@/lib/wishlist-provider';
 
 export const metadata: Metadata = {
   title: 'Panel klienta',
@@ -6,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function CustomerGroupLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <AuthProvider>
+      <WishlistProvider>{children}</WishlistProvider>
+    </AuthProvider>
+  );
 }

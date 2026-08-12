@@ -1,9 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Toaster } from '@/components/ui/sonner';
-import { AuthProvider } from '@/lib/providers';
 import { CartProvider } from '@/lib/cart-provider';
-import { WishlistProvider } from '@/lib/wishlist-provider';
 import { serializeJsonLd } from '@/lib/seo';
 
 export const metadata: Metadata = {
@@ -115,14 +113,10 @@ export default function RootLayout({
             __html: serializeJsonLd(businessJsonLd),
           }}
         />
-        <AuthProvider>
-          <CartProvider>
-            <WishlistProvider>
-              {children}
-              <Toaster position="top-right" richColors closeButton />
-            </WishlistProvider>
-          </CartProvider>
-        </AuthProvider>
+        <CartProvider>
+          {children}
+          <Toaster position="top-right" richColors closeButton />
+        </CartProvider>
       </body>
     </html>
   );

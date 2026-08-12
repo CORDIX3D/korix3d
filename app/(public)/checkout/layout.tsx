@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AuthProvider } from '@/lib/providers';
 
 export const metadata: Metadata = {
   title: 'Finalizacja zamówienia',
@@ -6,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function CheckoutLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <AuthProvider>{children}</AuthProvider>;
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import {
   X,
   Send,
@@ -28,13 +27,11 @@ interface Message {
 interface AISettings {
   greeting: string;
   enabled: boolean;
-  system_prompt: string;
 }
 
 const DEFAULT_AI_SETTINGS: AISettings = {
   greeting: 'Cześć! Jestem bezpłatnym asystentem KORIX3D. Mogę sprawdzić materiały, kolory, stany magazynowe i pomóc w wycenie druku 3D.',
   enabled: true,
-  system_prompt: ''
 };
 
 const SUGGESTED_QUESTIONS = [
@@ -73,31 +70,32 @@ export function AIAssistant({ initiallyOpen = false }: { initiallyOpen?: boolean
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchSettings = async () => {
       try {
-        const { data } = await supabase
-          .from('ai_settings')
-          .select('setting_key, setting_value')
-          .in('setting_key', ['greeting', 'enabled', 'system_prompt']);
+        const response = await fetch('/api/ai/settings', {
+          cache: 'force-cache',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Nie udało się pobrać ustawień asystenta.');
 
-        if (!data) {
-          setSettings(DEFAULT_AI_SETTINGS);
-          return;
-        }
-
-        const settingsData = data as Array<{ setting_key: string; setting_value: string }>;
+        const data = await response.json() as Partial<AISettings>;
         setSettings({
-          greeting: settingsData.find((setting) => setting.setting_key === 'greeting')?.setting_value || DEFAULT_AI_SETTINGS.greeting,
-          enabled: settingsData.find((setting) => setting.setting_key === 'enabled')?.setting_value !== 'false',
-          system_prompt: settingsData.find((setting) => setting.setting_key === 'system_prompt')?.setting_value || ''
+          greeting: typeof data.greeting === 'string' && data.greeting.trim()
+            ? data.greeting
+            : DEFAULT_AI_SETTINGS.greeting,
+          enabled: data.enabled !== false,
         });
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('Error fetching AI settings:', error);
         setSettings(DEFAULT_AI_SETTINGS);
       }
     };
 
-    fetchSettings();
+    void fetchSettings();
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {

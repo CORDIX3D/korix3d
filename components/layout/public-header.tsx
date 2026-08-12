@@ -2,17 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Menu, X, ShoppingCart, User, ChevronDown } from 'lucide-react';
+import { Menu, X, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/providers';
 import { useCart } from '@/lib/cart-provider';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { PublicSessionActions } from '@/components/layout/public-session-actions';
 
 const publicNav = [
   { name: 'Sklep', href: '/sklep' },
@@ -26,7 +19,6 @@ const publicNav = [
 
 export function PublicHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, profile, signOut, isAdmin, isEmployee } = useAuth();
   const { itemCount } = useCart();
 
   return (
@@ -71,59 +63,7 @@ export function PublicHeader() {
               </Link>
             </Button>
 
-            {/* User Menu */}
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                      <User className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="hidden md:inline text-sm font-medium">
-                      {profile?.full_name || 'Konto'}
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-card border-border">
-                  <DropdownMenuItem asChild>
-                    <Link href="/panel" className="cursor-pointer">
-                      Panel klienta
-                    </Link>
-                  </DropdownMenuItem>
-                  {(isAdmin || isEmployee) && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin" className="cursor-pointer text-primary">
-                          Panel administracyjny
-                        </Link>
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="cursor-pointer text-destructive"
-                    onClick={() => signOut()}
-                  >
-                    Wyloguj się
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/logowanie">
-                    Zaloguj się
-                  </Link>
-                </Button>
-                <Button asChild size="sm" className="hidden bg-gradient-primary transition-shadow hover:shadow-glow sm:inline-flex">
-                  <Link href="/rejestracja">
-                    Zarejestruj się
-                  </Link>
-                </Button>
-              </div>
-            )}
+            <PublicSessionActions />
 
             {/* Mobile menu button */}
             <button

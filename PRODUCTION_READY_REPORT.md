@@ -7,22 +7,22 @@ Commit raportu: bieżący `HEAD` gałęzi `main`
 
 ## Werdykt
 
-**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 98/100.**
+**NIEGOTOWE DO PEŁNEJ PRODUKCJI — 99/100.**
 
-Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, aktywny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Pełny test sklepu w Stripe Sandbox zakończył płatność i refund, a wykryty brak zwrotu stanu został naprawiony oraz sprawdzony idempotentnie. Wycena własnego projektu ma osobny Stripe Checkout, wymagany adres i automatyczne potwierdzenie webhookiem; rzeczywista płatność, anulowanie i pełny refund przeszły w Sandbox. Refund ustawił status `refunded`, wyzerował rezerwację 28,55 g i przywrócił magazyn dokładnie do 1971,450 g; ponowne wywołanie funkcji zwrotu nie zmieniło stanu. Dopłaty Express i Pilne są naliczane procentowo od kosztu realizacji przed dostawą i VAT; produkcyjna migracja Supabase jest zastosowana i przeszła test transakcyjny. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta 8/8 i wszystkie 29 statycznych stron administratora przeszły zalogowany odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Pozostają: zewnętrzna kopia i próba odtworzenia, naprawa historii migracji oraz pełny staging. Stripe live pozostaje wyłączony.
+Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, aktywny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Pełny test sklepu w Stripe Sandbox zakończył płatność i refund, a wykryty brak zwrotu stanu został naprawiony oraz sprawdzony idempotentnie. Wycena własnego projektu ma osobny Stripe Checkout, wymagany adres i automatyczne potwierdzenie webhookiem; rzeczywista płatność, anulowanie i pełny refund przeszły w Sandbox. Refund ustawił status `refunded`, wyzerował rezerwację 28,55 g i przywrócił magazyn dokładnie do 1971,450 g; ponowne wywołanie funkcji zwrotu nie zmieniło stanu. Dopłaty Express i Pilne są naliczane procentowo od kosztu realizacji przed dostawą i VAT; produkcyjna migracja Supabase jest zastosowana i przeszła test transakcyjny. Produkcyjny Supabase został zabezpieczony wewnętrzną i zewnętrzną szyfrowaną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk, Storage oraz pełnej historii 66 migracji. Panel klienta 8/8 i wszystkie 29 statycznych stron administratora przeszły zalogowany odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Pozostają: próba pełnego odtworzenia poza produkcją oraz pełny staging. Stripe live pozostaje wyłączony.
 
 ## Podsumowanie wykonawcze
 
 - Build Next.js 15.5.21 przechodzi i generuje 63 strony statyczne oraz komplet tras dynamicznych/API.
 - Lint, TypeScript, skan sekretów, kontrakty env/Supabase/Stripe/Vercel/domeny/monitoringu/backupu/workera/testów/wydajności/SEO/bezpieczeństwa/dokumentacji oraz budżety JavaScript przechodzą lokalnie.
-- Lokalny zestaw zawiera 66 uporządkowanych migracji. Najnowsze migracje płatności wycen i procentowych dopłat priorytetowych są zastosowane oraz sprawdzone w produkcyjnym Supabase; 59 wcześniejszych wpisów nadal wymaga oficjalnego `migration repair`. Kontrola RLS obejmuje 44 tabele. Produkcja ma 51 tabel publicznych, wszystkie z RLS, 124 polityki i 4 wymagane buckety Storage.
+- Lokalny zestaw i produkcyjna historia Supabase zawierają te same 66 uporządkowanych migracji. Oficjalny `supabase migration repair --status applied` uzupełnił 59 brakujących wpisów wyłącznie w tabeli historii, bez ponownego uruchamiania SQL. Kontrola RLS obejmuje 44 tabele. Produkcja ma 51 tabel publicznych, wszystkie z RLS, 124 polityki i 4 wymagane buckety Storage.
 - Zidentyfikowano 65 plików stron i 45 route handlerów API.
 - KORIX AI działa lokalnie na regułach i danych magazynowych; repozytorium nie wymaga OpenAI API ani płatnego AI.
 - Publiczna strona główna działa na `korix3d.pl`; test przeglądarkowy nie wykrył `Application error`.
 - Rozjazd schematu produkcyjnego Supabase został usunięty; wszystkie tabele i kolumny wymagane przez typy aplikacji są obecne.
 - Konto właściciela ma rolę `admin`; dashboard i wszystkie 28 statycznych podstron administratora otwierają się bez błędu aplikacji oraz bez utraty sesji.
 - Supabase Auth używa `https://korix3d.pl`, ma dwa dokładne redirecty, potwierdzenie e-mail, bezpieczną zmianę hasła, wymaganie bieżącego hasła i minimum 8 znaków.
-- Ostatni zweryfikowany commit techniczny (`badce4e`) ma zielone GitHub CI i jest wdrożony przez Vercel ze statusem `READY`; obsługuje `korix3d.pl`, a `/api/health` po wdrożeniu zwraca `ok`.
+- Ostatni zweryfikowany commit techniczny (`5a1683a`) ma zielone GitHub CI i jest wdrożony przez Vercel ze statusem `READY`; obsługuje `korix3d.pl`, a `/api/health` po wdrożeniu zwraca `ok`.
 - Vercel ma wymagane zmienne Supabase, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` i publiczny klucz podpisu workera. Worker uwierzytelnia się podpisem asymetrycznym, więc wspólny token nie jest wymagany.
 
 ## Stan 15 etapów
@@ -31,7 +31,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | --- | --- | --- | --- | --- |
 | 1 | Audyt repozytorium | struktura, trasy, konfiguracja i ryzyka rozpoznane | repo i build sprawdzone | Zakończony |
 | 2 | Environment | pełny `.env.example`, walidacja Zod i kontrola CI | wymagane zmienne aplikacji oraz podpis asymetryczny workera skonfigurowane | Zakończony |
-| 3 | Supabase | 66 migracji, zgodne znaczniki czasu najnowszych wersji produkcyjnych, RLS, indeksy, FK, Storage i testy pgTAP | 51 tabel, 124 polityki, 0 tabel bez RLS, 4 buckety; naprawiono dwie produkcyjne blokady zapisu checkoutu | Częściowo |
+| 3 | Supabase | 66 migracji, zgodna historia lokalna/produkcyjna, RLS, indeksy, FK, Storage i testy pgTAP | 66/66 wpisów historii zgodnych; 51 tabel, 124 polityki, 0 tabel bez RLS, 4 buckety; naprawiono dwie produkcyjne blokady zapisu checkoutu | Zakończony |
 | 4 | Stripe | checkout sklepu i wyceny, podpisany/idempotentny webhook, zwroty i dokumentacja | pełna płatność sklepu i refund PASS; płatność, anulowanie oraz pełny refund wyceny PASS w Sandbox; magazyn przywrócony idempotentnie | Zakończony (Sandbox) |
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | produkcyjny redeploy `Ready`, domena i sekrety testowe podłączone | Zakończony |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
@@ -93,17 +93,20 @@ Stan sprawdzony w zalogowanej przeglądarce i testach automatycznych 3–12 sier
 
 Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29 publicznych oraz metadane `storage.buckets` i `storage.objects`), 278 rekordów i około 1,9 MB. Następnie zastosowano w jednej transakcji bazowy komplet 59 migracji, a migrację `20260807130133_restrict_security_definer_execution` zastosowano i zapisano w historii Supabase osobno. Produkcja ma 51 tabel publicznych, 124 polityki, 0 tabel bez RLS i buckety `accounting-reports`, `cms-media`, `product-images`, `quote-files`. Po migracji tylko 1 funkcja `SECURITY DEFINER` jest dostępna dla `anon`, 7 dla `authenticated`, a 19 dla `service_role`; produkcyjny smoke ponownie przeszedł 12/12. Lokalna migracja anulowanych zadań slicera została przemianowana z `20260809130434` na zgodny z produkcją znacznik `20260809130547`; Git potwierdził przeniesienie 100%, bez zmian SQL. Kontrolowany checkout 12.08.2026 ujawnił dwie dalsze rozbieżności starszego schematu: obowiązkowe legacy `product_name`/`price` oraz konflikt nazwy `vat_amount`. Migracje `20260812132323_relax_legacy_store_order_item_columns` i `20260812132838_resolve_store_order_vat_variable` zastosowano w produkcji. Oba przeciążenia funkcji VAT zawierają lokalną dyrektywę rozwiązywania konfliktu; pełne utworzenie zamówienia, pozycji i ruchu magazynowego przeszło w transakcji testowej zakończonej `ROLLBACK`.
 
+13.08.2026, po wykonaniu zaszyfrowanej kopii zewnętrznej i zapisaniu osobnego manifestu historii, uzupełniono 59 brakujących rekordów poleceniem `supabase migration repair --status applied`. Operacja nie uruchomiła ponownie SQL. Dwa lokalne pliki otrzymały produkcyjne znaczniki czasu (`20260812150746` i `20260813073638`); przed zmianą potwierdzono równoważność ich SQL skrótami znormalizowanej zawartości. Kontrola końcowa wykazała 66 rekordów, 66 unikalnych wersji, 0 pustych nazw i 0 pustych zestawów instrukcji. Lokalna i zdalna sekwencja `wersja:nazwa` ma identyczny MD5 `ec91e37d6f6e699965e63c13085d9182`.
+
+Doradcy Supabase po naprawie nie zgłosili nowego błędu krytycznego. Pozostały wcześniejsze zalecenia do osobnego przeglądu: świadomie niedostępne przez RLS tabele wewnętrzne, uprawnienia wybranych funkcji `SECURITY DEFINER`, funkcje zarządzanej integracji Stripe z modyfikowalnym `search_path`, ochrona przed ujawnionymi hasłami, brakujące indeksy kluczy obcych i część nakładających się polityk. Nie zmieniano ich w ramach naprawy samej historii migracji.
+
 ## Krytyczne blokady przed produkcją
 
 1. Wykonać pełne próbne odtworzenie bazy i Storage do odizolowanego projektu poza produkcją. Rzeczywisty zewnętrzny eksport z 13.08.2026 jest zaszyfrowany `age`, ma poprawną sumę SHA-256, przeszedł odszyfrowanie oraz kontrolę 22 obiektów Storage. Skrypt dzieli schemat na `pre-data.sql` i `post-data.sql`, dlatego klucze obce — również cykliczne — są tworzone po danych.
-2. Naprawić historię wcześniejszych migracji oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ich ponawiać.
-3. Wykonać pełną macierz akceptacyjną na osobnym stagingu. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
+2. Wykonać pełną macierz akceptacyjną na osobnym stagingu. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
 
 ## Kolejność bezpiecznego uruchomienia
 
-1. Vercel `READY` i zielone CI GitHub dla `badce4e` — wykonane.
+1. Vercel `READY` i zielone CI GitHub dla `5a1683a` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
-3. DNS `www`, HTTPS, redirect 308 i zewnętrzny szyfrowany backup — wykonane; pozostały pełny restore drill oraz oficjalna naprawa historii migracji.
+3. DNS `www`, HTTPS, redirect 308, zewnętrzny szyfrowany backup i oficjalna naprawa historii migracji — wykonane; pozostał pełny restore drill.
 4. Staging: pełne testy formularzy, paneli, magazynu, wyceny i Stripe test.
 5. Produkcja bez Stripe live: testy logowania, paneli i kontrolowany checkout testowy.
 6. Worker Creality Print: utrzymać stały host i heartbeat; lokalne testy STL, STEP, OBJ i 3MF wykonane.
@@ -112,7 +115,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Git i wdrożenie
 
-Ostatni zweryfikowany commit techniczny to `badce4e`. GitHub Actions `31597555296` zakończył wszystkie kontrole powodzeniem. Produkcyjne wdrożenie Vercel `dpl_E1tJ2sEVrTYjfjrby2Eu5FpdBGoa` ma status `READY`, obsługuje aliasy produkcyjne i po wdrożeniu zwraca `ok` z `/api/health`. Commit porządkuje wyłącznie znacznik czasu migracji anulowanych zadań slicera i nie zmienia SQL. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, zweryfikowany most FreeCAD dla STEP, obowiązkowo szyfrowany eksport DB/Storage oraz optymalizację publicznego ładowania Supabase. Strona główna jest renderowana serwerowo z pięciominutowym odświeżaniem, anonimowy ruch nie pobiera klienta Supabase ani Zod, a bot pobiera wyłącznie publiczne `greeting` i `enabled` z cache'owanego endpointu — bez ujawniania `system_prompt`. Po wdrożeniu produkcyjny smoke przeszedł 12/12 w 57,5 s.
+Ostatni zweryfikowany commit techniczny to `5a1683a`. GitHub CI zakończył wszystkie kontrole powodzeniem. Produkcyjne wdrożenie Vercel `dpl_7onEd5te4AS4eyXqQ2bcfsFWfncQ` ma status `READY`, obsługuje aliasy produkcyjne i po wdrożeniu zwraca `ok` z `/api/health`. Commit wzmacnia procedurę szyfrowanej kopii zewnętrznej i jej weryfikację. Wdrożony zestaw zawiera obsługę wieloczęściowych 3MF, izolację ciężkiej konwersji, ograniczenie pamięci, zweryfikowany most FreeCAD dla STEP, obowiązkowo szyfrowany eksport DB/Storage oraz optymalizację publicznego ładowania Supabase. Strona główna jest renderowana serwerowo z pięciominutowym odświeżaniem, anonimowy ruch nie pobiera klienta Supabase ani Zod, a bot pobiera wyłącznie publiczne `greeting` i `enabled` z cache'owanego endpointu — bez ujawniania `system_prompt`. Po wdrożeniu `/api/health` zwrócił HTTP 200.
 
 Dokumentacyjny commit `2e7f3a9` ma zielone CI `31595057599` i wdrożenie `dpl_28HM4nxPnMSATHfrqLnCuJcEYnRM` w stanie `READY`; nie zmienił kodu runtime. Podczas następującej po wdrożeniu obserwacji wykonano 24 kolejne odczyty `/api/health` (24/24 HTTP 200), Vercel nie wykazał klastrów błędów ani odpowiedzi 5xx, a worker `Creality Print 7.1` raportował heartbeat sprzed 3 sekund.
 

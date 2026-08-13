@@ -109,6 +109,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const [saving, setSaving] = useState(false);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
   const [refundingRowId, setRefundingRowId] = useState<string | null>(null);
+  const [refundCandidate, setRefundCandidate] = useState<DbRow | null>(null);
   const [imageFiles, setImageFiles] = useState<Record<string, File | null>>({});
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<Record<string, unknown>>(() =>
@@ -424,12 +425,6 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     const rowId = String(row.id || '');
     if (!rowId || refundingRowId) return;
 
-    const rowLabel = row.order_number || row.id;
-    if (!window.confirm(
-      `Czy na pewno wykonać pełny zwrot płatności za wycenę „${rowLabel}”? `
-      + 'Stripe zwróci całą kwotę, a magazyn filamentu zostanie przywrócony automatycznie.'
-    )) return;
-
     setRefundingRowId(rowId);
     try {
       const response = await fetch('/api/admin/orders/refund', {
@@ -449,6 +444,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       toast.success('Pełny zwrot został przyjęty przez Stripe', {
         description: 'Status płatności i stan filamentu zaktualizują się automatycznie.',
       });
+      setRefundCandidate(null);
       await new Promise((resolve) => window.setTimeout(resolve, 1500));
       await fetchRows();
     } catch (error) {
@@ -475,6 +471,46 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
 
   return (
     <div className="space-y-6">
+      <Dialog
+        open={Boolean(refundCandidate)}
+        onOpenChange={(open) => {
+          if (!open && !refundingRowId) setRefundCandidate(null);
+        }}
+      >
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle>Potwierdź pełny zwrot</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Wycena: <strong className="text-foreground">{String(refundCandidate?.order_number || refundCandidate?.id || '')}</strong>
+            </p>
+            <p>
+              Stripe zwróci klientowi całą opłaconą kwotę, a zarezerwowany filament zostanie automatycznie przywrócony do magazynu.
+            </p>
+            <p className="font-medium text-destructive">Tej operacji nie można cofnąć.</p>
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              disabled={Boolean(refundingRowId)}
+              onClick={() => setRefundCandidate(null)}
+            >
+              Anuluj
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!refundCandidate || Boolean(refundingRowId)}
+              onClick={() => refundCandidate && refundQuote(refundCandidate)}
+            >
+              {refundingRowId
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Wysyłanie zwrotu...</>
+                : <><RotateCcw className="mr-2 h-4 w-4" />Zwróć pełną płatność</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{config.title}</h1>
@@ -646,7 +682,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                               size="sm"
                               variant="outline"
                               disabled={refundingRowId === String(row.id)}
-                              onClick={() => refundQuote(row)}
+                              onClick={() => setRefundCandidate(row)}
                               aria-label="Zwróć pełną płatność"
                               title="Zwróć pełną płatność"
                             >

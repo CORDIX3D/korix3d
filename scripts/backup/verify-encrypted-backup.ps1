@@ -14,7 +14,8 @@ function Find-Executable([string]$Name) {
     [Environment]::GetEnvironmentVariable('Path', 'Machine')
   ) -join [System.IO.Path]::PathSeparator
   foreach ($directory in $registeredPath.Split([System.IO.Path]::PathSeparator, [System.StringSplitOptions]::RemoveEmptyEntries)) {
-    $expanded = [Environment]::ExpandEnvironmentVariables($directory.Trim())
+    $expanded = [Environment]::ExpandEnvironmentVariables($directory.Trim()).Trim('"')
+    if ([string]::IsNullOrWhiteSpace($expanded)) { continue }
     $candidate = Join-Path $expanded "$Name.exe"
     if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
   }

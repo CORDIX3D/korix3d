@@ -36,7 +36,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | produkcyjny redeploy `Ready`, domena i sekrety testowe podłączone | Zakończony |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
-| 8 | Backup | eksport DB/Storage, obowiązkowe szyfrowanie `age`, checksumy i automatyczne usuwanie jawnych danych | wewnętrzna kopia 31 tabel/278 rekordów wykonana; próbne szyfrowanie, odszyfrowanie i kontrola kompletności PASS; rzeczywisty zewnętrzny eksport i restore bazy oczekują | Częściowo |
+| 8 | Backup | eksport DB/Storage, obowiązkowe szyfrowanie `age`, checksumy i automatyczne usuwanie jawnych danych | rzeczywisty zewnętrzny eksport wykonany 13.08.2026; zaszyfrowany artefakt 161 835 272 B, SHA-256 PASS, odszyfrowanie PASS i 22/22 obiekty Storage zweryfikowane; pełny restore bazy do izolowanego projektu oczekuje | Częściowo |
 | 9 | Worker Creality | timeout, retry, heartbeat, panel produkcji, zadanie Windows, profile, zgodność 3MF i most FreeCAD dla STEP | worker online; 4 rzeczywiste wyceny 3MF; lokalny pipeline STL, OBJ i STEP zaliczony | Zakończony lokalnie |
 | 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; panel klienta 8/8 i wszystkie statyczne strony admina 29/29 PASS | Częściowo |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | strona główna renderowana serwerowo; Supabase/Zod usunięte z anonimowego manifestu; smoke skrócony z 90 do 57,5 s; stabilne dane terenowe Core Web Vitals oczekują | Częściowo |
@@ -95,7 +95,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 ## Krytyczne blokady przed produkcją
 
-1. Wykonać przygotowanym skryptem rzeczywisty zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją. Automatyczne szyfrowanie i kontrola artefaktu są przetestowane; eksport oczekuje na bezpiecznie przekazane hasło połączenia bazy i docelowy klucz `age`, oba poza repozytorium i rozmową.
+1. Wykonać pełne próbne odtworzenie bazy i Storage do odizolowanego projektu poza produkcją. Rzeczywisty zewnętrzny eksport z 13.08.2026 jest zaszyfrowany `age`, ma poprawną sumę SHA-256, przeszedł odszyfrowanie oraz kontrolę 22 obiektów Storage. Skrypt dzieli schemat na `pre-data.sql` i `post-data.sql`, dlatego klucze obce — również cykliczne — są tworzone po danych.
 2. Naprawić historię wcześniejszych migracji oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ich ponawiać.
 3. Wykonać pełną macierz akceptacyjną na osobnym stagingu. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
 
@@ -103,7 +103,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 1. Vercel `READY` i zielone CI GitHub dla `badce4e` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
-3. DNS `www`, HTTPS i redirect 308 — wykonane; pozostały zewnętrzny backup i oficjalna naprawa historii migracji.
+3. DNS `www`, HTTPS, redirect 308 i zewnętrzny szyfrowany backup — wykonane; pozostały pełny restore drill oraz oficjalna naprawa historii migracji.
 4. Staging: pełne testy formularzy, paneli, magazynu, wyceny i Stripe test.
 5. Produkcja bez Stripe live: testy logowania, paneli i kontrolowany checkout testowy.
 6. Worker Creality Print: utrzymać stały host i heartbeat; lokalne testy STL, STEP, OBJ i 3MF wykonane.

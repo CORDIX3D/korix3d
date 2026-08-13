@@ -93,7 +93,7 @@ Test wykonuj kwartalnie wyłącznie do nowego projektu Supabase bez ruchu klient
 
 1. Uruchom `scripts/backup/verify-encrypted-backup.ps1 <plik.tar.age>` i zachowaj wynik. Nie rozpakowuj kopii ręcznie do stałego katalogu.
 2. Utwórz pusty projekt testowy w tym samym lub zgodnym regionie.
-3. Zastosuj `roles.sql`, `schema.sql` i `data.sql` przez `psql --single-transaction --variable ON_ERROR_STOP=1`; postępuj zgodnie z aktualną instrukcją Supabase przy błędach ról zarządzanych.
+3. Zastosuj kolejno `roles.sql`, `pre-data.sql`, `data.sql` i `post-data.sql` przez `psql --single-transaction --variable ON_ERROR_STOP=1`. Taki podział tworzy klucze obce dopiero po danych i obsługuje również tabele z cyklicznymi zależnościami. `schema.sql` pozostaje pełną kopią kontrolną schematu; nie uruchamiaj go dodatkowo po `pre-data.sql`. Przy błędach ról zarządzanych postępuj zgodnie z aktualną instrukcją Supabase.
 4. Odtwórz `history_schema.sql` i `history_data.sql`, aby zachować historię migracji.
 5. Utwórz buckety zgodnie z migracjami, a następnie wgraj obiekty z katalogu `storage` zachowując bucket i pełną ścieżkę z manifestu.
 6. Wdróż Edge Functions z repozytorium i ustaw nowe, testowe sekrety; nigdy nie kopiuj live Stripe do testu.

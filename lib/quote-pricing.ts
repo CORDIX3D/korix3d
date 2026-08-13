@@ -6,8 +6,8 @@ export const QUOTE_PRICING_KEYS = [
   'default_margin',
   'vat_rate',
   'minimum_order_value',
-  'express_surcharge',
-  'urgent_surcharge',
+  'express_surcharge_percent',
+  'urgent_surcharge_percent',
 ] as const;
 
 export type QuotePricingKey = (typeof QUOTE_PRICING_KEYS)[number];
@@ -36,8 +36,8 @@ const MAX_VALUES: Record<QuotePricingKey, number> = {
   default_margin: 1_000,
   vat_rate: 100,
   minimum_order_value: 1_000_000,
-  express_surcharge: 100_000,
-  urgent_surcharge: 100_000,
+  express_surcharge_percent: 500,
+  urgent_surcharge_percent: 500,
 };
 
 export function parseQuotePricingSettings(

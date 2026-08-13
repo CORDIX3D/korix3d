@@ -22,6 +22,21 @@ for (const file of [
   if ((await stat(filePath)).size === 0) throw new Error(`Pusty plik kopii: ${file}`);
 }
 
+const splitSchemaFiles = ['pre-data.sql', 'post-data.sql'];
+const splitSchemaPresence = await Promise.all(splitSchemaFiles.map(async (file) => {
+  try {
+    const fileStat = await stat(join(backupRoot, file));
+    if (fileStat.size === 0) throw new Error(`Pusty plik kopii: ${file}`);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false;
+    throw error;
+  }
+}));
+if (splitSchemaPresence.some(Boolean) && !splitSchemaPresence.every(Boolean)) {
+  throw new Error('Kopia zawiera niepelny podzial schematu pre-data/post-data.');
+}
+
 const manifest = JSON.parse(await readFile(join(backupRoot, 'storage-manifest.json'), 'utf8'));
 if (manifest.format !== 1 || !Array.isArray(manifest.buckets) || !Array.isArray(manifest.objects)) {
   throw new Error('Nieobsługiwany manifest kopii Storage.');

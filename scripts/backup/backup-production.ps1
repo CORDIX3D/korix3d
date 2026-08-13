@@ -9,7 +9,8 @@ function Find-Executable([string]$Name) {
     [Environment]::GetEnvironmentVariable('Path', 'Machine')
   ) -join [System.IO.Path]::PathSeparator
   foreach ($directory in $registeredPath.Split([System.IO.Path]::PathSeparator, [System.StringSplitOptions]::RemoveEmptyEntries)) {
-    $expanded = [Environment]::ExpandEnvironmentVariables($directory.Trim())
+    $expanded = [Environment]::ExpandEnvironmentVariables($directory.Trim()).Trim('"')
+    if ([string]::IsNullOrWhiteSpace($expanded)) { continue }
     $candidate = Join-Path $expanded "$Name.exe"
     if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
   }
@@ -49,8 +50,10 @@ if (-not $tar) { throw 'Brak programu tar wymaganego do utworzenia archiwum.' }
 
 $supabase = Find-Executable 'supabase'
 $npx = Find-Executable 'npx'
-if (-not $supabase -and -not $npx) {
-  throw 'Brak Supabase CLI oraz npx. Zainstaluj jedno z tych narzedzi.'
+$pgDump = Find-Executable 'pg_dump'
+$pgDumpAll = Find-Executable 'pg_dumpall'
+if ((-not $pgDump -or -not $pgDumpAll) -and -not $supabase -and -not $npx) {
+  throw 'Brak pg_dump/pg_dumpall oraz Supabase CLI lub npx.'
 }
 
 function Invoke-SupabaseDump([string[]]$Arguments) {
@@ -62,17 +65,36 @@ function Invoke-SupabaseDump([string[]]$Arguments) {
   if ($LASTEXITCODE -ne 0) { throw "Supabase CLI zakonczyl sie kodem $LASTEXITCODE." }
 }
 
+function Invoke-PostgresTool([string]$Executable, [string[]]$Arguments) {
+  & $Executable @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "$([System.IO.Path]::GetFileName($Executable)) zakonczyl sie kodem $LASTEXITCODE."
+  }
+}
+
 $completed = $false
 try {
   New-Item -ItemType Directory -Path $destinationRoot -Force | Out-Null
   New-Item -ItemType Directory -Path $backupRoot | Out-Null
   New-Item -ItemType Directory -Path (Join-Path $backupRoot 'config') | Out-Null
 
-  Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'roles.sql'), '--role-only')
-  Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'schema.sql'))
-  Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'data.sql'), '--use-copy', '--data-only', '--exclude', 'storage.buckets_vectors', '--exclude', 'storage.vector_indexes')
-  Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'history_schema.sql'), '--schema', 'supabase_migrations')
-  Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'history_data.sql'), '--use-copy', '--data-only', '--schema', 'supabase_migrations')
+  if ($pgDump -and $pgDumpAll) {
+    Invoke-PostgresTool -Executable $pgDumpAll -Arguments @('--database', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'roles.sql'), '--roles-only')
+    Invoke-PostgresTool -Executable $pgDump -Arguments @('--dbname', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'schema.sql'), '--schema-only', '--no-owner', '--no-privileges')
+    Invoke-PostgresTool -Executable $pgDump -Arguments @('--dbname', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'pre-data.sql'), '--section', 'pre-data', '--no-owner', '--no-privileges')
+    Invoke-PostgresTool -Executable $pgDump -Arguments @('--dbname', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'data.sql'), '--data-only', '--no-owner', '--no-privileges', '--exclude-table', 'storage.buckets_vectors', '--exclude-table', 'storage.vector_indexes')
+    Invoke-PostgresTool -Executable $pgDump -Arguments @('--dbname', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'post-data.sql'), '--section', 'post-data', '--no-owner', '--no-privileges')
+    Invoke-PostgresTool -Executable $pgDump -Arguments @('--dbname', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'history_schema.sql'), '--schema-only', '--no-owner', '--no-privileges', '--schema', 'supabase_migrations')
+    Invoke-PostgresTool -Executable $pgDump -Arguments @('--dbname', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'history_data.sql'), '--data-only', '--no-owner', '--no-privileges', '--schema', 'supabase_migrations')
+  } else {
+    Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'roles.sql'), '--role-only')
+    Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'schema.sql'))
+    Copy-Item (Join-Path $backupRoot 'schema.sql') (Join-Path $backupRoot 'pre-data.sql')
+    Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'data.sql'), '--use-copy', '--data-only', '--exclude', 'storage.buckets_vectors', '--exclude', 'storage.vector_indexes')
+    '-- Supabase CLI fallback: post-data is included in pre-data.sql/schema.sql.' | Set-Content -LiteralPath (Join-Path $backupRoot 'post-data.sql') -Encoding utf8
+    Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'history_schema.sql'), '--schema', 'supabase_migrations')
+    Invoke-SupabaseDump @('db', 'dump', '--db-url', $env:SUPABASE_DB_URL, '--file', (Join-Path $backupRoot 'history_data.sql'), '--use-copy', '--data-only', '--schema', 'supabase_migrations')
+  }
 
   & node (Join-Path $PSScriptRoot 'backup-storage.mjs') $backupRoot
   if ($LASTEXITCODE -ne 0) { throw 'Kopia Storage nie powiodla sie.' }

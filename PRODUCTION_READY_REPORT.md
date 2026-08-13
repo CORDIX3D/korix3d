@@ -96,7 +96,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 1. Wykonać przygotowanym skryptem rzeczywisty zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją. Automatyczne szyfrowanie i kontrola artefaktu są przetestowane; eksport oczekuje na bezpiecznie przekazane hasło połączenia bazy i docelowy klucz `age`, oba poza repozytorium i rozmową.
 2. Naprawić historię wcześniejszych migracji oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ich ponawiać.
-3. Opublikować bieżący kod płatności za wycenę, poczekać na zielone CI i Vercel `READY`, a następnie wykonać jeden końcowy zakup wyceny w Stripe Sandbox wraz z anulowaniem i pełnym refundem. Checkout sklepu, webhook i przywrócenie magazynu są już potwierdzone.
+3. Wykonać jeden końcowy zakup wyceny 3D w Stripe Sandbox wraz z anulowaniem i pełnym refundem. Kod jest opublikowany, Vercel ma status sukcesu, `/api/health` zwraca HTTP 200, a Checkout sklepu, webhook i przywrócenie magazynu są już potwierdzone.
 4. Wykonać pełną macierz akceptacyjną na osobnym stagingu. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
 
 ## Kolejność bezpiecznego uruchomienia
@@ -118,7 +118,7 @@ Dokumentacyjny commit `2e7f3a9` ma zielone CI `31595057599` i wdrożenie `dpl_28
 
 Zmiany opublikowane w `main` obejmują osobne commity dla: bazowego wdrożenia, env, Supabase, Stripe, Vercel, domeny, monitoringu, backupu, workera, testów produkcyjnych, wydajności, SEO, bezpieczeństwa i dokumentacji.
 
-Po kontrolowanym teście Stripe oczekują na publikację: poprawka pełnego refundu sklepu, osobny Checkout wyceny 3D, obsługa anulowania/potwierdzenia/refundu i rozszerzone kontrole. Migracje są już zastosowane w produkcyjnym Supabase. Lokalnie przechodzą lint, TypeScript, 58 testów, kontrola migracji, kontrola Stripe i produkcyjny build 63/63 stron.
+Commit `bb093c9` opublikował poprawkę pełnego refundu sklepu, osobny Checkout wyceny 3D, obsługę anulowania/potwierdzenia/refundu i rozszerzone kontrole. Vercel zgłosił wdrożenie jako udane, `/api/health` zwrócił HTTP 200, a produkcyjna `/wycena` otworzyła się bez błędów aplikacji i konsoli. Migracje są zastosowane w produkcyjnym Supabase. Lokalnie przechodzą lint, TypeScript, 58 testów, kontrola migracji, kontrola Stripe i produkcyjny build 63/63 stron.
 
 ## Sekrety i koszty
 

@@ -339,25 +339,35 @@ export default function AdminSettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="form-label">Dopłata Express (zł)</label>
+                  <label className="form-label">Dopłata Express (%)</label>
                   <Input
                     type="number"
                     step="0.01"
-                    value={getValue('express_surcharge')}
-                    onChange={(e) => setValue('express_surcharge', e.target.value)}
+                    min="0"
+                    max="500"
+                    value={getValue('express_surcharge_percent')}
+                    onChange={(e) => setValue('express_surcharge_percent', e.target.value)}
                     className="h-11 bg-secondary border-border"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Procent kosztu realizacji przed dostawą i VAT.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="form-label">Dopłata Pilne (zł)</label>
+                  <label className="form-label">Dopłata Pilne (%)</label>
                   <Input
                     type="number"
                     step="0.01"
-                    value={getValue('urgent_surcharge')}
-                    onChange={(e) => setValue('urgent_surcharge', e.target.value)}
+                    min="0"
+                    max="500"
+                    value={getValue('urgent_surcharge_percent')}
+                    onChange={(e) => setValue('urgent_surcharge_percent', e.target.value)}
                     className="h-11 bg-secondary border-border"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Procent kosztu realizacji przed dostawą i VAT.
+                  </p>
                 </div>
 
                 <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl">

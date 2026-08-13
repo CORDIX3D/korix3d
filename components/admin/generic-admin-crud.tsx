@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase/client';
-import { CheckCircle2, Edit, ImagePlus, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { CheckCircle2, Edit, ImagePlus, Loader2, Plus, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 
@@ -45,6 +45,7 @@ export type AdminCrudConfig = {
   readOnly?: boolean;
   allowCreate?: boolean;
   allowDelete?: boolean;
+  allowQuoteRefunds?: boolean;
   filters?: Array<{
     field: string;
     operator?: 'eq' | 'in' | 'neq';
@@ -107,6 +108,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
   const [editingRow, setEditingRow] = useState<DbRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
+  const [refundingRowId, setRefundingRowId] = useState<string | null>(null);
   const [imageFiles, setImageFiles] = useState<Record<string, File | null>>({});
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<Record<string, unknown>>(() =>
@@ -418,6 +420,46 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     }
   };
 
+  const refundQuote = async (row: DbRow) => {
+    const rowId = String(row.id || '');
+    if (!rowId || refundingRowId) return;
+
+    const rowLabel = row.order_number || row.id;
+    if (!window.confirm(
+      `Czy na pewno wykonać pełny zwrot płatności za wycenę „${rowLabel}”? `
+      + 'Stripe zwróci całą kwotę, a magazyn filamentu zostanie przywrócony automatycznie.'
+    )) return;
+
+    setRefundingRowId(rowId);
+    try {
+      const response = await fetch('/api/admin/orders/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: rowId }),
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        toast.error('Nie udało się wykonać zwrotu', {
+          description: result.error || 'Nieoczekiwany błąd zwrotu płatności.',
+        });
+        return;
+      }
+
+      toast.success('Pełny zwrot został przyjęty przez Stripe', {
+        description: 'Status płatności i stan filamentu zaktualizują się automatycznie.',
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      await fetchRows();
+    } catch (error) {
+      toast.error('Nie udało się wykonać zwrotu', {
+        description: error instanceof Error ? error.message : 'Nieoczekiwany błąd zwrotu płatności.',
+      });
+    } finally {
+      setRefundingRowId(null);
+    }
+  };
+
   const getFieldOptions = (field: CrudField) => {
     if (!field.options || !editingRow || !field.allowedTransitions) {
       return field.options || [];
@@ -599,6 +641,20 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                     <td className="py-3 pr-4 text-right whitespace-nowrap">
                         <div className="inline-flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => openEdit(row)}><Edit className="w-4 h-4" /></Button>
+                          {config.allowQuoteRefunds && row.payment_status === 'paid' && row.stripe_payment_intent_id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={refundingRowId === String(row.id)}
+                              onClick={() => refundQuote(row)}
+                              aria-label="Zwróć pełną płatność"
+                              title="Zwróć pełną płatność"
+                            >
+                              {refundingRowId === String(row.id)
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <RotateCcw className="w-4 h-4" />}
+                            </Button>
+                          )}
                           {config.allowDelete !== false && (
                             <Button
                               size="sm"

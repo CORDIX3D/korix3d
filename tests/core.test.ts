@@ -516,8 +516,8 @@ test('kalkulator wymaga kompletnego i poprawnego cennika administratora', () => 
     ['default_margin', '25'],
     ['vat_rate', '23'],
     ['minimum_order_value', '20'],
-    ['express_surcharge', '65'],
-    ['urgent_surcharge', '120'],
+    ['express_surcharge_percent', '25'],
+    ['urgent_surcharge_percent', '50'],
   ].map(([key, value]) => ({ key, value }));
 
   assert.deepEqual(parseQuotePricingSettings(rows), {
@@ -528,12 +528,18 @@ test('kalkulator wymaga kompletnego i poprawnego cennika administratora', () => 
     default_margin: 25,
     vat_rate: 23,
     minimum_order_value: 20,
-    express_surcharge: 65,
-    urgent_surcharge: 120,
+    express_surcharge_percent: 25,
+    urgent_surcharge_percent: 50,
   });
   assert.equal(parseQuotePricingSettings(rows.slice(1)), null);
   assert.equal(
     parseQuotePricingSettings(rows.map((row) => row.key === 'vat_rate' ? { ...row, value: '101' } : row)),
+    null
+  );
+  assert.equal(
+    parseQuotePricingSettings(rows.map((row) => row.key === 'urgent_surcharge_percent'
+      ? { ...row, value: '501' }
+      : row)),
     null
   );
 });
@@ -547,8 +553,8 @@ test('wycena zapisuje niezmienną migawkę stawek i kosztu dostawy', () => {
     ['default_margin', '25'],
     ['vat_rate', '23'],
     ['minimum_order_value', '20'],
-    ['express_surcharge', '65'],
-    ['urgent_surcharge', '120'],
+    ['express_surcharge_percent', '25'],
+    ['urgent_surcharge_percent', '50'],
   ].map(([key, value]) => ({ key, value })));
 
   assert.ok(settings);

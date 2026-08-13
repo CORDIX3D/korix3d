@@ -16,6 +16,7 @@ export default function Page() {
         addLabel: 'Dodaj wycenę',
         allowCreate: false,
         allowDelete: false,
+        allowQuoteRefunds: true,
         searchKeys: ['order_number', 'material_name', 'status', 'notes'],
         fields: [
           { key: 'material_name', label: 'Materiał', readOnlyOnEdit: true },
@@ -63,6 +64,7 @@ export default function Page() {
           { key: 'material_name', label: 'Materiał' },
           { key: 'quantity', label: 'Ilość', type: 'number' },
           { key: 'status', label: 'Status', type: 'status' },
+          { key: 'payment_status', label: 'Płatność', type: 'status' },
           { key: 'final_price', label: 'Cena', type: 'money' },
           { key: 'created_at', label: 'Data', type: 'date' },
         ],

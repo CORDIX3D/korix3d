@@ -9,14 +9,14 @@ Commit raportu: bieżący `HEAD` gałęzi `main`
 
 **NIEGOTOWE DO PEŁNEJ PRODUKCJI — 97/100.**
 
-Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, aktywny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Pełny test sklepu w Stripe Sandbox zakończył płatność i refund, a wykryty brak zwrotu stanu został naprawiony oraz sprawdzony idempotentnie. Wycena własnego projektu ma teraz osobny Stripe Checkout, wymagany adres, automatyczne potwierdzenie webhookiem, anulowanie i refund; migracja działa już w Supabase i przeszła testy transakcyjne. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta 8/8 i wszystkie 29 statycznych stron administratora przeszły zalogowany odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Pozostają: zewnętrzna kopia i próba odtworzenia, naprawa historii migracji, publikacja bieżącego kodu, końcowy test płatności wyceny po wdrożeniu oraz pełny staging. Stripe live pozostaje wyłączony.
+Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa wyłącznie w trybie testowym, aktywny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Pełny test sklepu w Stripe Sandbox zakończył płatność i refund, a wykryty brak zwrotu stanu został naprawiony oraz sprawdzony idempotentnie. Wycena własnego projektu ma osobny Stripe Checkout, wymagany adres i automatyczne potwierdzenie webhookiem; rzeczywista płatność oraz anulowanie przeszły w Sandbox, a rezerwacja 28,55 g filamentu została poprawnie utworzona i zwolniona. Lokalnie dodano również zabezpieczony administracyjny pełny refund. Dopłaty Express i Pilne są naliczane procentowo od kosztu realizacji przed dostawą i VAT; produkcyjna migracja Supabase jest zastosowana i przeszła test transakcyjny. Produkcyjny Supabase został zabezpieczony wewnętrzną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk oraz Storage. Panel klienta 8/8 i wszystkie 29 statycznych stron administratora przeszły zalogowany odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Stały worker Creality Print działa jako zadanie Windows, ma aktywny heartbeat i zakończył cztery rzeczywiste wyceny 3MF. Pozostają: publikacja funkcji refundu i dopłat procentowych, końcowy refund wyceny po wdrożeniu, zewnętrzna kopia i próba odtworzenia, naprawa historii migracji oraz pełny staging. Stripe live pozostaje wyłączony.
 
 ## Podsumowanie wykonawcze
 
 - Build Next.js 15.5.21 przechodzi i generuje 63 strony statyczne oraz komplet tras dynamicznych/API.
 - Lint, TypeScript, skan sekretów, kontrakty env/Supabase/Stripe/Vercel/domeny/monitoringu/backupu/workera/testów/wydajności/SEO/bezpieczeństwa/dokumentacji oraz budżety JavaScript przechodzą lokalnie.
-- Lokalny zestaw zawiera 65 uporządkowanych migracji. Najnowsza migracja płatności wycen jest zastosowana i sprawdzona w produkcyjnym Supabase; 59 wcześniejszych wpisów nadal wymaga oficjalnego `migration repair`. Kontrola RLS obejmuje 44 tabele. Produkcja ma 51 tabel publicznych, wszystkie z RLS, 124 polityki i 4 wymagane buckety Storage.
-- Zidentyfikowano 65 plików stron i 44 route handlery API.
+- Lokalny zestaw zawiera 66 uporządkowanych migracji. Najnowsze migracje płatności wycen i procentowych dopłat priorytetowych są zastosowane oraz sprawdzone w produkcyjnym Supabase; 59 wcześniejszych wpisów nadal wymaga oficjalnego `migration repair`. Kontrola RLS obejmuje 44 tabele. Produkcja ma 51 tabel publicznych, wszystkie z RLS, 124 polityki i 4 wymagane buckety Storage.
+- Zidentyfikowano 65 plików stron i 45 route handlerów API.
 - KORIX AI działa lokalnie na regułach i danych magazynowych; repozytorium nie wymaga OpenAI API ani płatnego AI.
 - Publiczna strona główna działa na `korix3d.pl`; test przeglądarkowy nie wykrył `Application error`.
 - Rozjazd schematu produkcyjnego Supabase został usunięty; wszystkie tabele i kolumny wymagane przez typy aplikacji są obecne.
@@ -32,7 +32,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | 1 | Audyt repozytorium | struktura, trasy, konfiguracja i ryzyka rozpoznane | repo i build sprawdzone | Zakończony |
 | 2 | Environment | pełny `.env.example`, walidacja Zod i kontrola CI | wymagane zmienne aplikacji oraz podpis asymetryczny workera skonfigurowane | Zakończony |
 | 3 | Supabase | 63 migracje, zgodne znaczniki czasu czterech wersji produkcyjnych, RLS, indeksy, FK, Storage i testy pgTAP | 51 tabel, 124 polityki, 0 tabel bez RLS, 4 buckety; naprawiono dwie produkcyjne blokady zapisu checkoutu | Częściowo |
-| 4 | Stripe | checkout sklepu i wyceny, podpisany/idempotentny webhook, zwroty i dokumentacja | pełna płatność sklepu i refund PASS w Sandbox; płatność wyceny oraz zwrot materiału PASS w testach transakcyjnych Supabase; końcowy test po wdrożeniu oczekuje | Częściowo |
+| 4 | Stripe | checkout sklepu i wyceny, podpisany/idempotentny webhook, zwroty i dokumentacja | pełna płatność sklepu i refund PASS; płatność oraz anulowanie wyceny PASS w Sandbox; administracyjny refund wyceny lokalnie PASS i oczekuje na wdrożenie oraz końcowy test | Częściowo |
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | produkcyjny redeploy `Ready`, domena i sekrety testowe podłączone | Zakończony |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
@@ -65,7 +65,8 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | obserwacja produkcji | PASS | ponad 30 min po wdrożeniu; 24/24 health HTTP 200 w dodatkowym oknie 19 min 19 s; mediana 209 ms, średnia 301 ms, p95 609 ms, maksimum 1549 ms; 0 klastrów runtime i 0 odpowiedzi 5xx; heartbeat workera 3 s |
 | test zaszyfrowanej kopii | PASS | `age` 1.3.1; szyfrowanie, SHA-256, odszyfrowanie, rozpakowanie, walidacja manifestu i sprzątanie na sztucznych danych |
 | Stripe Checkout sklepu | PASS SANDBOX | utworzenie zamówienia, testowa płatność, podpisany webhook, zmniejszenie stanu, pełny refund i idempotentne przywrócenie magazynu potwierdzone |
-| Stripe Checkout wyceny 3D | PASS KOD/DB | osobne okno płatności, adres rozliczeniowy i wysyłkowy, anulowanie, potwierdzenie, refund oraz rezerwacja filamentu; dwa testy transakcyjne zakończone `ROLLBACK`; test przeglądarkowy po wdrożeniu oczekuje |
+| Stripe Checkout wyceny 3D | PASS SANDBOX CZĘŚCIOWY | płatność 46,18 zł, wymagany adres, webhook, powrót do panelu, anulowanie i rezerwacja/zwolnienie 28,55 g filamentu potwierdzone; pełny refund oczekuje na wdrożenie nowej akcji administratora |
+| Dopłaty Express/Pilne | PASS DB | nowe wyceny używają odpowiednio 25% i 50% kosztu realizacji przed dostawą i VAT; test Express: 34,40 zł podstawy → 8,60 zł dopłaty; transakcja testowa zakończona `ROLLBACK` |
 
 ## Testy działającej witryny
 
@@ -96,7 +97,7 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 1. Wykonać przygotowanym skryptem rzeczywisty zewnętrzny, zaszyfrowany eksport bazy i Storage oraz próbne odtworzenie poza produkcją. Automatyczne szyfrowanie i kontrola artefaktu są przetestowane; eksport oczekuje na bezpiecznie przekazane hasło połączenia bazy i docelowy klucz `age`, oba poza repozytorium i rozmową.
 2. Naprawić historię wcześniejszych migracji oficjalnym `supabase migration repair`, aby przyszłe `db push` nie próbowało ich ponawiać.
-3. Wykonać jeden końcowy zakup wyceny 3D w Stripe Sandbox wraz z anulowaniem i pełnym refundem. Kod jest opublikowany, Vercel ma status sukcesu, `/api/health` zwraca HTTP 200, a Checkout sklepu, webhook i przywrócenie magazynu są już potwierdzone.
+3. Opublikować administracyjny refund wyceny, wykonać pełny zwrot opłaconej wyceny Sandbox i potwierdzić webhook oraz jednorazowe przywrócenie 28,55 g filamentu. Zakup, anulowanie i ponowne opłacenie tej wyceny są już potwierdzone.
 4. Wykonać pełną macierz akceptacyjną na osobnym stagingu. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
 
 ## Kolejność bezpiecznego uruchomienia

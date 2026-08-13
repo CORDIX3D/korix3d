@@ -46,8 +46,8 @@ const NON_NEGATIVE_NUMBER_SETTINGS = new Set([
   'default_margin',
   'vat_rate',
   'minimum_order_value',
-  'express_surcharge',
-  'urgent_surcharge',
+  'express_surcharge_percent',
+  'urgent_surcharge_percent',
   'free_shipping_threshold',
 ]);
 
@@ -59,8 +59,8 @@ const NUMBER_SETTING_MAXIMUMS: Record<string, number> = {
   default_margin: 1_000,
   vat_rate: 100,
   minimum_order_value: 1_000_000,
-  express_surcharge: 100_000,
-  urgent_surcharge: 100_000,
+  express_surcharge_percent: 500,
+  urgent_surcharge_percent: 500,
   free_shipping_threshold: 1_000_000,
 };
 

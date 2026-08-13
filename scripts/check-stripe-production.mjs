@@ -14,6 +14,10 @@ const quoteCancellation = await readFile(
   join(root, 'app/api/stripe/cancel-quote-checkout/route.ts'),
   'utf8'
 );
+const quoteRefund = await readFile(
+  join(root, 'app/api/admin/orders/refund/route.ts'),
+  'utf8'
+);
 const webhook = await readFile(
   join(root, 'app/api/stripe/webhook/route.ts'),
   'utf8'
@@ -77,6 +81,18 @@ for (const requirement of quoteCheckoutRequirements.slice(0, 4)) {
 
 if (!quoteCancellation.includes("'release_quote_payment_locked'")) {
   throw new Error('Anulowanie płatności za wycenę nie zwalnia rezerwacji materiału.');
+}
+
+for (const requirement of [
+  'requireAdminApiContext()',
+  'isTrustedMutationRequest(request)',
+  'stripe_payment_intent_id',
+  'refunds.create(',
+  'idempotencyKey: `korix3d-quote-refund-${order.id}`',
+]) {
+  if (!quoteRefund.includes(requirement)) {
+    throw new Error(`Brak zabezpieczenia administracyjnego zwrotu wyceny: ${requirement}`);
+  }
 }
 
 const quotePage = await readFile(join(root, 'app/(public)/wycena/page.tsx'), 'utf8');

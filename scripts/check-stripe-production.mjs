@@ -6,11 +6,20 @@ const checkout = await readFile(
   join(root, 'app/api/stripe/create-checkout-session/route.ts'),
   'utf8'
 );
+const quoteCheckout = await readFile(
+  join(root, 'app/api/stripe/create-quote-checkout-session/route.ts'),
+  'utf8'
+);
+const quoteCancellation = await readFile(
+  join(root, 'app/api/stripe/cancel-quote-checkout/route.ts'),
+  'utf8'
+);
 const webhook = await readFile(
   join(root, 'app/api/stripe/webhook/route.ts'),
   'utf8'
 );
 const stripe = await readFile(join(root, 'lib/stripe.ts'), 'utf8');
+const stripeError = await readFile(join(root, 'lib/stripe-error.ts'), 'utf8');
 const environment = await readFile(join(root, '.env.example'), 'utf8');
 
 const checkoutRequirements = [
@@ -35,6 +44,17 @@ const webhookRequirements = [
   "'claim_stripe_webhook_event'",
   "'finish_stripe_webhook_event'",
   "'fail_stripe_webhook_event'",
+  "'complete_quote_payment_locked'",
+  "'release_quote_payment_locked'",
+  "'refund_quote_payment_locked'",
+];
+
+const quoteCheckoutRequirements = [
+  "order_type: 'quote'",
+  "billing_address_collection: 'required'",
+  "shipping_address_collection = { allowed_countries: ['PL'] }",
+  'getStripeWebhookSecret();',
+  "'/api/stripe/create-quote-checkout-session'",
 ];
 
 for (const requirement of checkoutRequirements) {
@@ -49,8 +69,32 @@ for (const requirement of webhookRequirements) {
   }
 }
 
+for (const requirement of quoteCheckoutRequirements.slice(0, 4)) {
+  if (!quoteCheckout.includes(requirement)) {
+    throw new Error(`Brak zabezpieczenia płatności za wycenę: ${requirement}`);
+  }
+}
+
+if (!quoteCancellation.includes("'release_quote_payment_locked'")) {
+  throw new Error('Anulowanie płatności za wycenę nie zwalnia rezerwacji materiału.');
+}
+
+const quotePage = await readFile(join(root, 'app/(public)/wycena/page.tsx'), 'utf8');
+if (!quotePage.includes(quoteCheckoutRequirements[4])) {
+  throw new Error('Gotowa wycena nie otwiera Stripe Checkout.');
+}
+
 if (!stripe.includes("apiVersion: '2026-06-24.dahlia'")) {
   throw new Error('Wersja API Stripe nie jest przypięta.');
+}
+
+for (const errorCode of ['api_key_expired', 'api_key_invalid']) {
+  if (!stripeError.includes(`'${errorCode}'`)) {
+    throw new Error(`Brak obsługi błędu poświadczeń Stripe: ${errorCode}`);
+  }
+}
+if (!stripe.includes('isStripeCredentialError(error)')) {
+  throw new Error('Błędy poświadczeń Stripe nie są mapowane na błąd konfiguracji.');
 }
 
 for (const variable of ['STRIPE_SECRET_KEY=', 'STRIPE_WEBHOOK_SECRET=']) {

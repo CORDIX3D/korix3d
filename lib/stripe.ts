@@ -3,6 +3,7 @@ import {
   EnvironmentConfigurationError,
   getRequiredStripeEnvironment,
 } from '@/lib/env/server';
+import { isStripeCredentialError } from '@/lib/stripe-error';
 
 let stripeClient: Stripe | null = null;
 let stripeClientKey: string | null = null;
@@ -18,7 +19,8 @@ export function isStripeConfigurationError(
   error: unknown
 ): error is StripeConfigurationError {
   return error instanceof StripeConfigurationError
-    || error instanceof EnvironmentConfigurationError;
+    || error instanceof EnvironmentConfigurationError
+    || isStripeCredentialError(error);
 }
 
 export function getStripeServer() {

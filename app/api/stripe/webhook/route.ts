@@ -91,6 +91,108 @@ async function getOrderById(admin: AdminClient, orderId: string) {
   return data;
 }
 
+async function getQuoteById(admin: AdminClient, orderId: string) {
+  const { data, error } = await admin
+    .from('orders_3d')
+    .select('id, final_price, status, payment_status, stripe_session_id, stripe_payment_intent_id')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+function quoteOrderIdFromMetadata(
+  metadata: Stripe.Metadata | null,
+  clientReferenceId?: string | null
+) {
+  if (metadata?.order_type !== 'quote') return null;
+  return validOrderId(metadata.quote_order_id || clientReferenceId);
+}
+
+async function processQuoteCheckoutSession(
+  admin: AdminClient,
+  event: Stripe.Event
+): Promise<EventOutcome> {
+  const session = event.data.object as Stripe.Checkout.Session;
+  const orderId = quoteOrderIdFromMetadata(
+    session.metadata,
+    session.client_reference_id
+  );
+  if (!orderId) return { status: 'ignored', orderId: null };
+
+  const quote = await getQuoteById(admin, orderId);
+  if (!quote) return { status: 'ignored', orderId: null };
+
+  const sessionBinding = getStripeSessionBinding(
+    quote.stripe_session_id,
+    session.id
+  );
+  if (sessionBinding === 'mismatch') {
+    console.error('Stripe quote webhook session mismatch.', { orderId });
+    return { status: 'ignored', orderId: null };
+  }
+
+  const paymentConfirmed =
+    event.type === 'checkout.session.async_payment_succeeded'
+    || (event.type === 'checkout.session.completed' && session.payment_status === 'paid');
+
+  if (paymentConfirmed) {
+    if (!isExpectedStripeAmount(
+      session.currency,
+      session.amount_total,
+      Number(quote.final_price)
+    )) {
+      console.error('Stripe quote webhook amount mismatch.', { orderId });
+      return { status: 'ignored', orderId: null };
+    }
+
+    const intentId = paymentIntentId(session.payment_intent);
+    if (!intentId) throw new Error('Paid quote session has no payment intent.');
+    const { data: completed, error } = await admin.rpc(
+      'complete_quote_payment_locked',
+      {
+        p_order_id: quote.id,
+        p_session_id: session.id,
+        p_payment_intent_id: intentId,
+        p_amount_cents: session.amount_total,
+      }
+    );
+    if (error) throw error;
+    if (!completed) {
+      throw new Error('Paid Stripe quote session could not be committed.');
+    }
+    // stripe_webhook_events.order_id points to store_orders, not orders_3d.
+    return { status: 'processed', orderId: null };
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    if (sessionBinding === 'unbound') {
+      const { error } = await admin
+        .from('orders_3d')
+        .update({
+          payment_status: 'pending',
+          stripe_session_id: session.id,
+          stripe_payment_intent_id: paymentIntentId(session.payment_intent),
+        })
+        .eq('id', quote.id)
+        .eq('status', 'accepted')
+        .is('stripe_session_id', null);
+      if (error) throw error;
+    }
+    return { status: 'processed', orderId: null };
+  }
+
+  if (shouldReleaseStockAfterStripeEvent(event.type)) {
+    const { data: released, error } = await admin.rpc(
+      'release_quote_payment_locked',
+      { p_order_id: quote.id, p_session_id: session.id }
+    );
+    if (error) throw error;
+    if (!released) return { status: 'ignored', orderId: null };
+  }
+  return { status: 'processed', orderId: null };
+}
+
 async function processCheckoutSession(
   admin: AdminClient,
   event: Stripe.Event
@@ -183,6 +285,28 @@ async function processPaymentFailure(
   event: Stripe.Event
 ): Promise<EventOutcome> {
   const intent = event.data.object as Stripe.PaymentIntent;
+  const quoteOrderId = quoteOrderIdFromMetadata(intent.metadata);
+  if (quoteOrderId) {
+    const quote = await getQuoteById(admin, quoteOrderId);
+    if (!quote) return { status: 'ignored', orderId: null };
+    if (
+      !isExpectedStripeAmount(intent.currency, intent.amount, Number(quote.final_price))
+      || (quote.stripe_payment_intent_id && quote.stripe_payment_intent_id !== intent.id)
+    ) {
+      console.error('Stripe failed quote payment binding mismatch.', { orderId: quoteOrderId });
+      return { status: 'ignored', orderId: null };
+    }
+    if (quote.status === 'accepted' && !quote.stripe_payment_intent_id) {
+      const { error } = await admin
+        .from('orders_3d')
+        .update({ stripe_payment_intent_id: intent.id })
+        .eq('id', quote.id)
+        .eq('status', 'accepted')
+        .is('stripe_payment_intent_id', null);
+      if (error) throw error;
+    }
+    return { status: 'processed', orderId: null };
+  }
   const orderId = validOrderId(intent.metadata?.order_id);
   if (!orderId) return { status: 'ignored', orderId: null };
 
@@ -218,6 +342,32 @@ async function processRefund(
   const intentId = paymentIntentId(charge.payment_intent);
   if (!intentId) return { status: 'ignored', orderId: null };
 
+  const { data: quote, error: quoteError } = await admin
+    .from('orders_3d')
+    .select('id, final_price, payment_status, stripe_payment_intent_id')
+    .eq('stripe_payment_intent_id', intentId)
+    .maybeSingle();
+  if (quoteError) throw quoteError;
+  if (quote) {
+    if (!isExpectedStripeAmount(charge.currency, charge.amount, Number(quote.final_price))) {
+      console.error('Stripe quote refund amount mismatch.', { orderId: quote.id });
+      return { status: 'ignored', orderId: null };
+    }
+    if (!isFullStripeRefund({
+      refunded: charge.refunded,
+      amount: charge.amount,
+      amountRefunded: charge.amount_refunded,
+    })) {
+      return { status: 'processed', orderId: null };
+    }
+    const { data: refunded, error } = await admin.rpc(
+      'refund_quote_payment_locked',
+      { p_order_id: quote.id }
+    );
+    if (error) throw error;
+    return { status: refunded ? 'processed' : 'ignored', orderId: null };
+  }
+
   const { data: order, error } = await admin
     .from('store_orders')
     .select('id, total, status, stripe_payment_intent_id')
@@ -240,20 +390,13 @@ async function processRefund(
     return { status: 'processed', orderId: order.id };
   }
 
-  if (order.status !== 'refunded') {
-    const { data: refundedOrders, error: refundError } = await admin
-      .from('store_orders')
-      .update({ status: 'refunded' })
-      .eq('id', order.id)
-      .in('status', ['paid', 'processing', 'shipped', 'delivered'])
-      .select('id');
-    if (refundError) throw refundError;
-    if (!refundedOrders?.length) {
-      const currentOrder = await getOrderById(admin, order.id);
-      if (currentOrder?.status !== 'refunded') {
-        return { status: 'ignored', orderId: order.id };
-      }
-    }
+  const { data: refunded, error: refundError } = await admin.rpc(
+    'refund_store_order_and_restore_stock_locked',
+    { p_order_id: order.id }
+  );
+  if (refundError) throw refundError;
+  if (!refunded) {
+    return { status: 'ignored', orderId: order.id };
   }
   return { status: 'processed', orderId: order.id };
 }
@@ -267,6 +410,10 @@ async function processEvent(
   }
   if (event.type === 'charge.refunded') {
     return processRefund(admin, event);
+  }
+  const session = event.data.object as Stripe.Checkout.Session;
+  if (session.metadata?.order_type === 'quote') {
+    return processQuoteCheckoutSession(admin, event);
   }
   return processCheckoutSession(admin, event);
 }

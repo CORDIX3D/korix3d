@@ -150,6 +150,26 @@ const requiredSecurityGuards = [
     sql: '#variable_conflict use_variable',
   },
   {
+    name: 'atomowe przywracanie magazynu po pelnym zwrocie Stripe',
+    sql: 'refund_store_order_and_restore_stock_locked',
+  },
+  {
+    name: 'idempotentny ruch magazynowy po zwrocie Stripe',
+    sql: "'order_refunded'",
+  },
+  {
+    name: 'atomowe potwierdzenie płatności za wycenę 3D',
+    sql: 'complete_quote_payment_locked',
+  },
+  {
+    name: 'zwolnienie rezerwacji po anulowaniu płatności za wycenę',
+    sql: 'release_quote_payment_locked',
+  },
+  {
+    name: 'obsługa pełnego zwrotu za wycenę 3D',
+    sql: 'refund_quote_payment_locked',
+  },
+  {
     name: 'ograniczone ponawianie zadań zdalnego slicera',
     sql: 'create or replace function public.fail_or_retry_slicing_job',
   },

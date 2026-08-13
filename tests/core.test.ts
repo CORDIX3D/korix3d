@@ -45,6 +45,7 @@ import {
   isFullStripeRefund,
   shouldReleaseStockAfterStripeEvent,
 } from '../lib/stripe-webhook';
+import { isStripeCredentialError } from '../lib/stripe-error';
 import {
   isValidPolishNip,
   storeOrderSchema,
@@ -85,6 +86,14 @@ function product(overrides: Partial<Product> = {}): Product {
     ...overrides,
   };
 }
+
+test('wygasły lub nieprawidłowy klucz Stripe jest błędem konfiguracji', () => {
+  assert.equal(isStripeCredentialError({ code: 'api_key_expired' }), true);
+  assert.equal(isStripeCredentialError({ code: 'api_key_invalid' }), true);
+  assert.equal(isStripeCredentialError({ type: 'StripeAuthenticationError' }), true);
+  assert.equal(isStripeCredentialError({ code: 'card_declined' }), false);
+  assert.equal(isStripeCredentialError(new Error('network')), false);
+});
 
 test('koszyk odrzuca uszkodzone dane, łączy duplikaty i respektuje stan', () => {
   const items = sanitizeCart([

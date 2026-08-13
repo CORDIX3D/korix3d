@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, CheckCircle2, FileBox, Package } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, CreditCard, FileBox, Loader2, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
@@ -53,8 +53,9 @@ export default function OrderDetailsPage() {
   const { user } = useAuth();
   const [order, setOrder] = useState<Order3D | null>(null);
   const [loading, setLoading] = useState(true);
-  const [accepting, setAccepting] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
+  const paymentReturnHandled = useRef(false);
 
   const loadOrder = useCallback(async () => {
     if (!user) return;
@@ -80,29 +81,85 @@ export default function OrderDetailsPage() {
 
   useEffect(() => { void loadOrder(); }, [loadOrder]);
 
-  const acceptQuote = async () => {
-    if (!order || order.status !== 'quoted' || accepting) return;
-    setAccepting(true);
+  useEffect(() => {
+    if (!user || paymentReturnHandled.current) return;
+    const payment = new URLSearchParams(window.location.search).get('payment');
+    if (!payment) return;
+    paymentReturnHandled.current = true;
+
+    const clearPaymentQuery = () => {
+      window.history.replaceState(null, '', window.location.pathname);
+    };
+
+    if (payment === 'cancelled') {
+      void (async () => {
+        try {
+          const response = await fetch('/api/stripe/cancel-quote-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId }),
+          });
+          const result = await response.json().catch(() => null);
+          if (!response.ok) throw new Error(result?.error || 'Nie udało się anulować płatności.');
+          toast.info('Płatność została anulowana', {
+            description: 'Wycena nadal jest dostępna i możesz zapłacić później.',
+          });
+        } catch (cancelError) {
+          toast.error(cancelError instanceof Error ? cancelError.message : 'Nie udało się anulować płatności.');
+        } finally {
+          clearPaymentQuery();
+          await loadOrder();
+        }
+      })();
+      return;
+    }
+
+    if (payment === 'success') {
+      toast.success('Płatność została przyjęta', {
+        description: 'Potwierdzamy ją automatycznie przez Stripe.',
+      });
+      clearPaymentQuery();
+      const firstRefresh = window.setTimeout(() => void loadOrder(), 1200);
+      const secondRefresh = window.setTimeout(() => void loadOrder(), 3500);
+      return () => {
+        window.clearTimeout(firstRefresh);
+        window.clearTimeout(secondRefresh);
+      };
+    }
+  }, [loadOrder, orderId, user]);
+
+  const startPayment = async () => {
+    if (!order || paying || order.payment_status === 'paid') return;
+    setPaying(true);
     try {
-      const response = await fetch(`/api/public/quote/${order.id}/accept`, {
+      const response = await fetch('/api/stripe/create-quote-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }),
       });
       const result = await response.json().catch(() => null);
 
       if (!response.ok) {
-        toast.error(result?.error || 'Nie udało się zaakceptować wyceny.');
+        const message = result?.error === 'stripe_not_configured'
+          ? 'Płatności są chwilowo niedostępne. Spróbuj ponownie później.'
+          : result?.error || 'Nie udało się otworzyć płatności.';
+        toast.error(message);
         return;
       }
 
-      setOrder((current) => current ? { ...current, status: 'accepted' } : current);
-      toast.success('Wycena została zaakceptowana', {
-        description: 'Zlecenie trafiło do realizacji.',
-      });
+      if (result?.url) {
+        window.location.assign(result.url);
+        return;
+      }
+      if (result?.paid && result?.redirect) {
+        window.location.assign(result.redirect);
+        return;
+      }
+      toast.error('Stripe nie zwrócił adresu płatności.');
     } catch {
-      toast.error('Nie udało się połączyć podczas akceptowania wyceny.');
+      toast.error('Nie udało się połączyć ze Stripe.');
     } finally {
-      setAccepting(false);
+      setPaying(false);
     }
   };
 
@@ -137,7 +194,8 @@ export default function OrderDetailsPage() {
         </CardContent>
       </Card>
     )}
-    {order.status === 'quoted' && <Card className="border-primary/30 bg-primary/5"><CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm text-muted-foreground">Przygotowana wycena</p><p className="text-2xl font-bold">{Number(order.final_price || 0).toFixed(2)} zł</p></div><Button onClick={acceptQuote} disabled={accepting}>{accepting ? 'Akceptowanie...' : <><CheckCircle2 className="mr-2 h-4 w-4" />Akceptuję wycenę</>}</Button></CardContent></Card>}
+    {order.payment_status === 'paid' && <Card className="border-green-500/30 bg-green-500/10"><CardContent className="flex items-center gap-3 p-5"><CheckCircle2 className="h-6 w-6 text-green-500" /><div><p className="font-semibold">Płatność potwierdzona</p><p className="text-sm text-muted-foreground">Zlecenie zostało przekazane do realizacji.</p></div></CardContent></Card>}
+    {(order.status === 'quoted' || (order.status === 'accepted' && order.payment_status !== 'paid')) && <Card className="border-primary/30 bg-primary/5"><CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm text-muted-foreground">Cena końcowa brutto</p><p className="text-2xl font-bold">{Number(order.final_price || 0).toFixed(2)} zł</p><p className="mt-1 text-xs text-muted-foreground">Bezpieczna płatność w oknie Stripe. Adres rozliczeniowy jest wymagany.</p></div><Button onClick={startPayment} disabled={paying || Number(order.final_price || 0) <= 0}>{paying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Otwieranie płatności...</> : <><CreditCard className="mr-2 h-4 w-4" />{order.status === 'accepted' ? 'Wznów płatność' : 'Zapłać przez Stripe'}</>}</Button></CardContent></Card>}
     <div className="grid gap-6 lg:grid-cols-2"><Card><CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5 text-primary" />Parametry</CardTitle></CardHeader><CardContent className="grid grid-cols-2 gap-4 text-sm"><div><p className="text-muted-foreground">Materiał</p><p className="font-medium">{order.material_name || 'Do ustalenia'}</p></div><div><p className="text-muted-foreground">Kolor</p><p className="font-medium">{order.color || 'Do ustalenia'}</p></div><div><p className="text-muted-foreground">Liczba sztuk</p><p className="font-medium">{order.quantity}</p></div><div><p className="text-muted-foreground">Wypełnienie</p><p className="font-medium">{order.infill_percent}%</p></div><div className="col-span-2"><p className="text-muted-foreground">Analiza pliku</p><p className="font-medium">{slicingStatusLabels[order.slicing_status] || 'Oczekuje'}</p></div>{order.slicing_status === 'completed' && <><div><p className="text-muted-foreground">Czas druku</p><p className="font-medium">{Number(order.printing_time_hours || 0).toFixed(2)} h</p></div><div><p className="text-muted-foreground">Zużycie filamentu</p><p className="font-medium">{Number(order.filament_used_grams || 0).toFixed(2)} g</p></div></>}</CardContent></Card>
       <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileBox className="h-5 w-5 text-primary" />Pliki ({files.length})</CardTitle></CardHeader><CardContent>{files.length === 0 ? <p className="text-sm text-muted-foreground">Brak plików przypisanych do zamówienia.</p> : <div className="space-y-2">{files.map((file, index) => <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-lg bg-secondary p-3 text-sm"><div><p className="font-medium">{file.name || `Plik ${index + 1}`}</p>{file.size && <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>}</div><OrderFileDownload file={file} /></div>)}</div>}</CardContent></Card></div>
     {order.notes && <Card><CardHeader><CardTitle>Informacje dodatkowe</CardTitle></CardHeader><CardContent><p className="whitespace-pre-line text-sm text-muted-foreground">{order.notes}</p></CardContent></Card>}

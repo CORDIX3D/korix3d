@@ -281,6 +281,11 @@ export interface Database {
           margin_amount: number | null;
           vat_amount: number | null;
           final_price: number | null;
+          payment_status: 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded';
+          stripe_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          paid_at: string | null;
+          refunded_at: string | null;
           tracking_number: string | null;
           shipped_at: string | null;
           assigned_to: string | null;
@@ -322,6 +327,11 @@ export interface Database {
           margin_amount?: number | null;
           vat_amount?: number | null;
           final_price?: number | null;
+          payment_status?: 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded';
+          stripe_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          paid_at?: string | null;
+          refunded_at?: string | null;
           tracking_number?: string | null;
           shipped_at?: string | null;
           assigned_to?: string | null;
@@ -363,6 +373,11 @@ export interface Database {
           margin_amount?: number | null;
           vat_amount?: number | null;
           final_price?: number | null;
+          payment_status?: 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded';
+          stripe_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          paid_at?: string | null;
+          refunded_at?: string | null;
           tracking_number?: string | null;
           shipped_at?: string | null;
           assigned_to?: string | null;
@@ -730,7 +745,7 @@ export interface Database {
           previous_quantity: number;
           new_quantity: number;
           quantity_delta: number;
-          operation_type: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled';
+          operation_type: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled' | 'order_refunded';
           note: string | null;
           changed_by: string | null;
           created_at: string;
@@ -742,7 +757,7 @@ export interface Database {
           previous_quantity: number;
           new_quantity: number;
           quantity_delta: number;
-          operation_type: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled';
+          operation_type: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled' | 'order_refunded';
           note?: string | null;
           changed_by?: string | null;
           created_at?: string;
@@ -754,7 +769,7 @@ export interface Database {
           previous_quantity?: number;
           new_quantity?: number;
           quantity_delta?: number;
-          operation_type?: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled';
+          operation_type?: 'order_created' | 'manual_adjustment' | 'reservation' | 'reservation_released' | 'order_cancelled' | 'order_refunded';
           note?: string | null;
           changed_by?: string | null;
           created_at?: string;
@@ -1605,6 +1620,23 @@ export interface Database {
     };
     Functions: {
       accept_order_quote: {
+        Args: { p_order_id: string };
+        Returns: boolean;
+      };
+      release_quote_payment_locked: {
+        Args: { p_order_id: string; p_session_id?: string | null };
+        Returns: boolean;
+      };
+      complete_quote_payment_locked: {
+        Args: {
+          p_order_id: string;
+          p_session_id: string;
+          p_payment_intent_id: string;
+          p_amount_cents: number;
+        };
+        Returns: boolean;
+      };
+      refund_quote_payment_locked: {
         Args: { p_order_id: string };
         Returns: boolean;
       };

@@ -26,6 +26,7 @@ import {
   AlertCircle,
   Info,
   ChevronRight,
+  CreditCard,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/providers';
@@ -70,6 +71,7 @@ function QuotePageContent() {
   const [automaticQuote, setAutomaticQuote] = useState<AutomaticQuote | null>(null);
   const [quotePollingError, setQuotePollingError] = useState('');
   const [quoteRefreshKey, setQuoteRefreshKey] = useState(0);
+  const [paying, setPaying] = useState(false);
 
   const {
     register,
@@ -439,6 +441,39 @@ function QuotePageContent() {
     }
   };
 
+  const startQuotePayment = async () => {
+    if (!submittedOrderId || paying) return;
+    setPaying(true);
+    try {
+      const response = await fetch('/api/stripe/create-quote-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: submittedOrderId }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = result?.error === 'stripe_not_configured'
+          ? 'Płatności są chwilowo niedostępne. Spróbuj ponownie później.'
+          : result?.error || 'Nie udało się otworzyć płatności.';
+        toast.error(message);
+        return;
+      }
+      if (result?.url) {
+        window.location.assign(result.url);
+        return;
+      }
+      if (result?.paid && result?.redirect) {
+        window.location.assign(result.redirect);
+        return;
+      }
+      toast.error('Stripe nie zwrócił adresu płatności.');
+    } catch {
+      toast.error('Nie udało się połączyć ze Stripe.');
+    } finally {
+      setPaying(false);
+    }
+  };
+
   if (submitted) {
     const quoteReady = automaticQuote?.state === 'ready' && Number(automaticQuote.final_price || 0) > 0;
     const manualReview = automaticQuote?.state === 'manual_review';
@@ -531,10 +566,17 @@ function QuotePageContent() {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
-                onClick={() => (window.location.href = `/panel/zamowienia/${submittedOrderId}`)}
+                onClick={quoteReady
+                  ? startQuotePayment
+                  : () => (window.location.href = `/panel/zamowienia/${submittedOrderId}`)}
+                disabled={paying}
                 className="flex-1 bg-gradient-primary hover:shadow-glow transition-shadow"
               >
-                {quoteReady ? 'Zobacz i zaakceptuj wycenę' : 'Otwórz zlecenie'}
+                {paying
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Otwieranie płatności...</>
+                  : quoteReady
+                    ? <><CreditCard className="mr-2 h-4 w-4" />Zapłać przez Stripe</>
+                    : 'Otwórz zlecenie'}
               </Button>
               <Button
                 variant="outline"

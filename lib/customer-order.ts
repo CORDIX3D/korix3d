@@ -19,9 +19,11 @@ export const CUSTOMER_ORDER_3D_COLUMNS = [
   'printing_time_hours',
   'filament_used_grams',
   'final_price',
+  'payment_status',
+  'paid_at',
+  'refunded_at',
   'tracking_number',
   'shipped_at',
   'created_at',
   'updated_at',
 ].join(', ');
-

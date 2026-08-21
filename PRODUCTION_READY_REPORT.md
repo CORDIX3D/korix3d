@@ -106,12 +106,13 @@ Doradcy Supabase po naprawie nie zgłosili nowego błędu krytycznego. Pozostał
 - Źródłem wcześniejszych odpowiedzi HTTP 401 nie był kod webhooka, lecz ochrona Deployment Protection na podglądzie Vercel. Dla webhooka stagingowego utworzono dedykowane Automation Bypass i zapisano je wyłącznie w konfiguracji usług, bez umieszczania sekretu w repozytorium.
 - Po aktualizacji adresu endpointu to samo zdarzenie `charge.refunded` zostało ponowione. Vercel zarejestrował dwie odpowiedzi HTTP 200, a tabela `stripe_webhook_events` zapisała zdarzenie jako `processed` bez `last_error`.
 - Ponowne dostarczenie było idempotentne: status zwrotu i zerowa rezerwacja materiału nie uległy zmianie.
+- Po zakończeniu odbioru posprzątano staging: usunięto jedno konto testowe, trzy wyceny, dwa zadania slicera, cztery powiadomienia, dwa pliki STL w Storage, 27 jednoznacznie powiązanych wpisów audytu i techniczny wpis webhooka. Kontrola końcowa zwróciła zero pozostałych rekordów testowych, a filament Rosaa PLA Biały ma pełne `1000/1000 g`. Historia płatności i refundu pozostaje wyłącznie w Stripe Sandbox, gdzie zdarzenia finansowe są nieusuwalnym zapisem testowym.
 - Ponowna kontrola repozytorium po aktualizacji raportu zakończyła się powodzeniem: lint, TypeScript, 58/58 testów i build 63/63 stron mają status PASS.
 
 ## Krytyczne blokady przed produkcją
 
 1. Wykonać pełne próbne odtworzenie bazy i Storage do odizolowanego projektu poza produkcją. Rzeczywisty zewnętrzny eksport z 13.08.2026 jest zaszyfrowany `age`, ma poprawną sumę SHA-256, przeszedł odszyfrowanie oraz kontrolę 22 obiektów Storage. Skrypt dzieli schemat na `pre-data.sql` i `post-data.sql`, dlatego klucze obce — również cykliczne — są tworzone po danych.
-2. Dokończyć pełną macierz akceptacyjną na osobnym stagingu. Płatność, refund, idempotentny webhook i izolacja Supabase/Vercel mają już bezpośredni dowód; pozostałe przypadki formularzy i paneli wymagają końcowego odbioru oraz kontrolowanego sprzątnięcia danych testowych. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
+2. Dokończyć pełną macierz akceptacyjną na osobnym stagingu. Płatność, refund, idempotentny webhook, izolacja Supabase/Vercel i kontrolowane sprzątnięcie danych testowych mają już bezpośredni dowód; pozostałe przypadki formularzy i paneli wymagają końcowego odbioru. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
 
 ## Kolejność bezpiecznego uruchomienia
 

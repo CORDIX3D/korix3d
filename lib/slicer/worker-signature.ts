@@ -1,9 +1,7 @@
-import { createHash, verify } from 'node:crypto';
+import { createHash, createPublicKey, verify } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { getRequiredSlicerWorkerEnvironment } from '@/lib/env/server';
 
-const WORKER_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAeB+2j/PVem9n33RPVo3v50bpo892TsuPpkvSwC+N6Ws=
------END PUBLIC KEY-----`;
 const MAX_CLOCK_SKEW_MS = 5 * 60_000;
 
 export function createWorkerCanonicalRequest(
@@ -21,6 +19,18 @@ export async function requireSignedSlicerWorker(
   request: NextRequest,
   responseHeaders: Record<string, string>
 ) {
+  let workerPublicKey: ReturnType<typeof createPublicKey>;
+  try {
+    workerPublicKey = createPublicKey(
+      getRequiredSlicerWorkerEnvironment().CREALITY_SLICER_WORKER_PUBLIC_KEY
+    );
+  } catch {
+    return NextResponse.json(
+      { error: 'Usługa zdalnego slicera jest chwilowo niedostępna.' },
+      { status: 503, headers: { ...responseHeaders, 'Retry-After': '60' } }
+    );
+  }
+
   const timestamp = request.headers.get('x-korix3d-timestamp') || '';
   const workerId = request.headers.get('x-korix3d-worker-id') || '';
   const encodedSignature = request.headers.get('x-korix3d-signature') || '';
@@ -55,7 +65,7 @@ export async function requireSignedSlicerWorker(
   const valid = signature.length === 64 && verify(
     null,
     Buffer.from(canonical),
-    WORKER_PUBLIC_KEY,
+    workerPublicKey,
     signature
   );
   if (!valid) {

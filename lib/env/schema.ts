@@ -58,12 +58,22 @@ export const stripeEnvironmentSchema = z.object({
   STRIPE_SECRET_KEY: z
     .string()
     .trim()
-    .regex(/^sk_(test|live)_/, 'musi być serwerowym kluczem sk_test_ lub sk_live_'),
+    .regex(/^(sk|rk)_(test|live)_/, 'musi być serwerowym kluczem sk_ lub ograniczonym rk_'),
   STRIPE_WEBHOOK_SECRET: z
     .string()
     .trim()
     .regex(/^whsec_/, 'musi być sekretem podpisu whsec_'),
   NEXT_PUBLIC_SITE_URL: productionUrlSchema,
+});
+
+export const slicerWorkerEnvironmentSchema = z.object({
+  CREALITY_SLICER_WORKER_PUBLIC_KEY: z
+    .string()
+    .trim()
+    .regex(
+      /^-----BEGIN PUBLIC KEY-----[\s\S]+-----END PUBLIC KEY-----$/,
+      'musi być kluczem publicznym PEM'
+    ),
 });
 
 export const monitoringEnvironmentSchema = z.object({

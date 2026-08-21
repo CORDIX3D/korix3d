@@ -22,6 +22,19 @@ OpenAI ani żadnej innej płatnej usługi AI.
 Skopiuj `.env.example` do lokalnego, nieśledzonego pliku `worker.env`. Worker
 waliduje zmienne i istnienie wszystkich plików przed pobraniem zadania.
 
+Do pierwszej instalacji lub rotacji klucza użyj:
+
+```powershell
+node prepare-windows-worker.mjs C:\KORIX3D\secrets\worker-2026-08
+```
+
+Polecenie tworzy nową parę Ed25519 i gotowy `worker.env`, ale nie ujawnia klucza
+prywatnego w terminalu. Nie nadpisuje istniejących plików. Zawartość
+`worker-public-key.pem` zapisz w Vercel Production jako
+`CREALITY_SLICER_WORKER_PUBLIC_KEY`; prywatny plik pozostaje tylko na hoście.
+Przy instalacji zadania ustaw `CREALITY_WORKER_ENV_FILE` na wygenerowany
+`worker.env`.
+
 ## Aplikacja produkcyjna
 
 Po uruchomieniu workera lokalny panel jest dostępny wyłącznie na tym komputerze

@@ -6,7 +6,11 @@ if (-not $env:CREALITY_WORKER_HOME) {
 
 $workerHome = [System.IO.Path]::GetFullPath($env:CREALITY_WORKER_HOME)
 $workerFile = Join-Path $workerHome 'worker.mjs'
-$envFile = Join-Path $workerHome 'worker.env'
+$envFile = if ($env:CREALITY_WORKER_ENV_FILE) {
+  [System.IO.Path]::GetFullPath($env:CREALITY_WORKER_ENV_FILE)
+} else {
+  Join-Path $workerHome 'worker.env'
+}
 $node = (Get-Command node.exe -ErrorAction Stop).Source
 $taskName = 'KORIX3D Creality Worker'
 

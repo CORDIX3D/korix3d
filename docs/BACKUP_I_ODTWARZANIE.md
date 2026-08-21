@@ -101,4 +101,11 @@ Test wykonuj kwartalnie wyłącznie do nowego projektu Supabase bez ruchu klient
 8. Uruchom testy RLS, logowanie, odczyt prywatnego pliku właściciela, zakup Stripe test i jedno zadanie slicera.
 9. Zapisz rzeczywisty RPO/RTO, wszystkie ręczne poprawki i wynik testu. Usuń projekt testowy dopiero po zatwierdzeniu raportu i zgodnie z zasadami retencji danych.
 
+Do testu logowania można wygenerować jednorazowe konto poleceniem
+`node scripts/backup/prepare-staging-test-account.mjs <katalog-poza-repozytorium>`.
+Skrypt zapisuje losowe dane logowania wyłącznie we wskazanym katalogu zewnętrznym
+oraz przygotowuje SQL zgodny z aktualnym kontraktem Supabase Auth. Plików tych nie
+wolno dodawać do Git ani używać w projekcie produkcyjnym. Po odbiorze usuń konto,
+powiązane zamówienie i katalog z danymi logowania.
+
 Zarządzane kopie bazy Supabase nie zastępują osobnego backupu obiektów Storage. PITR może wiązać się z dodatkowym kosztem i nie należy go włączać bez decyzji właściciela; przy docelowym RPO 24 godziny podstawą są codzienne kopie dostawcy i cotygodniowy zweryfikowany eksport poza usługę.

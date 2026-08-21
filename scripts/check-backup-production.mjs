@@ -6,6 +6,7 @@ const runner = await readFile(join(root, 'scripts/backup/backup-production.ps1')
 const storage = await readFile(join(root, 'scripts/backup/backup-storage.mjs'), 'utf8');
 const verifier = await readFile(join(root, 'scripts/backup/verify-backup.mjs'), 'utf8');
 const encryptedVerifier = await readFile(join(root, 'scripts/backup/verify-encrypted-backup.ps1'), 'utf8');
+const stagingAccount = await readFile(join(root, 'scripts/backup/prepare-staging-test-account.mjs'), 'utf8');
 const docs = await readFile(join(root, 'docs/BACKUP_I_ODTWARZANIE.md'), 'utf8');
 
 for (const requirement of ['--role-only', '--data-only', '--use-copy', 'supabase_migrations']) {
@@ -22,6 +23,17 @@ for (const requirement of ['KORIX3D_BACKUP_AGE_RECIPIENT', '--recipient', 'final
 }
 for (const requirement of ['KORIX3D_BACKUP_AGE_IDENTITY', '--decrypt', 'verify-backup.mjs', 'Get-FileHash', "StartsWith('/')", "Contains('..')"]) {
   if (!encryptedVerifier.includes(requirement)) throw new Error(`Test zaszyfrowanej kopii nie zawiera: ${requirement}`);
+}
+for (const requirement of [
+  'instance_id',
+  '00000000-0000-0000-0000-000000000000',
+  'confirmation_token',
+  'recovery_token',
+  'email_change_token_new',
+]) {
+  if (!stagingAccount.includes(requirement)) {
+    throw new Error(`Generator konta stagingowego nie spełnia kontraktu Supabase Auth: ${requirement}`);
+  }
 }
 for (const heading of ['## Backup konfiguracji i sekretów', '## Test odtworzenia krok po kroku']) {
   if (!docs.includes(heading)) throw new Error(`Dokumentacja kopii nie zawiera: ${heading}`);

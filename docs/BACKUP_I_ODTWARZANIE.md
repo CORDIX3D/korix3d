@@ -103,6 +103,16 @@ Test wykonuj kwartalnie wyłącznie do nowego projektu Supabase bez ruchu klient
 
 Do testu logowania można wygenerować jednorazowe konto poleceniem
 `node scripts/backup/prepare-staging-test-account.mjs <katalog-poza-repozytorium>`.
+
+### Prywatnosciowe przygotowanie danych stagingowych
+
+Po odszyfrowaniu kopii w losowym katalogu tymczasowym przygotuj dane katalogowe poleceniem:
+
+`node scripts/backup/prepare-staging-restore.mjs <data.sql> <katalog-poza-repozytorium>`.
+
+Skrypt dopuszcza tylko niespersonalizowane dane katalogowe sklepu. Jawnie wyklucza profile, zamowienia, wiadomosci, formularze, pliki klientow, logi, odbiorcow raportow, ustawienia witryny i AI oraz zdarzenia Stripe. Jezeli w kopii pojawi sie nowa tabela publiczna bez decyzji prywatnosci, przygotowanie restore zatrzyma sie zamiast domyslnie kopiowac dane. Pliki SQL sa idempotentne (`ON CONFLICT DO NOTHING`) i musza byc usuniete razem z odszyfrowanym katalogiem natychmiast po tescie.
+
+Obiekty `quote-files` i `accounting-reports` pozostaja wyłącznie w lokalnym, zaszyfrowanym tescie sum kontrolnych. Do wspolnego stagingu przesyla sie tylko syntetyczny plik kontrolny, a po udanym pobraniu natychmiast go usuwa.
 Skrypt zapisuje losowe dane logowania wyłącznie we wskazanym katalogu zewnętrznym
 oraz przygotowuje SQL zgodny z aktualnym kontraktem Supabase Auth. Plików tych nie
 wolno dodawać do Git ani używać w projekcie produkcyjnym. Po odbiorze usuń konto,

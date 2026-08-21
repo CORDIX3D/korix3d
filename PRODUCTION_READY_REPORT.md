@@ -97,10 +97,21 @@ Przed migracjami utworzono schemat `backup_pre_mvp_20260803`: 31 kopii tabel (29
 
 Doradcy Supabase po naprawie nie zgłosili nowego błędu krytycznego. Pozostały wcześniejsze zalecenia do osobnego przeglądu: świadomie niedostępne przez RLS tabele wewnętrzne, uprawnienia wybranych funkcji `SECURITY DEFINER`, funkcje zarządzanej integracji Stripe z modyfikowalnym `search_path`, ochrona przed ujawnionymi hasłami, brakujące indeksy kluczy obcych i część nakładających się polityk. Nie zmieniano ich w ramach naprawy samej historii migracji.
 
+## Aktualizacja 21.08.2026 — staging Stripe
+
+- Izolowany staging korzysta z osobnego projektu Supabase i osobnych zmiennych gałęzi Preview w Vercel.
+- `/api/health` odpowiada HTTP 200 na produkcji i stagingu.
+- Testowa wycena `WYC-20260815-AF32E0` została obliczona przez Creality Print na podstawie rzeczywistego pliku: 174 s, 0,66 g i 50 warstw. Checkout Stripe Sandbox wyniósł 38,20 zł brutto.
+- Płatność została rozliczona, następnie wykonano pełny refund 38,20 zł. Staging potwierdza `status=cancelled`, `payment_status=refunded` oraz rezerwację filamentu `0.000 g`.
+- Źródłem wcześniejszych odpowiedzi HTTP 401 nie był kod webhooka, lecz ochrona Deployment Protection na podglądzie Vercel. Dla webhooka stagingowego utworzono dedykowane Automation Bypass i zapisano je wyłącznie w konfiguracji usług, bez umieszczania sekretu w repozytorium.
+- Po aktualizacji adresu endpointu to samo zdarzenie `charge.refunded` zostało ponowione. Vercel zarejestrował dwie odpowiedzi HTTP 200, a tabela `stripe_webhook_events` zapisała zdarzenie jako `processed` bez `last_error`.
+- Ponowne dostarczenie było idempotentne: status zwrotu i zerowa rezerwacja materiału nie uległy zmianie.
+- Ponowna kontrola repozytorium po aktualizacji raportu zakończyła się powodzeniem: lint, TypeScript, 58/58 testów i build 63/63 stron mają status PASS.
+
 ## Krytyczne blokady przed produkcją
 
 1. Wykonać pełne próbne odtworzenie bazy i Storage do odizolowanego projektu poza produkcją. Rzeczywisty zewnętrzny eksport z 13.08.2026 jest zaszyfrowany `age`, ma poprawną sumę SHA-256, przeszedł odszyfrowanie oraz kontrolę 22 obiektów Storage. Skrypt dzieli schemat na `pre-data.sql` i `post-data.sql`, dlatego klucze obce — również cykliczne — są tworzone po danych.
-2. Wykonać pełną macierz akceptacyjną na osobnym stagingu. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
+2. Dokończyć pełną macierz akceptacyjną na osobnym stagingu. Płatność, refund, idempotentny webhook i izolacja Supabase/Vercel mają już bezpośredni dowód; pozostałe przypadki formularzy i paneli wymagają końcowego odbioru oraz kontrolowanego sprzątnięcia danych testowych. Obserwacja produkcji minimum 30 minut została zakończona bez błędów runtime i 5xx.
 
 ## Kolejność bezpiecznego uruchomienia
 

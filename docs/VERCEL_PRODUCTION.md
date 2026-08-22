@@ -20,7 +20,7 @@
 | Supabase | projekt produkcyjny | osobny projekt staging | lokalny lub staging |
 | Stripe | klucze live dopiero po odbiorze | wyłącznie klucze test | wyłącznie klucze test |
 | `NEXT_PUBLIC_SITE_URL` | `https://korix3d.pl` | adres konkretnego preview lub staging | `http://localhost:3000` |
-| Worker | produkcyjny token | osobny token testowy | token lokalny |
+| Worker | produkcyjny klucz publiczny | osobna para testowa | para lokalna |
 
 Nie należy podłączać Vercel Preview do produkcyjnego service role Supabase ani do kluczy Stripe live. Jeśli nie ma oddzielnego stagingu, pozostaw w Preview wyłączone sekrety operacji płatniczych i administracyjnych.
 
@@ -40,6 +40,7 @@ Sekrety serwerowe:
 Trasy API pozostają w domyślnym środowisku Node.js. Jest to świadomy wybór: integracje Stripe, Supabase Admin, generowanie plików Excel i obsługa webhooków korzystają z bibliotek serwerowych, dla których Edge Runtime nie daje korzyści współmiernej do ryzyka.
 
 Proces Creality Print nie działa jako Vercel Function. Jest osobną, stale działającą usługą i komunikuje się z krótkimi endpointami kolejki.
+Vercel przechowuje tylko `CREALITY_SLICER_WORKER_PUBLIC_KEY`; prywatny klucz Ed25519 pozostaje na hoście Windows.
 
 Region funkcji należy ustawić w panelu Vercel dopiero po potwierdzeniu regionu produkcyjnego Supabase. Obie usługi powinny być możliwie blisko siebie. Nie wpisujemy regionu na ślepo do repozytorium.
 

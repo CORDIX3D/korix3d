@@ -1,5 +1,11 @@
-import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 const root = process.cwd();
 const worker = await readFile(join(root, 'services/creality-slicer-worker/worker.mjs'), 'utf8');
@@ -10,6 +16,8 @@ const threeMfClient = await readFile(join(root, 'services/creality-slicer-worker
 const stepConverter = await readFile(join(root, 'services/creality-slicer-worker/step-converter.mjs'), 'utf8');
 const freeCadScript = await readFile(join(root, 'services/creality-slicer-worker/freecad-step-to-stl.py'), 'utf8');
 const installer = await readFile(join(root, 'services/creality-slicer-worker/install-windows-task.ps1'), 'utf8');
+const preparer = await readFile(join(root, 'services/creality-slicer-worker/prepare-windows-worker.mjs'), 'utf8');
+const signature = await readFile(join(root, 'lib/slicer/worker-signature.ts'), 'utf8');
 const claim = await readFile(join(root, 'app/api/slicer/jobs/claim/route.ts'), 'utf8');
 const heartbeat = await readFile(join(root, 'app/api/slicer/heartbeat/route.ts'), 'utf8');
 const completion = await readFile(join(root, 'app/api/slicer/jobs/[id]/complete/route.ts'), 'utf8');
@@ -69,11 +77,55 @@ for (const requirement of [
 for (const requirement of ['-RestartCount 999', '-MultipleInstances IgnoreNew', '-AtStartup']) {
   if (!installer.includes(requirement)) throw new Error(`Instalator procesu nie zawiera: ${requirement}`);
 }
+for (const requirement of ["generateKeyPairSync('ed25519'", "flag: 'wx'", 'worker-public-key.pem']) {
+  if (!preparer.includes(requirement)) throw new Error(`Generator klucza workera nie zawiera: ${requirement}`);
+}
+if (!installer.includes('CREALITY_WORKER_ENV_FILE') || !installer.includes('icacls.exe')) {
+  throw new Error('Instalator workera nie obsługuje zewnętrznego env lub ochrony klucza NTFS.');
+}
+
+const keyContractRoot = await mkdtemp(join(tmpdir(), 'korix3d-worker-key-'));
+try {
+  const { stdout } = await execFileAsync(process.execPath, [
+    join(root, 'services/creality-slicer-worker/prepare-windows-worker.mjs'),
+    keyContractRoot,
+  ]);
+  const generated = JSON.parse(stdout);
+  const privateKey = await readFile(generated.privateKeyPath, 'utf8');
+  const publicKey = await readFile(generated.publicKeyPath, 'utf8');
+  const environment = await readFile(generated.environmentPath, 'utf8');
+  const payload = Buffer.from('korix3d-worker-key-contract');
+  const signatureBytes = sign(null, payload, createPrivateKey(privateKey));
+  if (!verify(null, payload, createPublicKey(publicKey), signatureBytes)) {
+    throw new Error('Generator workera utworzył niedopasowaną parę kluczy.');
+  }
+  if (!environment.includes('CREALITY_SLICER_WORKER_PRIVATE_KEY_PATH=')) {
+    throw new Error('Generator workera nie zapisał ścieżki prywatnego klucza.');
+  }
+  let overwriteRejected = false;
+  try {
+    await execFileAsync(process.execPath, [
+      join(root, 'services/creality-slicer-worker/prepare-windows-worker.mjs'),
+      keyContractRoot,
+    ]);
+  } catch {
+    overwriteRejected = true;
+  }
+  if (!overwriteRejected) throw new Error('Generator workera nadpisuje istniejące klucze.');
+} finally {
+  await rm(keyContractRoot, { recursive: true, force: true });
+}
 if (!claim.includes('createSignedUrl(storagePath, 15 * 60)')) {
   throw new Error('Worker nie otrzymuje krótkotrwałego adresu pobierania.');
 }
 if (!heartbeat.includes("from('slicer_workers').upsert") || !heartbeat.includes('requireSlicerWorker')) {
   throw new Error('Endpoint heartbeat nie zapisuje podpisanego stanu workera.');
+}
+if (!signature.includes('getRequiredSlicerWorkerEnvironment') || !signature.includes('createPublicKey(')) {
+  throw new Error('Weryfikacja podpisu nie pobiera rotowalnego klucza publicznego ze środowiska.');
+}
+if (/MCowBQYDK2VwAyEA/.test(signature)) {
+  throw new Error('Klucz publiczny workera pozostaje wpisany na stale w kodzie.');
 }
 if (!claim.includes('material_name: job.material_name')) {
   throw new Error('API workera nie zwraca jednoznacznej nazwy materiału.');

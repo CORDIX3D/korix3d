@@ -17,11 +17,15 @@ Windows z dostępem wychodzącym HTTPS do `korix3d.pl` i Supabase Storage.
 
 Wymagane są: Windows 64-bit, Node.js 20 lub nowszy, Creality Print 7.1 oraz
 FreeCAD 1.1 lub nowszy do lokalnej obsługi STEP/STP.
-Utwórz `worker.env` na podstawie `.env.example`, wyłącz dziedziczenie praw NTFS
-i pozostaw odczyt tylko kontu workera oraz administratorowi. Ustaw
-`CREALITY_WORKER_HOME`, uruchom PowerShell jako administrator i wykonaj
-`install-windows-task.ps1`. Zadanie startuje z systemem, ignoruje równoległą
-drugą instancję i uruchamia się ponownie po awarii.
+Uruchom `prepare-windows-worker.mjs` do nowego prywatnego katalogu poza
+repozytorium. Skrypt tworzy parę Ed25519 i `worker.env` bez wypisywania klucza
+prywatnego. Publiczny PEM zapisz w Vercel Production jako
+`CREALITY_SLICER_WORKER_PUBLIC_KEY`, a prywatny pozostaw wyłącznie na hoście.
+Ustaw `CREALITY_WORKER_HOME` na katalog workera oraz
+`CREALITY_WORKER_ENV_FILE` na wygenerowany plik, uruchom PowerShell jako
+administrator i wykonaj `install-windows-task.ps1`. Instalator ogranicza prawa
+NTFS prywatnego klucza. Zadanie startuje z systemem, ignoruje równoległą drugą
+instancję i uruchamia się ponownie po awarii.
 
 ## Profile Creality
 

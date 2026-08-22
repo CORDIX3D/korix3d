@@ -37,6 +37,7 @@ import { PUBLIC_MATERIAL_COLUMNS } from '../lib/public-material';
 import { CUSTOMER_ORDER_3D_COLUMNS } from '../lib/customer-order';
 import {
   publicSupabaseEnvironmentSchema,
+  slicerWorkerEnvironmentSchema,
   stripeEnvironmentSchema,
   supabaseServiceEnvironmentSchema,
 } from '../lib/env/schema';
@@ -722,7 +723,7 @@ test('SEO buduje bezpieczne adresy i dane strukturalne', () => {
   assert.equal(serialized.includes('\\u003c'), true);
 });
 
-test('walidacja Stripe odrzuca klucz ograniczony zamiast sekretu serwerowego', () => {
+test('walidacja Stripe akceptuje klucz serwerowy lub ograniczony', () => {
   const base = {
     STRIPE_WEBHOOK_SECRET: `whsec_${'a'.repeat(32)}`,
     NEXT_PUBLIC_SITE_URL: 'https://korix3d.pl',
@@ -734,6 +735,20 @@ test('walidacja Stripe odrzuca klucz ograniczony zamiast sekretu serwerowego', (
   assert.equal(stripeEnvironmentSchema.safeParse({
     ...base,
     STRIPE_SECRET_KEY: `rk_test_${'b'.repeat(32)}`,
+  }).success, true);
+});
+
+test('walidacja workera wymaga klucza publicznego PEM', () => {
+  const publicKey = [
+    '-----BEGIN PUBLIC KEY-----',
+    'MCowBQYDK2VwAyEAeB+2j/PVem9n33RPVo3v50bpo892TsuPpkvSwC+N6Ws=',
+    '-----END PUBLIC KEY-----',
+  ].join('\n');
+  assert.equal(slicerWorkerEnvironmentSchema.safeParse({
+    CREALITY_SLICER_WORKER_PUBLIC_KEY: publicKey,
+  }).success, true);
+  assert.equal(slicerWorkerEnvironmentSchema.safeParse({
+    CREALITY_SLICER_WORKER_PUBLIC_KEY: 'nie-klucz',
   }).success, false);
 });
 

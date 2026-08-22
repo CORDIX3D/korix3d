@@ -101,4 +101,21 @@ Test wykonuj kwartalnie wyłącznie do nowego projektu Supabase bez ruchu klient
 8. Uruchom testy RLS, logowanie, odczyt prywatnego pliku właściciela, zakup Stripe test i jedno zadanie slicera.
 9. Zapisz rzeczywisty RPO/RTO, wszystkie ręczne poprawki i wynik testu. Usuń projekt testowy dopiero po zatwierdzeniu raportu i zgodnie z zasadami retencji danych.
 
+Do testu logowania można wygenerować jednorazowe konto poleceniem
+`node scripts/backup/prepare-staging-test-account.mjs <katalog-poza-repozytorium>`.
+
+### Prywatnosciowe przygotowanie danych stagingowych
+
+Po odszyfrowaniu kopii w losowym katalogu tymczasowym przygotuj dane katalogowe poleceniem:
+
+`node scripts/backup/prepare-staging-restore.mjs <data.sql> <katalog-poza-repozytorium>`.
+
+Skrypt dopuszcza tylko niespersonalizowane dane katalogowe sklepu. Jawnie wyklucza profile, zamowienia, wiadomosci, formularze, pliki klientow, logi, odbiorcow raportow, ustawienia witryny i AI oraz zdarzenia Stripe. Jezeli w kopii pojawi sie nowa tabela publiczna bez decyzji prywatnosci, przygotowanie restore zatrzyma sie zamiast domyslnie kopiowac dane. Pliki SQL sa idempotentne (`ON CONFLICT DO NOTHING`) i musza byc usuniete razem z odszyfrowanym katalogiem natychmiast po tescie.
+
+Obiekty `quote-files` i `accounting-reports` pozostaja wyłącznie w lokalnym, zaszyfrowanym tescie sum kontrolnych. Do wspolnego stagingu przesyla sie tylko syntetyczny plik kontrolny, a po udanym pobraniu natychmiast go usuwa.
+Skrypt zapisuje losowe dane logowania wyłącznie we wskazanym katalogu zewnętrznym
+oraz przygotowuje SQL zgodny z aktualnym kontraktem Supabase Auth. Plików tych nie
+wolno dodawać do Git ani używać w projekcie produkcyjnym. Po odbiorze usuń konto,
+powiązane zamówienie i katalog z danymi logowania.
+
 Zarządzane kopie bazy Supabase nie zastępują osobnego backupu obiektów Storage. PITR może wiązać się z dodatkowym kosztem i nie należy go włączać bez decyzji właściciela; przy docelowym RPO 24 godziny podstawą są codzienne kopie dostawcy i cotygodniowy zweryfikowany eksport poza usługę.

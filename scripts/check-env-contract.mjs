@@ -31,6 +31,7 @@ const requiredApplicationVariables = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
+  'CREALITY_SLICER_WORKER_PUBLIC_KEY',
   'CRON_SECRET',
 ];
 
@@ -96,6 +97,7 @@ for (const secretName of [
   'SUPABASE_SERVICE_ROLE_KEY',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
+  'CREALITY_SLICER_WORKER_PUBLIC_KEY',
   'CRON_SECRET',
 ]) {
   if (applicationVariables.get(secretName) !== '') {

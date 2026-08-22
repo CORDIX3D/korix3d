@@ -2,6 +2,7 @@ import 'server-only';
 import {
   formatEnvironmentIssues,
   monitoringEnvironmentSchema,
+  slicerWorkerEnvironmentSchema,
   stripeEnvironmentSchema,
   supabaseServiceEnvironmentSchema,
 } from '@/lib/env/schema';
@@ -46,6 +47,12 @@ export function getRequiredMonitoringEnvironment() {
   }));
 }
 
+export function getRequiredSlicerWorkerEnvironment() {
+  return parseRequired('workera Creality', slicerWorkerEnvironmentSchema.safeParse({
+    CREALITY_SLICER_WORKER_PUBLIC_KEY: process.env.CREALITY_SLICER_WORKER_PUBLIC_KEY,
+  }));
+}
+
 export function inspectServerEnvironment() {
   const supabase = supabaseServiceEnvironmentSchema.safeParse({
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -60,6 +67,9 @@ export function inspectServerEnvironment() {
   const monitoring = monitoringEnvironmentSchema.safeParse({
     CRON_SECRET: process.env.CRON_SECRET,
   });
+  const slicer = slicerWorkerEnvironmentSchema.safeParse({
+    CREALITY_SLICER_WORKER_PUBLIC_KEY: process.env.CREALITY_SLICER_WORKER_PUBLIC_KEY,
+  });
 
   return {
     supabase: {
@@ -70,7 +80,10 @@ export function inspectServerEnvironment() {
       configured: stripe.success,
       issues: stripe.success ? [] : formatEnvironmentIssues(stripe.error),
     },
-    slicer: { configured: true, issues: [] },
+    slicer: {
+      configured: slicer.success,
+      issues: slicer.success ? [] : formatEnvironmentIssues(slicer.error),
+    },
     monitoring: {
       configured: monitoring.success,
       issues: monitoring.success ? [] : formatEnvironmentIssues(monitoring.error),

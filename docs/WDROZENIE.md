@@ -22,6 +22,7 @@ Dodaj poniższe nazwy jako zmienne projektu dostępne dla wdrożenia produkcyjne
 | `NEXT_PUBLIC_BING_SITE_VERIFICATION` | Bing Webmaster Tools, opcjonalnie | Weryfikacja własności witryny |
 | `STRIPE_SECRET_KEY` | Stripe, klucze API wybranego trybu | Tworzenie sesji płatności |
 | `STRIPE_WEBHOOK_SECRET` | Stripe, szczegóły webhooka | Weryfikacja zdarzeń płatności |
+| `CREALITY_SLICER_WORKER_PUBLIC_KEY` | Publiczny PEM wygenerowany na hoście workera | Weryfikacja podpisu workera |
 | `CRON_SECRET` | Wygenerowany losowy sekret | Ochrona cyklicznego monitoringu produkcji |
 
 Zmienne publiczne Supabase są częścią konfiguracji aplikacji. Pozostałe wartości są sekretami serwera. Wszystkie zmienne dodaj do środowiska `Production`; dla bezpiecznych testów możesz dodać osobne klucze testowe do `Preview`.
@@ -96,7 +97,7 @@ Status `503` oznacza brak wymaganej konfiguracji. Szczegółowy stan usług jest
 
 ## 5. Stripe — najpierw tryb testowy
 
-1. W Stripe włącz środowisko testowe i wygeneruj nowy klucz serwerowy.
+1. W Stripe włącz środowisko testowe i wygeneruj nowy ograniczony klucz serwerowy. Aplikacja obsługuje `rk_test_`/`rk_live_`; nadaj wyłącznie zapis sesji Checkout i refundów oraz wymagany odczyt sesji i płatności.
 2. W Vercelu ustaw go jako `STRIPE_SECRET_KEY` dla środowiska `Production`.
 3. W Stripe Workbench otwórz Webhooks i utwórz destination typu Webhook.
 4. Ustaw adres endpointu:
@@ -130,7 +131,7 @@ tworzone przez migrację `20260729120000_add_stripe_webhook_idempotency.sql`.
 
 ## 6. Worker Creality Print
 
-Sama aplikacja internetowa nie uruchamia Creality Print. Zdalny worker musi działać na osobnej maszynie z zainstalowanym slicerem i podpisywać żądania lokalnym kluczem prywatnym. Vercel weryfikuje podpis kluczem publicznym i nie przechowuje sekretu workera.
+Sama aplikacja internetowa nie uruchamia Creality Print. Zdalny worker musi działać na osobnej maszynie z zainstalowanym slicerem i podpisywać żądania lokalnym kluczem prywatnym. Vercel weryfikuje podpis zmienną `CREALITY_SLICER_WORKER_PUBLIC_KEY` i nie przechowuje prywatnego sekretu workera.
 
 Po uruchomieniu workera sprawdź w `/admin/slicer`:
 

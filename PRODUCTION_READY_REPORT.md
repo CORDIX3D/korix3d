@@ -1,6 +1,6 @@
 # PRODUCTION READY REPORT — KORIX3D
 
-Data audytu: 13 sierpnia 2026
+Data audytu: 22 sierpnia 2026
 Domena: `https://korix3d.pl`  
 Gałąź: `main`  
 Commit raportu: bieżący `HEAD` gałęzi `main`
@@ -9,7 +9,7 @@ Commit raportu: bieżący `HEAD` gałęzi `main`
 
 **NIEGOTOWE DO PEŁNEJ PRODUKCJI — odbiór końcowy w toku.**
 
-Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa poprawnie w Sandbox, gdzie osobny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Pełny test sklepu w Stripe Sandbox zakończył płatność i refund, a wykryty brak zwrotu stanu został naprawiony oraz sprawdzony idempotentnie. Wycena własnego projektu ma osobny Stripe Checkout, wymagany adres i automatyczne potwierdzenie webhookiem; płatność, anulowanie i pełny refund przeszły w Sandbox. Refund ustawił status `refunded`, wyzerował rezerwację 28,55 g i przywrócił magazyn dokładnie do 1971,450 g; ponowne wywołanie funkcji zwrotu nie zmieniło stanu. Dopłaty Express i Pilne są naliczane procentowo od kosztu realizacji przed dostawą i VAT; produkcyjna migracja Supabase jest zastosowana i przeszła test transakcyjny. Produkcyjny Supabase został zabezpieczony wewnętrzną i zewnętrzną szyfrowaną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk, Storage oraz pełnej historii 66 migracji. Panel klienta 8/8 i wszystkie 29 statycznych stron administratora przeszły wcześniejszy zalogowany odbiór. Aplikacja KORIX3D działa jako instalowana bezpośrednio z przeglądarki PWA na iPhone oraz Windows. Worker Creality Print wcześniej zakończył rzeczywiste testy formatów, lecz bieżący monitoring zgłasza go jako offline i na tym komputerze nie ma obecnie zainstalowanego zadania Windows. Restore drill jest zakończony; pozostają końcowy zalogowany odbiór stagingu, instalacja stałego workera oraz prawidłowa konfiguracja i test Stripe Live.
+Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa poprawnie w Sandbox, gdzie osobny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Pełny test sklepu w Stripe Sandbox zakończył płatność i refund, a wykryty brak zwrotu stanu został naprawiony oraz sprawdzony idempotentnie. Wycena własnego projektu ma osobny Stripe Checkout, wymagany adres i automatyczne potwierdzenie webhookiem; płatność, anulowanie i pełny refund przeszły w Sandbox. Refund ustawił status `refunded`, wyzerował rezerwację 28,55 g i przywrócił magazyn dokładnie do 1971,450 g; ponowne wywołanie funkcji zwrotu nie zmieniło stanu. Dopłaty Express i Pilne są naliczane procentowo od kosztu realizacji przed dostawą i VAT; produkcyjna migracja Supabase jest zastosowana i przeszła test transakcyjny. Produkcyjny Supabase został zabezpieczony wewnętrzną i zewnętrzną szyfrowaną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk, Storage oraz pełnej historii 66 migracji. Prywatnościowy restore drill zakończył się powodzeniem. Zalogowany odbiór stagingu objął 36/36 tras panelu klienta i administratora bez błędów aplikacji, konsoli ani utraty sesji. Worker Creality Print jest zainstalowany jako zadanie Windows, używa zewnętrznego pliku konfiguracyjnego i nowej pary kluczy; produkcja akceptuje jego podpis i rejestruje żądania claim z HTTP 200. Webhook Stripe Live wskazuje już `https://korix3d.pl/api/stripe/webhook` i ma sześć wymaganych zdarzeń. Pozostają utworzenie ograniczonego klucza Stripe Live, zapis obu nowych sekretów wyłącznie w Vercel Production, ponowne wdrożenie oraz mała płatność kontrolna z refundem. Stripe Dashboard podczas próby utworzenia klucza zgłosił własną trwającą awarię strony.
 
 ## Podsumowanie wykonawcze
 
@@ -22,7 +22,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 - Rozjazd schematu produkcyjnego Supabase został usunięty; wszystkie tabele i kolumny wymagane przez typy aplikacji są obecne.
 - Konto właściciela ma rolę `admin`; dashboard i wszystkie 28 statycznych podstron administratora otwierają się bez błędu aplikacji oraz bez utraty sesji.
 - Supabase Auth używa `https://korix3d.pl`, ma dwa dokładne redirecty, potwierdzenie e-mail, bezpieczną zmianę hasła, wymaganie bieżącego hasła i minimum 8 znaków.
-- Ostatni zweryfikowany commit techniczny (`5a1683a`) ma zielone GitHub CI i jest wdrożony przez Vercel ze statusem `READY`; obsługuje `korix3d.pl`, a `/api/health` po wdrożeniu zwraca `ok`.
+- Merge commit `50bedcafac3aba0f20e04a11164005ed2cf9e179` z PR `#15` jest wdrożony przez Vercel jako `dpl_ESMvN9Vi2BwbangEygk6XphHvo4i` ze statusem `READY`; obsługuje `korix3d.pl`, a `/api/health` zwraca HTTP 200 i `ok`.
 - Vercel ma wymagane zmienne Supabase, `NEXT_PUBLIC_SITE_URL`, `CRON_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` i publiczny klucz podpisu workera. Worker uwierzytelnia się podpisem asymetrycznym, więc wspólny token nie jest wymagany.
 
 ## Stan 15 etapów
@@ -36,9 +36,9 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | produkcyjny redeploy `Ready`, domena i sekrety testowe podłączone | Zakończony |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
-| 8 | Backup | eksport DB/Storage, obowiązkowe szyfrowanie `age`, checksumy i automatyczne usuwanie jawnych danych | rzeczywisty zewnętrzny eksport wykonany 13.08.2026; zaszyfrowany artefakt 161 835 272 B, SHA-256 PASS, odszyfrowanie PASS i 22/22 obiekty Storage zweryfikowane; pełny restore bazy do izolowanego projektu oczekuje | Częściowo |
-| 9 | Worker Creality | timeout, retry, heartbeat, panel produkcji, zadanie Windows, profile, zgodność 3MF i most FreeCAD dla STEP | worker online; 4 rzeczywiste wyceny 3MF; lokalny pipeline STL, OBJ i STEP zaliczony | Zakończony lokalnie |
-| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; panel klienta 8/8 i wszystkie statyczne strony admina 29/29 PASS | Częściowo |
+| 8 | Backup | eksport DB/Storage, obowiązkowe szyfrowanie `age`, checksumy i automatyczne usuwanie jawnych danych | rzeczywisty zewnętrzny eksport wykonany 13.08.2026; zaszyfrowany artefakt 161 835 272 B, SHA-256 PASS, odszyfrowanie PASS i 22/22 obiekty Storage zweryfikowane; prywatnościowy restore katalogu do izolowanego projektu oraz syntetyczne testy Auth/Storage 4/4 PASS | Zakończony |
+| 9 | Worker Creality | timeout, retry, heartbeat, panel produkcji, zadanie Windows, profile, zgodność 3MF i most FreeCAD dla STEP | zadanie `KORIX3D Creality Worker` działa; nowy prywatny klucz pozostaje poza repozytorium; Vercel przyjmuje podpisane żądania claim z HTTP 200; referencyjna wycena: 174 s, 0,66 g, 50 warstw | Zakończony |
+| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; bieżący zalogowany odbiór 36/36 tras panelu klienta i administratora PASS | Częściowo — oczekują formularze tworzące dane i Stripe Live |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | strona główna renderowana serwerowo; Supabase/Zod usunięte z anonimowego manifestu; smoke skrócony z 90 do 57,5 s; stabilne dane terenowe Core Web Vitals oczekują | Częściowo |
 | 12 | SEO | canonical, sitemap, robots, manifest i pełne schema.org | kod SEO wdrożony; Google/Bing niezweryfikowane | Częściowo |
 | 13 | Bezpieczeństwo | role, RLS, CSRF, CSP, webhook, upload, Dependabot, security.txt | ACL funkcji Supabase naprawione; `nanoid` 3.3.17, audyt produkcyjny 0 podatności i zielone CI | Zakończony |
@@ -56,7 +56,7 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | `npm run check:secrets` | PASS | brak rozpoznanych kluczy w plikach projektu |
 | `npm run check:rls` | PASS | 44 tabele objęte kontrolą RLS |
 | pozostałe `check:*` | PASS | env, Supabase, Stripe, Vercel, domena, monitoring, backup, worker, test plan, performance, SEO, security, docs |
-| `npm test` | PASS | 5 plików, 58/58 testów |
+| `npm test` | PASS | 5 plików, 59/59 testów — ponownie potwierdzone 22.08.2026 |
 | `npm audit --omit=dev --audit-level=high` | PASS | 0 podatności produkcyjnych; `nanoid` przypięty do 3.3.17 |
 | lokalne Playwright E2E | PASS | 18/18 PASS sekwencyjnie na desktopie i mobile po optymalizacji sesji, listy życzeń i AI |
 | produkcyjny Playwright smoke | PASS | 12/12 PASS na desktopie i mobile, ponownie wykonany 12.08.2026 w 57,5 s |
@@ -111,31 +111,31 @@ Doradcy Supabase po naprawie nie zgłosili nowego błędu krytycznego. Pozostał
 
 ## Aktualizacja 22.08.2026 — odbiór końcowy
 
-- Pełny lokalny przebieg kontrolny zaliczył skan sekretów i środowiska, lint, TypeScript, 58/58 testów, wszystkie kontrakty usług oraz produkcyjny build 63/63 stron. Budżet JavaScript obejmuje 90 tras, a lokalny smoke zaliczył 19 stron, 404, oba panele, health i 6 walidacji API.
+- Pełny lokalny przebieg kontrolny zaliczył skan sekretów i środowiska, lint, TypeScript, 59/59 testów, wszystkie kontrakty usług oraz produkcyjny build 63/63 stron. Budżet JavaScript obejmuje 90 tras, a lokalny smoke zaliczył 19 stron, 404, oba panele, health i 6 walidacji API. Kontrole `lint`, `typecheck`, `test` i `build` wykonano ponownie 22.08.2026 — wszystkie PASS.
 - Na chronionym stagingu sprawdzono 20 publicznych tras, stronę produktu, pięć stron materiałów, poprawne 404 dla bloga i portfolio, `/api/health` oraz publiczne API filamentów. Nie wykryto `Application error` ani `Internal Server Error`.
 - Testowe konto Supabase ujawniło brak `instance_id` w pomocniczym generatorze. Generator został poprawiony i dodany do repozytorium. Po naprawie test Auth + Storage zakończył się wynikiem 4/4 PASS: logowanie, upload STL, pobranie i usunięcie obiektu.
 - Zewnętrzna kopia została ponownie sprawdzona: SHA-256 PASS, odszyfrowanie PASS, 4 buckety, 22/22 obiekty Storage i około 143 MB danych obiektowych. Plik `data.sql` ma około 18 MB. Prywatnościowy restore drill odtworzył idempotentnie 27/27 niespersonalizowanych rekordów katalogowych na schemacie z 66 zweryfikowanych migracji stagingu, porównał liczniki i posprzątał jedyny dodatkowy rekord techniczny. Wszystkie 22 prywatne modele klientow pozostały w lokalnym, szyfrowanym teście sum; oddzielny test Storage potwierdził upload, pobranie i usunięcie syntetycznego STL.
-- Odczyt Stripe Live potwierdził zweryfikowany e-mail i działalność. Aktywny endpoint Live nadal kieruje jednak do starej funkcji Supabase, a nie do `https://korix3d.pl/api/stripe/webhook`. Utworzenie nowego klucza Live, właściwego webhooka i zmiana sekretów Vercel Production oczekują na potwierdzoną operację administracyjną.
-- Commit `88742ff` zawierający poprawkę generatora konta ma zielone GitHub CI i wdrożenie Vercel `READY`; alias stagingowy zwraca `{"status":"ok"}`.
-- Monitoring produkcyjny z 21.08 potwierdza API, Supabase, upload, Stripe i kolejkę, ale zgłasza `worker=false`. Na tym komputerze nie znaleziono zainstalowanego zadania `KORIX3D Creality Worker`, pliku `worker.env` ani prywatnego klucza podpisu, więc automatyczna wycena nie ma obecnie stale działającego hosta.
+- Odczyt Stripe Live potwierdził zweryfikowany e-mail i działalność. Aktywny endpoint Live został zapisany jako `https://korix3d.pl/api/stripe/webhook` i słucha dokładnie sześciu zdarzeń. Ograniczony klucz Live oraz zapis nowych sekretów w Vercel Production oczekują, ponieważ Stripe Dashboard wyświetlił własny komunikat trwającej awarii strony tworzenia klucza.
+- PR `#15` został scalony do `main` jako `50bedcafac3aba0f20e04a11164005ed2cf9e179`. Produkcyjny redeploy `dpl_ESMvN9Vi2BwbangEygk6XphHvo4i` ma status `READY`, a `/api/health` odpowiada HTTP 200.
+- Worker został zainstalowany jako działające zadanie `KORIX3D Creality Worker`. Proces używa pliku `worker.env` i prywatnego klucza spoza repozytorium; Vercel Production ma odpowiadający klucz publiczny, a żądania `/api/slicer/jobs/claim` po rotacji zwracają HTTP 200. Bieżące logi produkcyjne z ostatniej godziny nie zawierają błędów ani ostrzeżeń.
 - Kod workera obsługuje teraz bezpieczną rotację: publiczny PEM pochodzi ze zmiennej Vercel, prywatny klucz pozostaje na hoście, generator odmawia nadpisania istniejącej pary, a instalator może użyć zewnętrznego `worker.env`. Kontrakt Stripe akceptuje ograniczone klucze `rk_test_`/`rk_live_`, zgodnie z zasadą najmniejszych uprawnień.
 
 ## Krytyczne blokady przed produkcją
 
-1. Dokończyć zalogowaną część macierzy stagingowej. Płatność Sandbox, refund, idempotentny webhook, publiczne trasy, Auth + Storage, restore drill i izolacja środowisk mają bezpośredni dowód; formularze tworzące dane oraz bieżący odbiór panelu klienta i administratora wymagają jeszcze potwierdzonego przebiegu i sprzątnięcia.
-2. Skonfigurować Stripe Live: nowy nieujawniony ograniczony klucz serwerowy z dostępem tylko do Checkout, odczytu płatności i refundów, osobny webhook Vercel dla sześciu zdarzeń, sekrety wyłącznie w Vercel Production, nowe wdrożenie oraz mała płatność kontrolna z pełnym refundem. Obecny endpoint Live prowadzi do starej funkcji Supabase i nie spełnia kryterium odbioru.
-3. Zainstalować worker Creality jako stale uruchamiane zadanie Windows na docelowym hoście, zabezpieczyć prywatny klucz, ustawić publiczny klucz podpisu w Vercel Production i potwierdzić świeży heartbeat oraz automatyczną wycenę referencyjnego pliku.
+1. Dokończyć bezpieczne testy formularzy tworzących dane na stagingu i posprzątać rekordy testowe. Zalogowany odbiór paneli 36/36, płatność Sandbox, refund, idempotentny webhook, publiczne trasy, Auth + Storage, restore drill i izolacja środowisk mają bezpośredni dowód.
+2. Dokończyć Stripe Live: utworzyć nowy nieujawniony ograniczony klucz serwerowy z dostępem tylko do Checkout, odczytu płatności i refundów, zapisać klucz i sekret istniejącego webhooka wyłącznie w Vercel Production, wykonać nowe wdrożenie oraz małą płatność kontrolną z pełnym refundem. Endpoint Live i sześć zdarzeń są już skonfigurowane poprawnie; tworzenie klucza blokuje aktualny komunikat awarii Stripe Dashboard.
+3. Potwierdzić po ponownym wdrożeniu końcowy heartbeat workera i wykonać jedną pełną automatyczną wycenę produkcyjną. Zadanie Windows, zewnętrzny prywatny klucz, publiczny klucz w Vercel i podpisane żądania claim HTTP 200 są już gotowe.
 
 ## Kolejność bezpiecznego uruchomienia
 
 1. Vercel `READY` i zielone CI GitHub dla `5a1683a` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
 3. DNS `www`, HTTPS, redirect 308, zewnętrzny szyfrowany backup, prywatnościowy restore drill i oficjalna naprawa historii migracji — wykonane.
-4. Staging: pełne testy formularzy, paneli, magazynu, wyceny i Stripe test.
+4. Staging: panele 36/36, magazyn, wycena i Stripe Sandbox zaliczone; oczekują wyłącznie formularze tworzące dane.
 5. Produkcja bez Stripe live: testy logowania, paneli i kontrolowany checkout testowy.
-6. Worker Creality Print: utrzymać stały host i heartbeat; lokalne testy STL, STEP, OBJ i 3MF wykonane.
-7. Stripe live dopiero po pełnym odbiorze: osobne klucze, osobny webhook, mała płatność i refund.
-8. Obserwacja logów, health i kolejki przez minimum 30 minut — historycznie wykonana bez 5xx i klastrów runtime. Bieżący monitoring zgłasza jednak worker offline, dlatego heartbeat musi zostać ponownie potwierdzony po instalacji stałej usługi.
+6. Worker Creality Print: stały host i podpisane połączenie działają; lokalne testy STL, STEP, OBJ i 3MF wykonane.
+7. Stripe Live: webhook gotowy; oczekują ograniczony klucz, sekrety Vercel Production, mała płatność i refund.
+8. Obserwacja logów, health i kolejki przez minimum 30 minut — historycznie wykonana bez 5xx i klastrów runtime; bieżąca kontrola z 22.08 również zwróciła 0 błędów i ostrzeżeń w ostatniej godzinie.
 
 ## Git i wdrożenie
 

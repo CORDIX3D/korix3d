@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, MapPin, Package, ReceiptText, Truck } from 'lucide-react';
+import { ArrowLeft, CreditCard, Loader2, MapPin, Package, ReceiptText, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { OrderStatus } from '@/components/customer/order-status';
@@ -58,6 +58,8 @@ export default function StoreOrderDetailsPage() {
   const [items, setItems] = useState<StoreOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [paymentError, setPaymentError] = useState('');
+  const [resumingPayment, setResumingPayment] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!user) return;
@@ -113,6 +115,33 @@ export default function StoreOrderDetailsPage() {
   useEffect(() => {
     void loadOrder();
   }, [loadOrder]);
+
+  async function resumePayment() {
+    setPaymentError('');
+    setResumingPayment(true);
+    try {
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      const result = await response.json().catch(() => ({})) as {
+        error?: string;
+        url?: string;
+      };
+      if (!response.ok || !result.url) {
+        throw new Error(result.error || 'Nie udało się wznowić płatności.');
+      }
+      window.location.assign(result.url);
+    } catch (paymentRequestError) {
+      setPaymentError(
+        paymentRequestError instanceof Error
+          ? paymentRequestError.message
+          : 'Nie udało się wznowić płatności.'
+      );
+      setResumingPayment(false);
+    }
+  }
 
   if (loading) return <PanelLoading label="Pobieranie zamówienia sklepowego..." />;
   if (error || !order) {
@@ -186,6 +215,21 @@ export default function StoreOrderDetailsPage() {
               <div className="flex justify-between"><span className="text-muted-foreground">Dostawa</span><span>{Number(order.shipping_cost || 0).toFixed(2)} zł</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">VAT</span><span>{Number(order.vat_amount || 0).toFixed(2)} zł</span></div>
               <div className="flex justify-between border-t pt-3 text-base font-semibold"><span>Razem</span><span>{Number(order.total || 0).toFixed(2)} zł</span></div>
+              {order.status === 'pending' && (
+                <div className="space-y-2 border-t pt-4">
+                  <Button className="w-full" onClick={resumePayment} disabled={resumingPayment}>
+                    {resumingPayment ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CreditCard className="mr-2 h-4 w-4" />
+                    )}
+                    {resumingPayment ? 'Otwieranie Stripe...' : 'Dokończ płatność'}
+                  </Button>
+                  {paymentError && (
+                    <p className="text-sm text-destructive" role="alert">{paymentError}</p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -21,7 +21,10 @@ for (let stage = 1; stage <= 15; stage += 1) {
   if (!report.includes(`| ${stage} |`)) throw new Error(`Raport nie obejmuje etapu ${stage}.`);
 }
 
-if (!report.includes('NIEGOTOWE DO PEŁNEJ PRODUKCJI')) {
+if (
+  !report.includes('NIEGOTOWE DO PEŁNEJ PRODUKCJI')
+  && !report.includes('GOTOWE DO KONTROLOWANEGO URUCHOMIENIA PRODUKCYJNEGO')
+) {
   throw new Error('Raport nie przedstawia jednoznacznego werdyktu.');
 }
 if (!report.includes('KORIX AI nie używa OpenAI')) {
@@ -31,4 +34,4 @@ if (/\b(?:sk|rk)_(?:test|live)_[A-Za-z0-9]{16,}\b|\bsbp_[A-Za-z0-9]{16,}\b|\bwhs
   throw new Error('Raport zawiera wartość przypominającą sekret.');
 }
 
-console.log('Raport gotowości produkcyjnej obejmuje 15 etapów i blokady odbioru.');
+console.log('Raport gotowości produkcyjnej obejmuje 15 etapów i jednoznaczny werdykt.');

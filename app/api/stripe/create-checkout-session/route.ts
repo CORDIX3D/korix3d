@@ -14,15 +14,22 @@ import {
 } from '@/lib/stripe';
 import { verifyCheckoutToken } from '@/lib/checkout-token';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import {
+  crossSiteRequestResponse,
+  isTrustedMutationRequest,
+} from '@/lib/api/request-security';
+import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 const requestSchema = z.object({
   orderId: z.string().uuid(),
-  paymentToken: z.string().regex(/^[a-f0-9]{64}$/),
+  paymentToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 
 export async function POST(request: NextRequest) {
+  if (!isTrustedMutationRequest(request)) return crossSiteRequestResponse();
+
   try {
     const parsed = requestSchema.safeParse(await readJsonObject(request, 8 * 1024));
     if (!parsed.success) return NextResponse.json({ error: 'Nieprawidłowe zamówienie.' }, { status: 400 });
@@ -33,12 +40,22 @@ export async function POST(request: NextRequest) {
     const admin = createSupabaseClient(url, serviceRoleKey);
     const { data: order, error: orderError } = await admin
       .from('store_orders')
-      .select('id, order_number, status, customer_email, total, vat_amount, shipping_cost, discount_amount, coupon_code, stripe_session_id, checkout_token_hash')
+      .select('id, order_number, user_id, status, customer_email, total, vat_amount, shipping_cost, discount_amount, coupon_code, stripe_session_id, checkout_token_hash')
       .eq('id', parsed.data.orderId)
       .maybeSingle();
 
     if (orderError || !order) return NextResponse.json({ error: 'Zamówienie nie istnieje.' }, { status: 404 });
-    if (!verifyCheckoutToken(parsed.data.paymentToken, order.checkout_token_hash)) {
+    const validPaymentToken = parsed.data.paymentToken
+      ? verifyCheckoutToken(parsed.data.paymentToken, order.checkout_token_hash)
+      : false;
+    let authenticatedOwner = false;
+    if (!validPaymentToken && order.user_id) {
+      const supabase = await createClient();
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+      if (authError && (authError.status || 0) >= 500) throw authError;
+      authenticatedOwner = auth.user?.id === order.user_id;
+    }
+    if (!validPaymentToken && !authenticatedOwner) {
       return NextResponse.json({ error: 'Brak dostępu do płatności tego zamówienia.' }, { status: 403 });
     }
     if (order.status !== 'pending') return NextResponse.json({ error: 'To zamówienie nie oczekuje na płatność.' }, { status: 409 });

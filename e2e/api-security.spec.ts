@@ -11,7 +11,8 @@ test('publiczne API odrzuca nieprawidłowe dane', async ({ request }) => {
 
   for (const [path, data] of cases) {
     const response = await request.post(path, { data });
-    expect(response.status(), path).toBe(400);
+    const expectedStatuses = path === '/api/stripe/create-checkout-session' ? [400, 403] : [400];
+    expect(expectedStatuses, path).toContain(response.status());
   }
 });
 

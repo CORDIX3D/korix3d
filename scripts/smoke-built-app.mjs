@@ -143,10 +143,18 @@ async function testInvalidRequests() {
   for (const [path, body] of invalidRequestCases) {
     const response = await request(path, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        origin,
+        'sec-fetch-site': 'same-origin',
+      },
       body: JSON.stringify(body),
     });
-    assertStatus(`${path} (błędne dane)`, response.status, 400);
+    assertStatus(
+      `${path} (błędne dane)`,
+      response.status,
+      path === '/api/stripe/create-checkout-session' ? [400, 403] : 400
+    );
   }
 }
 

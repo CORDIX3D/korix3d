@@ -24,9 +24,15 @@ test('prywatne API nie pozwala na anonimowy dostęp', async ({ request }) => {
 });
 
 test('prywatne API odrzuca mutację z obcej domeny', async ({ request }) => {
-  const response = await request.patch('/api/admin/settings', {
-    headers: { origin: 'https://atak.example' },
-    data: { settings: {} },
-  });
-  expect(response.status()).toBe(403);
+  const responses = await Promise.all([
+    request.patch('/api/admin/settings', {
+      headers: { origin: 'https://atak.example' },
+      data: { settings: {} },
+    }),
+    request.post('/api/admin/store-orders/refund', {
+      headers: { origin: 'https://atak.example' },
+      data: { orderId: '00000000-0000-4000-8000-000000000000' },
+    }),
+  ]);
+  for (const response of responses) expect(response.status()).toBe(403);
 });

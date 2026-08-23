@@ -17,6 +17,7 @@ export default function Page() {
         addLabel: 'Dodaj zamówienie',
         allowCreate: false,
         allowDelete: false,
+        allowStoreRefunds: true,
         searchKeys: ['order_number', 'customer_email', 'customer_name', 'status'],
         fields: [
           { key: 'customer_email', label: 'Email klienta', type: 'email', required: true, readOnlyOnEdit: true },

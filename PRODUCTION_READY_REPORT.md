@@ -7,9 +7,9 @@ Commit raportu: bieżący `HEAD` gałęzi `main`
 
 ## Werdykt
 
-**NIEGOTOWE DO PEŁNEJ PRODUKCJI — odbiór końcowy w toku.**
+**GOTOWE DO KONTROLOWANEGO URUCHOMIENIA PRODUKCYJNEGO.**
 
-Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa poprawnie w Sandbox, gdzie osobny webhook słucha sześciu wymaganych zdarzeń (w tym `charge.refunded`), a `/api/health` zwraca HTTP 200. Pełny test sklepu w Stripe Sandbox zakończył płatność i refund, a wykryty brak zwrotu stanu został naprawiony oraz sprawdzony idempotentnie. Wycena własnego projektu ma osobny Stripe Checkout, wymagany adres i automatyczne potwierdzenie webhookiem; płatność, anulowanie i pełny refund przeszły w Sandbox. Refund ustawił status `refunded`, wyzerował rezerwację 28,55 g i przywrócił magazyn dokładnie do 1971,450 g; ponowne wywołanie funkcji zwrotu nie zmieniło stanu. Dopłaty Express i Pilne są naliczane procentowo od kosztu realizacji przed dostawą i VAT; produkcyjna migracja Supabase jest zastosowana i przeszła test transakcyjny. Produkcyjny Supabase został zabezpieczony wewnętrzną i zewnętrzną szyfrowaną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk, Storage oraz pełnej historii 66 migracji. Prywatnościowy restore drill zakończył się powodzeniem. Zalogowany odbiór stagingu objął 36/36 tras panelu klienta i administratora bez błędów aplikacji, konsoli ani utraty sesji. Ograniczony klucz Stripe Live został utworzony z minimalnymi uprawnieniami i zapisany wyłącznie w Vercel Production. `STRIPE_WEBHOOK_SECRET` zawiera teraz właściwy sekret aktywnego endpointu `https://korix3d.pl/api/stripe/webhook`; wcześniejszą błędną wartość typu klucz API usunięto z zakresu produkcyjnego, a osobny testowy wpis Preview pozostał bez zmian. Nowe wdrożenie Production zakończyło się statusem `READY`, `/api/health` zwróciło HTTP 200, kluczowe strony nie wykazały błędu aplikacji, a worker Creality Print raportuje aktualny heartbeat. Pozostaje mała płatność kontrolna Stripe Live z pełnym refundem oraz potwierdzenie jej skutków w webhooku, zamówieniu i magazynie.
+Kod aplikacji jest wdrożony na Vercel, opublikowane CI GitHub jest zielone, a produkcyjny audyt npm zwraca 0 podatności. Stripe działa poprawnie w Sandbox i Live. Kontrolowana płatność Live 2,00 zł została rozliczona, zarejestrowana przez webhook i w pełni zwrócona; zamówienie otrzymało status `refunded`, a magazyn wrócił dokładnie do stanu sprzed testu. Panel administratora otrzymał bezpieczny, idempotentny zwrot zamówień sklepowych. Automatyczna wycena produkcyjna przeszła pełny przepływ plik → Storage → worker Creality Print → wynik: 1,18 h, 28,55 g i 39,27 zł; rekord testowy został następnie anulowany. Dopłaty Express i Pilne są naliczane procentowo. Produkcyjny Supabase został zabezpieczony wewnętrzną i zewnętrzną szyfrowaną kopią, zaktualizowany migracjami i zweryfikowany pod kątem tabel, kolumn, RLS, polityk, Storage oraz pełnej historii 66 migracji. Zalogowany odbiór objął 36/36 tras panelu klienta i administratora bez błędów aplikacji, konsoli ani utraty sesji. Ograniczony klucz Stripe Live i właściwy sekret webhooka są zapisane wyłącznie w Vercel Production. `/api/health` zwraca HTTP 200, worker jest aktywny, a końcowy lint, TypeScript, 59/59 testów i build 63/63 stron przechodzą.
 
 ## Podsumowanie wykonawcze
 
@@ -32,18 +32,18 @@ Kod aplikacji jest wdrożony na Vercel, ostatnie opublikowane CI GitHub jest zie
 | 1 | Audyt repozytorium | struktura, trasy, konfiguracja i ryzyka rozpoznane | repo i build sprawdzone | Zakończony |
 | 2 | Environment | pełny `.env.example`, walidacja Zod i kontrola CI | wymagane zmienne aplikacji oraz podpis asymetryczny workera skonfigurowane | Zakończony |
 | 3 | Supabase | 66 migracji, zgodna historia lokalna/produkcyjna, RLS, indeksy, FK, Storage i testy pgTAP | 66/66 wpisów historii zgodnych; 51 tabel, 124 polityki, 0 tabel bez RLS, 4 buckety; naprawiono dwie produkcyjne blokady zapisu checkoutu | Zakończony |
-| 4 | Stripe | checkout sklepu i wyceny, podpisany/idempotentny webhook, zwroty i dokumentacja | Sandbox PASS; ograniczony klucz i właściwy sekret webhooka Live zapisane w Production; oczekuje mała płatność Live i refund | Częściowo — konfiguracja Live gotowa |
+| 4 | Stripe | checkout sklepu i wyceny, podpisany/idempotentny webhook, zwroty i dokumentacja | Sandbox PASS; Live 2,00 zł, webhook, pełny refund i odtworzenie magazynu PASS | Zakończony |
 | 5 | Vercel | `vercel.json`, Node 20, build i instrukcja rollbacku | redeploy Production po rotacji sekretów ma status `READY`, domena i health działają | Zakończony |
 | 6 | Domena | canonical apex, redirect `www`, HTTPS/HSTS w kodzie | CNAME aktywny w home.pl, certyfikat TLS aktywny, Vercel `Valid Configuration`, redirect 308 potwierdzony | Zakończony |
 | 7 | Monitoring | health, chroniony cron, logi bez płatnego dostawcy | `CRON_SECRET` dodany; `/api/health` zwraca 200 | Zakończony |
 | 8 | Backup | eksport DB/Storage, obowiązkowe szyfrowanie `age`, checksumy i automatyczne usuwanie jawnych danych | rzeczywisty zewnętrzny eksport wykonany 13.08.2026; zaszyfrowany artefakt 161 835 272 B, SHA-256 PASS, odszyfrowanie PASS i 22/22 obiekty Storage zweryfikowane; prywatnościowy restore katalogu do izolowanego projektu oraz syntetyczne testy Auth/Storage 4/4 PASS | Zakończony |
 | 9 | Worker Creality | timeout, retry, heartbeat, panel produkcji, zadanie Windows, profile, zgodność 3MF i most FreeCAD dla STEP | zadanie `KORIX3D Creality Worker` zostało ponownie zainstalowane po wykryciu braku harmonogramu; panel produkcyjny potwierdził aktywny heartbeat 23.08.2026; referencyjna wycena: 174 s, 0,66 g, 50 warstw | Zakończony |
-| 10 | Testy produkcyjne | read-only smoke i macierz 20 obszarów | pełny smoke 12/12 PASS na desktopie i mobile; bieżący zalogowany odbiór 36/36 tras panelu klienta i administratora PASS | Częściowo — oczekują formularze tworzące dane i Stripe Live |
+| 10 | Testy produkcyjne | read-only smoke, macierz 20 obszarów i przepływy tworzące dane | pełny smoke 12/12 PASS na desktopie i mobile; odbiór 36/36 tras, Stripe Live oraz produkcyjna wycena Creality PASS | Zakończony |
 | 11 | Wydajność | obrazy, lazy AI, projekcje Supabase, deduplikacja i budżety JS | strona główna renderowana serwerowo; Supabase/Zod usunięte z anonimowego manifestu; smoke skrócony z 90 do 57,5 s; stabilne dane terenowe Core Web Vitals oczekują | Częściowo |
 | 12 | SEO | canonical, sitemap, robots, manifest i pełne schema.org | kod SEO wdrożony; Google/Bing niezweryfikowane | Częściowo |
 | 13 | Bezpieczeństwo | role, RLS, CSRF, CSP, webhook, upload, Dependabot, security.txt | ACL funkcji Supabase naprawione; `nanoid` 3.3.17, audyt produkcyjny 0 podatności i zielone CI | Zakończony |
 | 14 | Dokumentacja | 16 kontrolowanych dokumentów operacyjnych | spójność potwierdzona skryptem | Zakończony |
-| 15 | Raport końcowy | niniejszy raport i jednoznaczne kryteria odbioru | gotowość produkcyjna nieosiągnięta | Raport zakończony |
+| 15 | Raport końcowy | niniejszy raport i jednoznaczne kryteria odbioru | Stripe Live, refund i produkcyjna wycena potwierdzone | Zakończony |
 
 ## Wyniki komend
 
@@ -132,19 +132,17 @@ Doradcy Supabase po naprawie nie zgłosili nowego błędu krytycznego. Pozostał
 
 ## Krytyczne blokady przed produkcją
 
-1. Dokończyć bezpieczne testy formularzy tworzących dane na stagingu i posprzątać rekordy testowe. Zalogowany odbiór paneli 36/36, płatność Sandbox, refund, idempotentny webhook, publiczne trasy, Auth + Storage, restore drill i izolacja środowisk mają bezpośredni dowód.
-2. Dokończyć Stripe Live: konfiguracja klucza, sekretu webhooka i redeploy jest gotowa; pozostaje mała płatność kontrolna prawdziwą kartą właściciela, pełny refund i potwierdzenie skutków w Stripe, webhooku, zamówieniu i magazynie.
-3. Wykonać jedną pełną automatyczną wycenę produkcyjną z nowego pliku klienta. Worker i heartbeat po ponownej instalacji są aktywne.
+Brak znanych blokad krytycznych. Pozostałe prace mają charakter operacyjny: obserwacja pierwszych rzeczywistych zamówień, pomiar terenowy Core Web Vitals oraz opcjonalna weryfikacja witryny w Google Search Console i Bing Webmaster Tools.
 
 ## Kolejność bezpiecznego uruchomienia
 
 1. Vercel `READY` i zielone CI GitHub dla `5a1683a` — wykonane.
 2. Wewnętrzna kopia Supabase, migracje, RLS, Storage i health — wykonane.
 3. DNS `www`, HTTPS, redirect 308, zewnętrzny szyfrowany backup, prywatnościowy restore drill i oficjalna naprawa historii migracji — wykonane.
-4. Staging: panele 36/36, magazyn, wycena i Stripe Sandbox zaliczone; oczekują wyłącznie formularze tworzące dane.
+4. Staging: panele 36/36, magazyn, wycena i Stripe Sandbox zaliczone; izolacja środowisk potwierdzona.
 5. Produkcja bez Stripe live: testy logowania, paneli i kontrolowany checkout testowy.
 6. Worker Creality Print: stały host i podpisane połączenie działają; lokalne testy STL, STEP, OBJ i 3MF wykonane.
-7. Stripe Live: ograniczony klucz, właściwy sekret webhooka i redeploy Production są gotowe; oczekują mała płatność i refund.
+7. Stripe Live: ograniczony klucz, właściwy sekret webhooka, płatność 2,00 zł, pełny refund i odtworzenie magazynu — wykonane.
 8. Obserwacja logów, health i kolejki przez minimum 30 minut — historycznie wykonana bez 5xx i klastrów runtime; bieżąca kontrola z 22.08 również zwróciła 0 błędów i ostrzeżeń w ostatniej godzinie.
 
 ## Git i wdrożenie
@@ -166,8 +164,16 @@ PR `#9` (merge `ef04713`) opublikował procentowe dopłaty Express/Pilne oraz za
 - Nie należy przesyłać nowych kluczy na czacie; wpisuje się je bezpośrednio w Supabase, Vercel lub Stripe.
 - KORIX AI nie używa OpenAI ani innego płatnego modelu.
 - Monitoring nie wymaga płatnego Sentry.
-- Konfiguracja Stripe Live jest aktywna, ale odbiór finansowy pozostaje niezamknięty do kontrolowanej płatności i pełnego refundu.
+- Konfiguracja Stripe Live jest aktywna i przeszła kontrolowaną płatność, webhook oraz pełny refund.
+
+## Aktualizacja końcowa 23.08.2026 — odbiór produkcyjny
+
+- Kontrolowane zamówienie sklepowe Stripe Live na 2,00 zł przeszło pełny przepływ: Checkout, płatność, podpisany webhook, zapis zamówienia, zmiana magazynu, pełny refund i dokładne odtworzenie stanu. Rekord finansowy pozostaje w historii jako wymagany ślad audytowy, a produkt testowy został ukryty i nie jest dostępny publicznie.
+- Dodano bezpieczny zwrot zamówień sklepowych w panelu administratora. Endpoint wymaga roli pracownika, ochrony same-origin, w pełni opłaconego zamówienia i używa klucza idempotencji Stripe. Kontrole API przeszły 6/6 wariantów desktop/mobile.
+- Produkcyjna automatyczna wycena `WYC-20260823-FD2EFD` została zakończona przez Creality Print. Panel klienta pokazał 39,27 zł brutto/netto, 1,18 h i 28,55 g; panel administratora potwierdził PETG, czarny filament Elegoo, 20% wypełnienia, ilość 1, plik `base.3mf` oraz status `Analiza gotowa`. Po odbiorze rekord został oznaczony jako anulowany.
+- Usunięto pływający asystent z layoutu panelu administratora, ponieważ zasłaniał kontrolki w prawej kolumnie tabel. Asystent pozostaje dostępny w części publicznej i panelu klienta, a administrator ma osobny moduł „AI Asystent”.
+- Końcowa kontrola po poprawce: lint PASS, TypeScript PASS, testy 59/59 PASS i build Next.js 63/63 stron PASS.
 
 ## Kryterium „production ready”
 
-Werdykt można zmienić na **GOTOWE** dopiero, gdy wszystkie blokady powyżej mają bezpośredni dowód: zielony commit w GitHub, zgodny i zbackupowany Supabase, działające oba panele, poprawny DNS, health/monitoring, działający worker, pozytywny Stripe test i pełny odbiór staging/production. Sam zielony build lokalny nie jest wystarczającym dowodem.
+Kryteria odbioru mają bezpośredni dowód: zgodny i zbackupowany Supabase, działające oba panele, poprawny DNS, health/monitoring, aktywny worker, pozytywne testy Stripe Sandbox i Live, pełny refund oraz produkcyjna wycena Creality. Po opublikowaniu końcowej poprawki wymagane jest jeszcze standardowe potwierdzenie zielonego CI i statusu `READY` wdrożenia.

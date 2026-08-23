@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AdminSidebar } from '@/components/layout/admin-sidebar';
 import { useAuth } from '@/lib/providers';
 import { Toaster } from '@/components/ui/sonner';
-import { AIWrapper } from '@/components/ai/ai-wrapper';
 import {
   canAccessAdminPath,
   getAdminHomePath,
@@ -55,7 +54,6 @@ export default function AdminLayout({
         </div>
       </main>
       <Toaster position="top-right" richColors closeButton />
-      <AIWrapper />
     </div>
   );
 }

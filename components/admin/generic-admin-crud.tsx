@@ -46,6 +46,7 @@ export type AdminCrudConfig = {
   allowCreate?: boolean;
   allowDelete?: boolean;
   allowQuoteRefunds?: boolean;
+  allowStoreRefunds?: boolean;
   filters?: Array<{
     field: string;
     operator?: 'eq' | 'in' | 'neq';
@@ -421,13 +422,16 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
     }
   };
 
-  const refundQuote = async (row: DbRow) => {
+  const refundPayment = async (row: DbRow) => {
     const rowId = String(row.id || '');
     if (!rowId || refundingRowId) return;
 
     setRefundingRowId(rowId);
     try {
-      const response = await fetch('/api/admin/orders/refund', {
+      const refundEndpoint = config.allowStoreRefunds
+        ? '/api/admin/store-orders/refund'
+        : '/api/admin/orders/refund';
+      const response = await fetch(refundEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId: rowId }),
@@ -442,7 +446,9 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
       }
 
       toast.success('Pełny zwrot został przyjęty przez Stripe', {
-        description: 'Status płatności i stan filamentu zaktualizują się automatycznie.',
+        description: config.allowStoreRefunds
+          ? 'Status płatności i stan produktu zaktualizują się automatycznie.'
+          : 'Status płatności i stan filamentu zaktualizują się automatycznie.',
       });
       setRefundCandidate(null);
       await new Promise((resolve) => window.setTimeout(resolve, 1500));
@@ -483,10 +489,10 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
           </DialogHeader>
           <div className="space-y-3 text-sm text-muted-foreground">
             <p>
-              Wycena: <strong className="text-foreground">{String(refundCandidate?.order_number || refundCandidate?.id || '')}</strong>
+              {config.allowStoreRefunds ? 'Zamówienie' : 'Wycena'}: <strong className="text-foreground">{String(refundCandidate?.order_number || refundCandidate?.id || '')}</strong>
             </p>
             <p>
-              Stripe zwróci klientowi całą opłaconą kwotę, a zarezerwowany filament zostanie automatycznie przywrócony do magazynu.
+              Stripe zwróci klientowi całą opłaconą kwotę, a zarezerwowany {config.allowStoreRefunds ? 'produkt' : 'filament'} zostanie automatycznie przywrócony do magazynu.
             </p>
             <p className="font-medium text-destructive">Tej operacji nie można cofnąć.</p>
           </div>
@@ -501,7 +507,7 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
             <Button
               variant="destructive"
               disabled={!refundCandidate || Boolean(refundingRowId)}
-              onClick={() => refundCandidate && refundQuote(refundCandidate)}
+              onClick={() => refundCandidate && refundPayment(refundCandidate)}
             >
               {refundingRowId
                 ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Wysyłanie zwrotu...</>
@@ -677,7 +683,9 @@ export function GenericAdminCrud({ config }: { config: AdminCrudConfig }) {
                     <td className="py-3 pr-4 text-right whitespace-nowrap">
                         <div className="inline-flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => openEdit(row)}><Edit className="w-4 h-4" /></Button>
-                          {config.allowQuoteRefunds && row.payment_status === 'paid' && row.stripe_payment_intent_id && (
+                          {((config.allowQuoteRefunds && row.payment_status === 'paid')
+                            || (config.allowStoreRefunds && row.status === 'paid'))
+                            && row.stripe_payment_intent_id && (
                             <Button
                               size="sm"
                               variant="outline"

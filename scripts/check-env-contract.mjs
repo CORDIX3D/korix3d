@@ -31,6 +31,12 @@ const requiredApplicationVariables = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'SMTP_USER',
+  'SMTP_PASSWORD',
+  'SMTP_FROM_EMAIL',
+  'SMTP_FROM_NAME',
   'CREALITY_SLICER_WORKER_PUBLIC_KEY',
   'CRON_SECRET',
 ];
@@ -97,6 +103,12 @@ for (const secretName of [
   'SUPABASE_SERVICE_ROLE_KEY',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'SMTP_USER',
+  'SMTP_PASSWORD',
+  'SMTP_FROM_EMAIL',
+  'SMTP_FROM_NAME',
   'CREALITY_SLICER_WORKER_PUBLIC_KEY',
   'CRON_SECRET',
 ]) {
@@ -105,7 +117,7 @@ for (const secretName of [
   }
 }
 
-if (/OPENAI|SENTRY_DSN|SMTP_PASSWORD/.test(example)) {
+if (/OPENAI|SENTRY_DSN/.test(example)) {
   throw new Error('Plik przykładowy nie może sugerować nieużywanych płatnych lub tajnych integracji.');
 }
 

@@ -61,6 +61,7 @@ import {
 import { absoluteSiteUrl, serializeJsonLd } from '../lib/seo';
 import { isEmailNotConfirmedError } from '../lib/auth-error';
 import { isStaleClientChunkError } from '../lib/client-version-recovery';
+import { createPaymentLinkEmail } from '../lib/email/templates';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -98,6 +99,33 @@ test('rozpoznaje niepotwierdzony email i błąd starego fragmentu aplikacji', ()
     true
   );
   assert.equal(isStaleClientChunkError(new Error('Network error')), false);
+});
+
+test('email powrotu do płatności ma bezpieczny link i nie wstrzykuje HTML', () => {
+  const message = createPaymentLinkEmail({
+    customerName: '<script>alert(1)</script>',
+    orderNumber: 'K3D-123',
+    paymentUrl: 'https://checkout.stripe.com/c/pay/cs_test_123',
+    totalGross: 123.45,
+    expiresAt: new Date('2026-08-24T18:00:00.000Z'),
+    orderType: 'store',
+  });
+
+  assert.equal(message.subject.includes('K3D-123'), true);
+  assert.equal(message.html.includes('<script>alert(1)</script>'), false);
+  assert.equal(message.html.includes('&lt;script&gt;'), true);
+  assert.equal(message.text.includes('123,45'), true);
+  assert.equal(message.text.includes('checkout.stripe.com'), true);
+});
+
+test('email płatności odrzuca link poza Stripe', () => {
+  assert.throws(() => createPaymentLinkEmail({
+    orderNumber: 'K3D-123',
+    paymentUrl: 'https://checkout.stripe.com.atak.example/phishing',
+    totalGross: 10,
+    expiresAt: new Date('2026-08-24T18:00:00.000Z'),
+    orderType: 'quote',
+  }));
 });
 
 test('wygasły lub nieprawidłowy klucz Stripe jest błędem konfiguracji', () => {

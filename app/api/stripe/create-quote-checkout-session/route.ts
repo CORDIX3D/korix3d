@@ -18,6 +18,7 @@ import {
   getStripeWebhookSecret,
   isStripeConfigurationError,
 } from '@/lib/stripe';
+import { sendPaymentLinkEmailSafely } from '@/lib/email/smtp';
 
 export const dynamic = 'force-dynamic';
 
@@ -218,6 +219,20 @@ export async function POST(request: NextRequest) {
     }
 
     reservedOrderId = null;
+    if (session.url) {
+      const customerName = typeof auth.user.user_metadata?.full_name === 'string'
+        ? auth.user.user_metadata.full_name
+        : null;
+      await sendPaymentLinkEmailSafely({
+        to: auth.user.email,
+        customerName,
+        orderNumber: quote.order_number,
+        paymentUrl: session.url,
+        totalGross: Number(quote.final_price),
+        expiresAt: new Date(session.expires_at * 1000),
+        orderType: 'quote',
+      });
+    }
     return NextResponse.json({ url: session.url }, { headers: HEADERS });
   } catch (error) {
     if (reservedOrderId) {

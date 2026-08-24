@@ -19,6 +19,7 @@ import {
   isTrustedMutationRequest,
 } from '@/lib/api/request-security';
 import { createClient } from '@/lib/supabase/server';
+import { sendPaymentLinkEmailSafely } from '@/lib/email/smtp';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     const admin = createSupabaseClient(url, serviceRoleKey);
     const { data: order, error: orderError } = await admin
       .from('store_orders')
-      .select('id, order_number, user_id, status, customer_email, total, vat_amount, shipping_cost, discount_amount, coupon_code, stripe_session_id, checkout_token_hash')
+      .select('id, order_number, user_id, status, customer_email, customer_name, total, vat_amount, shipping_cost, discount_amount, coupon_code, stripe_session_id, checkout_token_hash')
       .eq('id', parsed.data.orderId)
       .maybeSingle();
 
@@ -228,6 +229,18 @@ export async function POST(request: NextRequest) {
         { error: 'Stan zamówienia zmienił się podczas przygotowywania płatności. Spróbuj ponownie.' },
         { status: 409 }
       );
+    }
+
+    if (session.url) {
+      await sendPaymentLinkEmailSafely({
+        to: order.customer_email,
+        customerName: order.customer_name,
+        orderNumber: order.order_number,
+        paymentUrl: session.url,
+        totalGross: Number(order.total),
+        expiresAt: new Date(session.expires_at * 1000),
+        orderType: 'store',
+      });
     }
     return NextResponse.json({ url: session.url });
   } catch (error) {

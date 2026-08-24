@@ -33,6 +33,35 @@ W `Authentication > Providers > Email`:
 
 Wbudowana usługa testowa Supabase nie powinna być traktowana jako produkcyjny kanał email.
 
+### Firmowe wiadomości Auth i powrotu do płatności
+
+Użyj jednej skrzynki w domenie KORIX3D zarówno w `Authentication > SMTP`, jak i
+w zmiennych SMTP Vercel. Dla home.pl pełny adres skrzynki jest nazwą użytkownika,
+a bezpieczny port SMTP to `465`; dokładna nazwa serwera jest widoczna przy skrzynce
+w Panelu Klienta home.pl. Hasła skrzynki nie zapisuj w repozytorium.
+
+W Supabase ustaw:
+
+- Sender name: `KORIX3D`,
+- Sender email: firmowa skrzynka w domenie,
+- Host/port/user/password: dane tej skrzynki,
+- Minimum interval: `60` sekund.
+
+Następnie w `Authentication > Email Templates` ustaw:
+
+- Confirm signup — temat `Potwierdź konto w KORIX3D`, treść z
+  `docs/email-templates/confirm-signup.html`,
+- Reset password — temat `Ustaw nowe hasło do KORIX3D`, treść z
+  `docs/email-templates/reset-password.html`.
+
+Szablony korzystają z `{{ .ConfirmationURL }}`, dlatego zachowują przekazany przez
+aplikację bezpieczny redirect do `/auth/callback` lub `/reset-password`.
+
+W Vercel Production ustaw `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
+`SMTP_FROM_EMAIL` i `SMTP_FROM_NAME`. Aplikacja wysyła klientowi firmowy link do
+aktywnej sesji Stripe po utworzeniu płatności. Awaria poczty jest rejestrowana bez
+adresu odbiorcy i nie blokuje utworzonego zamówienia ani przejścia do Stripe.
+
 ## Klucze aplikacji
 
 Z `Project Settings > API` pobierz wyłącznie:

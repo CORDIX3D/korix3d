@@ -32,7 +32,7 @@ test('chronione panele nie ujawniają danych anonimowemu użytkownikowi', async 
   for (const path of ['/panel', '/admin']) {
     const response = await page.goto(path);
     expect([200, 503]).toContain(response?.status());
-    expect(page.url()).toMatch(/\/(logowanie|panel|admin)$/);
+    expect(page.url()).toMatch(/\/logowanie(?:\?.*)?$|\/(?:panel|admin)$/);
 
     if (response?.status() === 200) {
       await expect(page.getByText(/Zaloguj się|Usługa jest chwilowo niedostępna/).first()).toBeVisible();
@@ -68,14 +68,14 @@ test('rejestracja działa i waliduje dane przed utworzeniem konta', async ({ pag
   }
 
   await expect(page.getByRole('heading', { name: 'Utwórz konto' })).toBeVisible();
-  await page.getByPlaceholder('Jan Kowalski').fill('Jan');
+  await page.getByPlaceholder('Jan Kowalski').fill('J');
   await page.getByPlaceholder('twoj@email.pl').fill('błędny-email');
   await page.locator('input[name="password"]').fill('123');
   await page.locator('input[name="confirmPassword"]').fill('456');
   await page.getByRole('button', { name: 'Zarejestruj się' }).click();
 
-  await expect(page.getByText(/Podaj imię i nazwisko/)).toBeVisible();
+  await expect(page.getByText(/Imię musi mieć co najmniej 2 znaki/)).toBeVisible();
   await expect(page.getByText(/Nieprawidłowy adres email/)).toBeVisible();
-  await expect(page.getByText(/Hasło musi mieć minimum 8 znaków/)).toBeVisible();
-  await expect(page.getByText(/Hasła nie są identyczne/)).toBeVisible();
+  await expect(page.getByText(/Hasło musi mieć co najmniej 8 znaków/)).toBeVisible();
+  await expect(page.getByText(/Hasła nie są zgodne/)).toBeVisible();
 });

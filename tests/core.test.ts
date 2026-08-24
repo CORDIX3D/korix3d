@@ -59,6 +59,8 @@ import {
   sanitizeMonitoringText,
 } from '../lib/monitoring/sanitize';
 import { absoluteSiteUrl, serializeJsonLd } from '../lib/seo';
+import { isEmailNotConfirmedError } from '../lib/auth-error';
+import { isStaleClientChunkError } from '../lib/client-version-recovery';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -87,6 +89,16 @@ function product(overrides: Partial<Product> = {}): Product {
     ...overrides,
   };
 }
+
+test('rozpoznaje niepotwierdzony email i błąd starego fragmentu aplikacji', () => {
+  assert.equal(isEmailNotConfirmedError(new Error('Email not confirmed')), true);
+  assert.equal(isEmailNotConfirmedError(new Error('Invalid login credentials')), false);
+  assert.equal(
+    isStaleClientChunkError(new Error('Loading chunk 1428 failed.')),
+    true
+  );
+  assert.equal(isStaleClientChunkError(new Error('Network error')), false);
+});
 
 test('wygasły lub nieprawidłowy klucz Stripe jest błędem konfiguracji', () => {
   assert.equal(isStripeCredentialError({ code: 'api_key_expired' }), true);

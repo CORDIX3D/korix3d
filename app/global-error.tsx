@@ -2,6 +2,11 @@
 
 import { useEffect } from 'react';
 import { reportClientError } from '@/lib/monitoring/client';
+import {
+  isStaleClientChunkError,
+  recoverFromStaleClientChunk,
+  reloadLatestClientVersion,
+} from '@/lib/client-version-recovery';
 
 export default function GlobalError({
   error,
@@ -10,8 +15,11 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const staleClientVersion = isStaleClientChunkError(error);
+
   useEffect(() => {
     reportClientError(error, 'global');
+    recoverFromStaleClientChunk(error);
   }, [error]);
 
   return (
@@ -20,10 +28,18 @@ export default function GlobalError({
         <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, textAlign: 'center' }}>
           <div>
             <h1>Wystąpił nieoczekiwany błąd</h1>
-            <p>Spróbuj ponownie. Jeśli problem wróci, skontaktuj się z obsługą KORIX3D.</p>
+            <p>
+              {staleClientVersion
+                ? 'Po aktualizacji została wczytana starsza wersja strony. Odświeżamy ją automatycznie.'
+                : 'Spróbuj ponownie. Jeśli problem wróci, skontaktuj się z obsługą KORIX3D.'}
+            </p>
             {error.digest && <p>Identyfikator błędu: {error.digest}</p>}
-            <button type="button" onClick={reset} style={{ marginTop: 16, padding: '12px 18px', cursor: 'pointer' }}>
-              Spróbuj ponownie
+            <button
+              type="button"
+              onClick={staleClientVersion ? reloadLatestClientVersion : reset}
+              style={{ marginTop: 16, padding: '12px 18px', cursor: 'pointer' }}
+            >
+              {staleClientVersion ? 'Pobierz nową wersję' : 'Spróbuj ponownie'}
             </button>
           </div>
         </main>

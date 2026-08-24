@@ -5,6 +5,11 @@ import Link from 'next/link';
 import { AlertTriangle, Home, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { reportClientError } from '@/lib/monitoring/client';
+import {
+  isStaleClientChunkError,
+  recoverFromStaleClientChunk,
+  reloadLatestClientVersion,
+} from '@/lib/client-version-recovery';
 
 type ErrorFallbackProps = {
   error: Error & { digest?: string };
@@ -25,8 +30,11 @@ export function ErrorFallback({
   homeHref = '/',
   homeLabel = 'Strona główna',
 }: ErrorFallbackProps) {
+  const staleClientVersion = isStaleClientChunkError(error);
+
   useEffect(() => {
     reportClientError(error, source);
+    recoverFromStaleClientChunk(error);
   }, [error, source]);
 
   return (
@@ -39,16 +47,23 @@ export function ErrorFallback({
           Coś poszło nie tak
         </p>
         <h1 className="mb-4 text-3xl font-bold sm:text-4xl">{title}</h1>
-        <p className="mb-8 text-muted-foreground">{description}</p>
+        <p className="mb-8 text-muted-foreground">
+          {staleClientVersion
+            ? 'Wykryliśmy starszą wersję strony po aktualizacji. Odświeżamy ją automatycznie.'
+            : description}
+        </p>
         {error.digest && (
           <p className="mb-6 text-xs text-muted-foreground">
             Identyfikator błędu: <code>{error.digest}</code>
           </p>
         )}
         <div className="flex flex-col justify-center gap-3 sm:flex-row">
-          <Button type="button" onClick={reset}>
+          <Button
+            type="button"
+            onClick={staleClientVersion ? reloadLatestClientVersion : reset}
+          >
             <RotateCcw className="mr-2 h-4 w-4" />
-            Spróbuj ponownie
+            {staleClientVersion ? 'Pobierz nową wersję' : 'Spróbuj ponownie'}
           </Button>
           <Button asChild variant="outline">
             <Link href={homeHref}>

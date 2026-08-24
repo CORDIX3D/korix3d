@@ -67,6 +67,10 @@ function createUnavailableClient() {
         data: { session: null, user: null },
         error: createUnavailableError(),
       }),
+      resend: async () => ({
+        data: null,
+        error: createUnavailableError(),
+      }),
       signOut: async () => ({ error: createUnavailableError() }),
       resetPasswordForEmail: async () => ({
         data: null,

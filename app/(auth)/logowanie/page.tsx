@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuth } from '@/lib/providers';
 import { Eye, EyeOff, Mail, Lock, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAuthErrorMessage } from '@/lib/auth-error';
+import { getAuthErrorMessage, isEmailNotConfirmedError } from '@/lib/auth-error';
 import { normalizeInternalPath } from '@/lib/navigation';
 import { getAdminHomePath, isStaffRole } from '@/lib/admin-access';
 
@@ -27,9 +27,11 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedRedirect = searchParams.get('redirect');
-  const { signIn } = useAuth();
+  const { signIn, resendSignupConfirmation } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState('');
   const [error, setError] = useState<string | null>(() =>
     searchParams.get('error') === 'callback_error'
       ? 'Link logowania jest nieprawidłowy lub wygasł. Spróbuj zalogować się ponownie.'
@@ -55,11 +57,13 @@ function LoginPageContent() {
 
       if (error) {
         const message = getAuthErrorMessage(error, 'login');
+        setUnconfirmedEmail(isEmailNotConfirmedError(error) ? data.email : '');
         setError(message);
         toast.error('Błąd logowania', {
           description: message,
         });
       } else {
+        setUnconfirmedEmail('');
         const defaultRedirect = isStaffRole(role)
           ? getAdminHomePath(role)
           : '/panel';
@@ -79,6 +83,22 @@ function LoginPageContent() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const resendConfirmation = async () => {
+    if (!unconfirmedEmail || isResending) return;
+    setIsResending(true);
+    const { error } = await resendSignupConfirmation(unconfirmedEmail);
+    if (error) {
+      toast.error('Nie udało się wysłać wiadomości', {
+        description: getAuthErrorMessage(error, 'reset'),
+      });
+    } else {
+      toast.success('Wysłano nowy link aktywacyjny', {
+        description: 'Sprawdź skrzynkę odbiorczą i folder SPAM.',
+      });
+    }
+    setIsResending(false);
   };
 
   return (
@@ -116,9 +136,23 @@ function LoginPageContent() {
 
           <CardContent className="pt-4">
             {error && (
-              <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-                <p className="text-sm text-destructive">{error}</p>
+              <div className="mb-6 space-y-3 rounded-xl border border-destructive/20 bg-destructive/10 p-4">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0 text-destructive" />
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
+                {unconfirmedEmail && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isResending}
+                    onClick={resendConfirmation}
+                  >
+                    {isResending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Wyślij link aktywacyjny ponownie
+                  </Button>
+                )}
               </div>
             )}
 

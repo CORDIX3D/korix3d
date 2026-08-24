@@ -139,7 +139,7 @@ export default function ForgotPasswordPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <label className="form-label">Email</label>
                 <div className="relative">

@@ -41,6 +41,7 @@ interface AuthContextType {
     role: Profile['role'] | null;
   }>;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
+  resendSignupConfirmation: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
@@ -177,6 +178,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resendSignupConfirmation = async (email: string) => {
+    try {
+      const supabase = await getBrowserClient();
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo:
+            typeof window !== 'undefined'
+              ? `${window.location.origin}/auth/callback?next=/panel`
+              : undefined,
+        },
+      });
+      return { error: error as Error | null };
+    } catch (err) {
+      return { error: err as Error };
+    }
+  };
+
   const signOut = async () => {
     const supabase = await getBrowserClient();
     await supabase.auth.signOut();
@@ -223,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isCustomer,
         signIn,
         signUp,
+        resendSignupConfirmation,
         signOut,
         resetPassword,
         refreshProfile,

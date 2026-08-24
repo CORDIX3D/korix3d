@@ -27,13 +27,14 @@ const registerSchema = z.object({
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
-  const { signUp } = useAuth();
+  const { signUp, resendSignupConfirmation } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
+  const [isResending, setIsResending] = useState(false);
 
   const {
     register,
@@ -74,6 +75,22 @@ export default function RegisterPage() {
     }
   };
 
+  const resendConfirmation = async () => {
+    if (!registeredEmail || isResending) return;
+    setIsResending(true);
+    const { error } = await resendSignupConfirmation(registeredEmail);
+    if (error) {
+      toast.error('Nie udało się wysłać wiadomości', {
+        description: getAuthErrorMessage(error, 'reset'),
+      });
+    } else {
+      toast.success('Wysłano nowy link aktywacyjny', {
+        description: 'Sprawdź skrzynkę odbiorczą i folder SPAM.',
+      });
+    }
+    setIsResending(false);
+  };
+
   if (success) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4 py-20">
@@ -91,14 +108,25 @@ export default function RegisterPage() {
             <p className="text-muted-foreground mb-6">
               Sprawdź swoją skrzynkę email <strong className="text-foreground">{registeredEmail}</strong> aby potwierdzić konto.
             </p>
-            <p className="text-sm text-muted-foreground mb-6">
-              Nie widzisz emaila? Sprawdź folder SPAM lub
+            <p className="mb-6 text-sm text-muted-foreground">
+              Nie widzisz wiadomości? Sprawdź folder SPAM albo wyślij nowy link aktywacyjny.
             </p>
-            <Button asChild className="bg-gradient-primary hover:shadow-glow transition-shadow">
-              <Link href="/logowanie">
-                Przejdź do logowania
-              </Link>
-            </Button>
+            <div className="flex flex-col justify-center gap-3 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isResending}
+                onClick={resendConfirmation}
+              >
+                {isResending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Wyślij link ponownie
+              </Button>
+              <Button asChild className="bg-gradient-primary hover:shadow-glow transition-shadow">
+                <Link href="/logowanie">
+                  Przejdź do logowania
+                </Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

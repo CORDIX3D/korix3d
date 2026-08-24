@@ -6,17 +6,26 @@ const FALLBACK_MESSAGES: Record<AuthAction, string> = {
   reset: 'Nie udało się wysłać wiadomości. Spróbuj ponownie za chwilę.',
 };
 
-export function getAuthErrorMessage(error: unknown, action: AuthAction) {
-  const message =
+function authErrorText(error: unknown) {
+  return (
     error instanceof Error
-      ? error.message.toLowerCase()
-      : String(error || '').toLowerCase();
+      ? `${error.name} ${error.message}`
+      : String(error || '')
+  ).toLowerCase();
+}
+
+export function isEmailNotConfirmedError(error: unknown) {
+  return authErrorText(error).includes('email not confirmed');
+}
+
+export function getAuthErrorMessage(error: unknown, action: AuthAction) {
+  const message = authErrorText(error);
 
   if (message.includes('invalid login credentials')) {
     return 'Nieprawidłowy email lub hasło.';
   }
-  if (message.includes('email not confirmed')) {
-    return 'Najpierw potwierdź adres email, korzystając z otrzymanej wiadomości.';
+  if (isEmailNotConfirmedError(error)) {
+    return 'Najpierw potwierdź adres email. Jeśli wiadomość nie dotarła, wyślij link aktywacyjny ponownie.';
   }
   if (
     message.includes('already registered') ||

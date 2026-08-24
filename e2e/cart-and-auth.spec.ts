@@ -59,3 +59,23 @@ test('logowanie i odzyskiwanie hasła odrzucają błędny email lokalnie', async
   await page.getByRole('button', { name: 'Wyślij instrukcje' }).click();
   await expect(page.getByText(/Nieprawidłowy adres email/)).toBeVisible();
 });
+
+test('rejestracja działa i waliduje dane przed utworzeniem konta', async ({ page }) => {
+  const response = await page.goto('/rejestracja');
+  if (response?.status() === 503) {
+    await expect(page.locator('body')).toContainText(/niedostępna/i);
+    return;
+  }
+
+  await expect(page.getByRole('heading', { name: 'Utwórz konto' })).toBeVisible();
+  await page.getByPlaceholder('Jan Kowalski').fill('Jan');
+  await page.getByPlaceholder('twoj@email.pl').fill('błędny-email');
+  await page.locator('input[name="password"]').fill('123');
+  await page.locator('input[name="confirmPassword"]').fill('456');
+  await page.getByRole('button', { name: 'Zarejestruj się' }).click();
+
+  await expect(page.getByText(/Podaj imię i nazwisko/)).toBeVisible();
+  await expect(page.getByText(/Nieprawidłowy adres email/)).toBeVisible();
+  await expect(page.getByText(/Hasło musi mieć minimum 8 znaków/)).toBeVisible();
+  await expect(page.getByText(/Hasła nie są identyczne/)).toBeVisible();
+});

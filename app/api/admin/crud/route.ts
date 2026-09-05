@@ -16,10 +16,24 @@ import {
   canManageStoreOrderStatus,
   isStoreOrderStatus,
 } from '@/lib/store-order-status';
+import { sendOrderUpdateEmailSafely } from '@/lib/email/smtp';
 
 export const dynamic = 'force-dynamic';
 
 type AdminCrudPayload = Record<string, unknown>;
+type StoreOrderEmailContext = {
+  customer_email: string;
+  customer_name: string | null;
+  order_number: string;
+  total: number;
+  user_id: string | null;
+};
+
+const STORE_STATUS_LABELS: Record<string, string> = {
+  processing: 'W realizacji',
+  shipped: 'Wysłane',
+  delivered: 'Dostarczone',
+};
 
 const ALLOWED_TABLES = new Set([
   'blog_posts',
@@ -465,10 +479,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: discountError }, { status: 400 });
     }
 
+    let storeOrderForEmail: StoreOrderEmailContext | null = null;
     if (table === 'store_orders' && id && 'status' in payload) {
       const { data: currentOrder, error: currentOrderError } = await context.client
         .from('store_orders')
-        .select('status')
+        .select('status, customer_email, customer_name, order_number, total, user_id')
         .eq('id', id)
         .maybeSingle();
 
@@ -493,6 +508,9 @@ export async function POST(request: NextRequest) {
           },
           { status: 409 }
         );
+      }
+      if (currentStatus !== nextStatus) {
+        storeOrderForEmail = currentOrder as StoreOrderEmailContext;
       }
     }
 
@@ -554,6 +572,21 @@ export async function POST(request: NextRequest) {
         { error: id ? 'Nie znaleziono pozycji do aktualizacji.' : 'Nie udało się utworzyć pozycji.' },
         { status: id ? 404 : 500 }
       );
+    }
+
+    if (storeOrderForEmail && id && typeof payload.status === 'string') {
+      await sendOrderUpdateEmailSafely({
+        to: storeOrderForEmail.customer_email,
+        customerName: storeOrderForEmail.customer_name,
+        orderNumber: storeOrderForEmail.order_number,
+        orderType: 'store',
+        event: 'status',
+        statusLabel: STORE_STATUS_LABELS[payload.status] || payload.status,
+        totalGross: Number(storeOrderForEmail.total),
+        panelUrl: storeOrderForEmail.user_id
+          ? `https://korix3d.pl/panel/zamowienia/sklep/${id}`
+          : 'https://korix3d.pl/logowanie',
+      });
     }
 
     return NextResponse.json({ success: true });

@@ -19,6 +19,7 @@ import {
   isFullStripeRefund,
   shouldReleaseStockAfterStripeEvent,
 } from '@/lib/stripe-webhook';
+import { sendOrderUpdateEmailSafely } from '@/lib/email/smtp';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,7 +85,7 @@ async function finishEvent(
 async function getOrderById(admin: AdminClient, orderId: string) {
   const { data, error } = await admin
     .from('store_orders')
-    .select('id, total, status, stripe_session_id, stripe_payment_intent_id')
+    .select('id, order_number, user_id, customer_email, customer_name, total, status, stripe_session_id, stripe_payment_intent_id')
     .eq('id', orderId)
     .maybeSingle();
   if (error) throw error;
@@ -94,7 +95,7 @@ async function getOrderById(admin: AdminClient, orderId: string) {
 async function getQuoteById(admin: AdminClient, orderId: string) {
   const { data, error } = await admin
     .from('orders_3d')
-    .select('id, final_price, status, payment_status, stripe_session_id, stripe_payment_intent_id')
+    .select('id, order_number, user_id, final_price, status, payment_status, stripe_session_id, stripe_payment_intent_id')
     .eq('id', orderId)
     .maybeSingle();
   if (error) throw error;
@@ -160,6 +161,18 @@ async function processQuoteCheckoutSession(
     if (error) throw error;
     if (!completed) {
       throw new Error('Paid Stripe quote session could not be committed.');
+    }
+    const { data: quoteUser } = await admin.auth.admin.getUserById(quote.user_id);
+    if (quote.payment_status !== 'paid' && quoteUser.user?.email) {
+      await sendOrderUpdateEmailSafely({
+        to: quoteUser.user.email,
+        customerName: typeof quoteUser.user.user_metadata?.full_name === 'string' ? quoteUser.user.user_metadata.full_name : null,
+        orderNumber: quote.order_number,
+        orderType: 'quote',
+        event: 'paid',
+        totalGross: Number(quote.final_price),
+        panelUrl: `https://korix3d.pl/panel/zamowienia/${quote.id}`,
+      });
     }
     // stripe_webhook_events.order_id points to store_orders, not orders_3d.
     return { status: 'processed', orderId: null };
@@ -250,6 +263,19 @@ async function processCheckoutSession(
       ) {
         throw new Error('Paid Stripe session could not be committed to the order.');
       }
+    }
+    if (paidOrders?.length) {
+      await sendOrderUpdateEmailSafely({
+        to: order.customer_email,
+        customerName: order.customer_name,
+        orderNumber: order.order_number,
+        orderType: 'store',
+        event: 'paid',
+        totalGross: Number(order.total),
+        panelUrl: order.user_id
+          ? `https://korix3d.pl/panel/zamowienia/sklep/${order.id}`
+          : 'https://korix3d.pl/logowanie',
+      });
     }
     return { status: 'processed', orderId };
   }

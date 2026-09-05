@@ -10,6 +10,7 @@ import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
 import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { storeOrderSchema } from '@/lib/store-order-validation';
+import { sendOrderUpdateEmailSafely } from '@/lib/email/smtp';
 
 export const dynamic = 'force-dynamic';
 
@@ -178,6 +179,18 @@ export async function POST(request: NextRequest) {
         );
       }
       paymentToken = checkoutToken.token;
+
+      await sendOrderUpdateEmailSafely({
+        to: parsed.data.customer.email,
+        customerName: parsed.data.customer.name,
+        orderNumber: savedOrderNumber,
+        orderType: 'store',
+        event: 'placed',
+        totalGross: typeof order === 'object' && order !== null && 'total' in order ? Number(order.total) : null,
+        panelUrl: auth.user
+          ? `https://korix3d.pl/panel/zamowienia/sklep/${orderId}`
+          : 'https://korix3d.pl/logowanie',
+      });
     }
 
     return NextResponse.json({

@@ -1,7 +1,7 @@
 import 'server-only';
 import nodemailer from 'nodemailer';
 import { z } from 'zod';
-import { createPaymentLinkEmail } from '@/lib/email/templates';
+import { createOrderUpdateEmail, createPaymentLinkEmail, type OrderUpdateEmailInput } from '@/lib/email/templates';
 
 const smtpSchema = z.object({
   SMTP_HOST: z.string().trim().min(1),
@@ -85,6 +85,30 @@ export async function sendPaymentLinkEmailSafely(message: PaymentLinkMessage) {
     return { delivered: true } as const;
   } catch (error) {
     console.error('Payment email delivery failed.', {
+      reason: error instanceof Error ? error.name : 'unknown_error',
+    });
+    return { delivered: false, reason: 'delivery_failed' } as const;
+  }
+}
+
+export async function sendOrderUpdateEmailSafely(message: OrderUpdateEmailInput & { to: string }) {
+  const environment = getSmtpEnvironment();
+  if (!environment) {
+    console.warn('Order update email skipped: SMTP is not configured.');
+    return { delivered: false, reason: 'not_configured' } as const;
+  }
+  try {
+    const content = createOrderUpdateEmail(message);
+    await getTransport(environment).sendMail({
+      from: { name: environment.SMTP_FROM_NAME, address: environment.SMTP_FROM_EMAIL },
+      to: message.to,
+      subject: content.subject,
+      text: content.text,
+      html: content.html,
+    });
+    return { delivered: true } as const;
+  } catch (error) {
+    console.error('Order update email delivery failed.', {
       reason: error instanceof Error ? error.name : 'unknown_error',
     });
     return { delivered: false, reason: 'delivery_failed' } as const;

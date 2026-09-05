@@ -13,6 +13,7 @@ import {
   isOrder3DStatus,
   ORDER_3D_STATUS_LABELS,
 } from '@/lib/order-3d-status';
+import { sendOrderUpdateEmailSafely } from '@/lib/email/smtp';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,7 +138,7 @@ export async function PATCH(request: NextRequest) {
 
       const { data: currentOrder, error: currentOrderError } = await context.client
         .from('orders_3d')
-        .select('status')
+        .select('status, user_id, order_number, final_price')
         .eq('id', id)
         .maybeSingle();
 
@@ -174,6 +175,19 @@ export async function PATCH(request: NextRequest) {
           { error: 'Status zamówienia zmienił się w międzyczasie. Odśwież listę.' },
           { status: 409 }
         );
+      }
+      const { data: customer } = await context.client.auth.admin.getUserById(currentOrder.user_id);
+      if (customer.user?.email) {
+        await sendOrderUpdateEmailSafely({
+          to: customer.user.email,
+          customerName: typeof customer.user.user_metadata?.full_name === 'string' ? customer.user.user_metadata.full_name : null,
+          orderNumber: currentOrder.order_number,
+          orderType: 'quote',
+          event: 'status',
+          statusLabel: ORDER_3D_STATUS_LABELS[status],
+          totalGross: Number(currentOrder.final_price) || null,
+          panelUrl: `https://korix3d.pl/panel/zamowienia/${id}`,
+        });
       }
       return NextResponse.json({ success: true });
     }

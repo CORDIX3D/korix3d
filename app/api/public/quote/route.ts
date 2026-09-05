@@ -6,6 +6,7 @@ import {
 } from '@/lib/supabase/env';
 import { createServiceRoleClient } from '@/lib/supabase/service-client';
 import { isJsonBodyError, readJsonObject } from '@/lib/api/json-body';
+import { sendOrderUpdateEmailSafely } from '@/lib/email/smtp';
 import { checkPublicRateLimit, rateLimitResponse } from '@/lib/api/public-rate-limit';
 import {
   parseDeliveryOptions,
@@ -281,6 +282,23 @@ export async function POST(request: NextRequest) {
           { error: 'Nie udało się przypisać plików do zlecenia.' },
           { status: 500 }
         );
+      }
+
+      const { data: savedQuote } = await admin
+        .from('orders_3d')
+        .select('order_number')
+        .eq('id', orderId)
+        .eq('user_id', auth.user.id)
+        .maybeSingle();
+      if (auth.user.email && savedQuote?.order_number) {
+        await sendOrderUpdateEmailSafely({
+          to: auth.user.email,
+          customerName: typeof auth.user.user_metadata?.full_name === 'string' ? auth.user.user_metadata.full_name : null,
+          orderNumber: savedQuote.order_number,
+          orderType: 'quote',
+          event: 'placed',
+          panelUrl: `https://korix3d.pl/panel/zamowienia/${orderId}`,
+        });
       }
 
       return NextResponse.json({ success: true });

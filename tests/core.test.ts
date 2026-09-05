@@ -61,7 +61,7 @@ import {
 import { absoluteSiteUrl, serializeJsonLd } from '../lib/seo';
 import { isEmailNotConfirmedError } from '../lib/auth-error';
 import { isStaleClientChunkError } from '../lib/client-version-recovery';
-import { createPaymentLinkEmail } from '../lib/email/templates';
+import { createOrderUpdateEmail, createPaymentLinkEmail } from '../lib/email/templates';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -125,6 +125,31 @@ test('email płatności odrzuca link poza Stripe', () => {
     totalGross: 10,
     expiresAt: new Date('2026-08-24T18:00:00.000Z'),
     orderType: 'quote',
+  }));
+});
+
+test('email statusu zamówienia zawiera bezpieczny link i neutralizuje HTML', () => {
+  const message = createOrderUpdateEmail({
+    customerName: '<script>alert(1)</script>',
+    orderNumber: 'SK-123',
+    orderType: 'store',
+    event: 'status',
+    statusLabel: 'Wysłane',
+    totalGross: 49.99,
+    panelUrl: 'https://korix3d.pl/panel/zamowienia/sklep/00000000-0000-4000-8000-000000000001',
+  });
+  assert.match(message.subject, /SK-123/);
+  assert.match(message.html, /Wysłane/);
+  assert.match(message.html, /&lt;script&gt;/);
+  assert.doesNotMatch(message.html, /<script>/);
+});
+
+test('email statusu zamówienia odrzuca obcą domenę', () => {
+  assert.throws(() => createOrderUpdateEmail({
+    orderNumber: 'SK-123',
+    orderType: 'store',
+    event: 'paid',
+    panelUrl: 'https://example.com/phishing',
   }));
 });
 

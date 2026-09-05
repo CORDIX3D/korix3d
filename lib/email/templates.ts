@@ -7,6 +7,16 @@ type PaymentLinkEmailInput = {
   orderType: 'store' | 'quote';
 };
 
+export type OrderUpdateEmailInput = {
+  customerName?: string | null;
+  orderNumber: string;
+  orderType: 'store' | 'quote';
+  event: 'placed' | 'paid' | 'status';
+  statusLabel?: string;
+  totalGross?: number | null;
+  panelUrl: string;
+};
+
 function escapeHtml(value: string) {
   return value
     .replaceAll('&', '&amp;')
@@ -101,6 +111,42 @@ export function createPaymentLinkEmail(input: PaymentLinkEmailInput) {
     </table>
   </body>
 </html>`;
+
+  return { subject, text, html };
+}
+
+function safePanelUrl(value: string) {
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || (url.hostname !== 'korix3d.pl' && !url.hostname.endsWith('.korix3d.pl'))) {
+    throw new Error('Order email URL must be an HTTPS KORIX3D URL.');
+  }
+  return url.toString();
+}
+
+export function createOrderUpdateEmail(input: OrderUpdateEmailInput) {
+  const panelUrl = safePanelUrl(input.panelUrl);
+  const customerName = input.customerName?.trim();
+  const greeting = customerName ? `Dzień dobry, ${escapeHtml(customerName)}!` : 'Dzień dobry!';
+  const plainGreeting = customerName ? `Dzień dobry, ${customerName}!` : 'Dzień dobry!';
+  const orderNumber = escapeHtml(input.orderNumber);
+  const kind = input.orderType === 'quote' ? 'zlecenia wydruku 3D' : 'zamówienia sklepowego';
+  const total = input.totalGross && input.totalGross > 0 ? formatPrice(input.totalGross) : null;
+
+  let heading = 'Zmiana statusu zamówienia';
+  let subject = `${input.orderNumber} — aktualizacja realizacji`;
+  let message = `Status ${kind} został zmieniony na: ${input.statusLabel || 'Zaktualizowano'}.`;
+  if (input.event === 'placed') {
+    heading = 'Zamówienie zostało przyjęte';
+    subject = `Przyjęliśmy zamówienie ${input.orderNumber}`;
+    message = `Przyjęliśmy ${kind}. Po potwierdzeniu płatności rozpoczniemy realizację.`;
+  } else if (input.event === 'paid') {
+    heading = 'Płatność została potwierdzona';
+    subject = `Płatność za ${input.orderNumber} potwierdzona`;
+    message = `Płatność za ${kind} została zaksięgowana. Zamówienie może przejść do realizacji.`;
+  }
+
+  const text = [plainGreeting, '', message, `Numer: ${input.orderNumber}`, total ? `Kwota brutto: ${total}` : '', '', panelUrl, '', 'KORIX3D — tworzymy przyszłość warstwa po warstwie'].filter(Boolean).join('\n');
+  const html = `<!doctype html><html lang="pl"><body style="margin:0;background:#111214;color:#f5f5f5;font-family:Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#111214;padding:24px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#191b1f;border:1px solid #303238;border-radius:16px;overflow:hidden"><tr><td style="padding:28px 32px;background:#0c0d0f;border-bottom:3px solid #ff7900"><div style="font-size:26px;font-weight:800;letter-spacing:2px;color:#fff">KORIX<span style="color:#ff7900">3D</span></div><div style="margin-top:7px;font-size:12px;letter-spacing:1.5px;color:#aaa">TWORZYMY PRZYSZŁOŚĆ WARSTWA PO WARSTWIE</div></td></tr><tr><td style="padding:32px"><h1 style="margin:0 0 18px;font-size:24px;line-height:1.3;color:#fff">${escapeHtml(heading)}</h1><p style="margin:0 0 16px;line-height:1.65;color:#ddd">${greeting}</p><p style="margin:0 0 22px;line-height:1.65;color:#ddd">${escapeHtml(message)}</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px;background:#101114;border-radius:10px"><tr><td style="padding:16px;color:#aaa">Numer</td><td align="right" style="padding:16px;color:#fff;font-weight:700">${orderNumber}</td></tr>${total ? `<tr><td style="padding:0 16px 16px;color:#aaa">Kwota brutto</td><td align="right" style="padding:0 16px 16px;color:#fff;font-weight:700">${escapeHtml(total)}</td></tr>` : ''}</table><div style="text-align:center;margin:28px 0"><a href="${escapeHtml(panelUrl)}" style="display:inline-block;padding:14px 26px;background:#ff7900;color:#111;text-decoration:none;border-radius:8px;font-weight:800">Sprawdź przebieg realizacji</a></div><p style="margin:0;font-size:13px;line-height:1.6;color:#aaa">Aktualny status jest zawsze dostępny w panelu klienta.</p></td></tr><tr><td style="padding:20px 32px;background:#0c0d0f;color:#777;font-size:12px;text-align:center">Automatyczna wiadomość dotycząca zamówienia w KORIX3D.</td></tr></table></td></tr></table></body></html>`;
 
   return { subject, text, html };
 }

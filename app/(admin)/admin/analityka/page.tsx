@@ -5,7 +5,6 @@ import { BarChart3, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PanelError } from '@/components/customer/panel-state';
-import { supabase } from '@/lib/supabase/client';
 
 type Stats = Record<string, number>;
 
@@ -30,16 +29,10 @@ export default function Page() {
     setLoadError(null);
 
     try {
-      const results = await Promise.all(tables.map(async ([table, label]) => {
-        const { count, error } = await (supabase as any)
-          .from(table)
-          .select('*', { count: 'exact', head: true });
-
-        if (error) throw error;
-        return [label, count || 0] as const;
-      }));
-
-      setStats(Object.fromEntries(results));
+      const response = await fetch('/api/admin/analytics', { cache: 'no-store' });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || 'Nie udało się pobrać danych analitycznych.');
+      setStats((result?.stats || {}) as Stats);
     } catch (error) {
       setStats({});
       setLoadError(error instanceof Error ? error.message : 'Nie udało się pobrać danych analitycznych.');
